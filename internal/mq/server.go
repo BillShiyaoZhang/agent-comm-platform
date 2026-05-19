@@ -2,37 +2,20 @@ package mq
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+
 	pb "github.com/BillShiyaoZhang/agent-comm-platform/proto"
 	goproto "google.golang.org/protobuf/proto"
 )
 
 const ProtoID = "/hermes/agent-comm/mq/1.0.0"
 
-type streamReq struct {
-	Op           string   `json:"op"` // "store" | "retrieve" | "ack"
-	RecipientURN string   `json:"recipient_urn,omitempty"`
-	ExpiryUnix   int64    `json:"expiry_unix,omitempty"`
-	MessageIDs   []string `json:"message_ids,omitempty"`
-	// PayloadProto is the protobuf-encoded EncryptedEnvelope
-	PayloadProto []byte `json:"payload_proto,omitempty"`
-}
-
-type streamResp struct {
-	Ok           bool     `json:"ok"`
-	Error        string   `json:"error,omitempty"`
-	MessageID    string   `json:"message_id,omitempty"`
-	DeletedCount int64    `json:"deleted_count,omitempty"`
-	Payloads     [][]byte `json:"payloads,omitempty"` // each is protobuf-encoded EncryptedEnvelope
-}
-
-// StreamServer handles MQ requests over libp2p streams using JSON framing.
+// StreamServer handles MQ requests over libp2p streams using protobuf framing.
+// Matches agent-comm client: 4-byte big-endian length prefix + protobuf body.
 type StreamServer struct{ store *Store }
 
 func NewStreamServer(h host.Host, store *Store) *StreamServer {
@@ -46,54 +29,86 @@ func (s *StreamServer) handleStream(stream network.Stream) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	buf, err := io.ReadAll(stream)
-	if err != nil || len(buf) == 0 {
+	// Read 4-byte big-endian length prefix, then protobuf body
+	sizeBuf := make([]byte, 4)
+	if _, err := io.ReadFull(stream, sizeBuf); err != nil {
 		return
 	}
-	var req streamReq
-	if err := json.Unmarshal(buf, &req); err != nil {
-		writeJSON(stream, streamResp{Error: "bad request"})
+	size := uint32(sizeBuf[0])<<24 | uint32(sizeBuf[1])<<16 | uint32(sizeBuf[2])<<8 | uint32(sizeBuf[3])
+	if size > 1<<20 { // 1MB sanity cap
+		return
+	}
+	data := make([]byte, size)
+	if _, err := io.ReadFull(stream, data); err != nil {
 		return
 	}
 
-	switch req.Op {
-	case "store":
-		var env pb.EncryptedEnvelope
-		if err := goproto.Unmarshal(req.PayloadProto, &env); err != nil {
-			writeJSON(stream, streamResp{Error: "bad payload"})
+	var req pb.MQRequest
+	if err := goproto.Unmarshal(data, &req); err != nil {
+		writeResp(stream, &pb.MQResponse{
+			Op: &pb.MQResponse_Error{Error: &pb.ErrorResponse{Message: "bad request"}},
+		})
+		return
+	}
+
+	switch op := req.GetOp().(type) {
+	case *pb.MQRequest_Store:
+		storeReq := op.Store
+		envpb := storeReq.Payload
+		id, err := s.store.StoreEnvelope(ctx, storeReq.RecipientUrn, envpb, storeReq.ExpiryUnix)
+		if err != nil {
+			writeResp(stream, &pb.MQResponse{
+				Op: &pb.MQResponse_Error{Error: &pb.ErrorResponse{Message: err.Error()}},
+			})
+		} else {
+			writeResp(stream, &pb.MQResponse{
+				Op: &pb.MQResponse_Store{Store: &pb.StoreResponse{Ok: true, MessageId: id}},
+			})
+		}
+
+	case *pb.MQRequest_Retrieve:
+		envs, _, err := s.store.Retrieve(ctx, op.Retrieve.RecipientUrn)
+		if err != nil {
+			writeResp(stream, &pb.MQResponse{
+				Op: &pb.MQResponse_Error{Error: &pb.ErrorResponse{Message: err.Error()}},
+			})
 			return
 		}
-		id, err := s.store.StoreEnvelope(ctx, req.RecipientURN, &env, req.ExpiryUnix)
+		writeResp(stream, &pb.MQResponse{
+			Op: &pb.MQResponse_Retrieve{Retrieve: &pb.RetrieveResponse{Payloads: envs}},
+		})
+
+	case *pb.MQRequest_Ack:
+		n, err := s.store.Ack(ctx, op.Ack.MessageIds)
 		if err != nil {
-			writeJSON(stream, streamResp{Error: err.Error()})
+			writeResp(stream, &pb.MQResponse{
+				Op: &pb.MQResponse_Error{Error: &pb.ErrorResponse{Message: err.Error()}},
+			})
 		} else {
-			writeJSON(stream, streamResp{Ok: true, MessageID: id})
+			writeResp(stream, &pb.MQResponse{
+				Op: &pb.MQResponse_Ack{Ack: &pb.AckResponse{Ok: true, DeletedCount: int32(n)}},
+			})
 		}
-	case "retrieve":
-		envs, _, err := s.store.Retrieve(ctx, req.RecipientURN)
-		if err != nil {
-			writeJSON(stream, streamResp{Error: err.Error()})
-			return
-		}
-		var payloads [][]byte
-		for _, env := range envs {
-			data, _ := goproto.Marshal(env)
-			payloads = append(payloads, data)
-		}
-		writeJSON(stream, streamResp{Ok: true, Payloads: payloads})
-	case "ack":
-		n, err := s.store.Ack(ctx, req.MessageIDs)
-		if err != nil {
-			writeJSON(stream, streamResp{Error: err.Error()})
-		} else {
-			writeJSON(stream, streamResp{Ok: true, DeletedCount: n})
-		}
+
 	default:
-		writeJSON(stream, streamResp{Error: fmt.Sprintf("unknown op: %s", req.Op)})
+		writeResp(stream, &pb.MQResponse{
+			Op: &pb.MQResponse_Error{Error: &pb.ErrorResponse{Message: "unknown op"}},
+		})
 	}
 }
 
-func writeJSON(w io.Writer, v interface{}) {
-	data, _ := json.Marshal(v)
-	w.Write(data)
+// writeResp marshals a pb.MQResponse and writes it with 4-byte big-endian length prefix.
+func writeResp(stream network.Stream, resp *pb.MQResponse) {
+	data, err := goproto.Marshal(resp)
+	if err != nil {
+		return
+	}
+	sizeBuf := [4]byte{
+		byte(len(data) >> 24),
+		byte(len(data) >> 16),
+		byte(len(data) >> 8),
+		byte(len(data)),
+	}
+	stream.Write(sizeBuf[:])
+	stream.Write(data)
 }

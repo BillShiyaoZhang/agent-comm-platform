@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/BillShiyaoZhang/agent-comm-platform/proto";
+
+message EncryptedEnvelope {
+  string sender_urn = 1;
+  bytes sender_static_pubkey = 2;
+  bytes ephemeral_pubkey = 3;
+  bytes nonce = 4;
+  bytes ciphertext = 5;
+  bytes tag = 6;
+  string message_id = 7;
+}
+
+message TextMessage {
+  string text = 1;
+  int64 timestamp = 2;
+}
+
+message ChatMessage {
+  oneof body {
+    TextMessage text = 1;
+    bytes raw = 99;
+  }
+}
+
+message URNRegistryRequest {
+  oneof op {
+    RegisterRequest register = 1;
+    ResolveRequest resolve = 2;
+  }
+}
+
+message RegisterRequest {
+  string urn = 1;
+  string peer_id = 2;
+  repeated string addrs = 3;
+  bytes x25519_pubkey = 4;
+}
+
+message ResolveRequest {
+  string urn = 1;
+}
+
+message URNRegistryResponse {
+  oneof op {
+    RegisterResponse register = 1;
+    ResolveResponse resolve = 2;
+  }
+}
+
+message RegisterResponse {
+  bool ok = 1;
+  string info = 2;
+}
+
+message ResolveResponse {
+  bool found = 1;
+  string peer_id = 2;
+  repeated string addrs = 3;
+  bytes x25519_pubkey = 4;
+}
+
+message MQRequest {
+  oneof op {
+    StoreRequest store = 1;
+    RetrieveRequest retrieve = 2;
+    AckRequest ack = 3;
+  }
+}
+
+message StoreRequest {
+  string recipient_urn = 1;
+  EncryptedEnvelope payload = 2;
+  int64 expiry_unix = 3;
+}
+
+message RetrieveRequest {
+  string recipient_urn = 1;
+}
+
+message AckRequest {
+  repeated string message_ids = 1;
+}
+
+message MQResponse {
+  oneof op {
+    StoreResponse store = 1;
+    RetrieveResponse retrieve = 2;
+    AckResponse ack = 3;
+    ErrorResponse error = 4;
+  }
+}
+
+message StoreResponse {
+  bool ok = 1;
+  string message_id = 2;
+}
+
+message RetrieveResponse {
+  repeated EncryptedEnvelope payloads = 1;
+}
+
+message AckResponse {
+  bool ok = 1;
+  int32 deleted_count = 2;
+}
+
+message ErrorResponse {
+  string message = 1;
+}

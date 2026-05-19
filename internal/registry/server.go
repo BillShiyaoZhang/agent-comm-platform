@@ -1,38 +1,21 @@
 package registry
 
 import (
-	"encoding/json"
-	"fmt"
 	"io"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+
+	pb "github.com/BillShiyaoZhang/agent-comm-platform/proto"
+	goproto "google.golang.org/protobuf/proto"
 )
 
 const ProtoID = "/hermes/agent-comm/registry/1.0.0"
 
-type streamRegisterReq struct {
-	URN          string   `json:"urn"`
-	PeerID       string   `json:"peer_id"`
-	Addrs        []string `json:"addrs"`
-	X25519Pubkey []byte   `json:"x25519_pubkey"`
-	Ed25519Pubkey []byte  `json:"ed25519_pubkey"`
-	Signature    []byte   `json:"signature"`
-	Timestamp    int64    `json:"timestamp"`
-	Op           string   `json:"op"` // "register" | "resolve"
-}
-
-type streamResp struct {
-	Ok           bool     `json:"ok"`
-	Found        bool     `json:"found"`
-	Info         string   `json:"info,omitempty"`
-	PeerID       string   `json:"peer_id,omitempty"`
-	Addrs        []string `json:"addrs,omitempty"`
-	X25519Pubkey []byte   `json:"x25519_pubkey,omitempty"`
-}
-
-// Server handles URN registration and resolution via libp2p streams (JSON framing).
+// Server handles URN registration and resolution via libp2p streams.
+// Uses raw protobuf framing to match agent-comm client.
 type Server struct {
 	host  host.Host
 	store *Store
@@ -46,37 +29,95 @@ func NewServer(h host.Host, store *Store) *Server {
 
 func (s *Server) handleStream(stream network.Stream) {
 	defer stream.Close()
+
 	buf, err := io.ReadAll(stream)
 	if err != nil || len(buf) == 0 {
 		return
 	}
-	var req streamRegisterReq
-	if err := json.Unmarshal(buf, &req); err != nil {
-		fmt.Fprintf(stream, `{"ok":false,"info":"bad request"}`)
+
+	var req pb.URNRegistryRequest
+	if err := goproto.Unmarshal(buf, &req); err != nil {
+		writeResp(stream, &pb.URNRegistryResponse{
+			Op: &pb.URNRegistryResponse_Register{
+				Register: &pb.RegisterResponse{
+					Ok:   false,
+					Info: "bad request",
+				},
+			},
+		})
 		return
 	}
-	var resp streamResp
-	switch req.Op {
-	case "register":
-		err := s.store.Register(req.URN, req.PeerID, req.Addrs, nil,
-			req.X25519Pubkey, req.Ed25519Pubkey, req.Signature, req.Timestamp)
-		resp.Ok = err == nil
-		if err != nil {
-			resp.Info = err.Error()
-		}
-	case "resolve":
-		entry, err := s.store.Resolve(req.URN)
+
+	switch op := req.GetOp().(type) {
+	case *pb.URNRegistryRequest_Register:
+		regReq := op.Register
+		err := s.store.Register(
+			regReq.Urn,
+			regReq.PeerId,
+			regReq.Addrs,
+			nil, // relayAddrs — not in agent-comm client proto
+			regReq.X25519Pubkey,
+			nil, // ed25519Pubkey — not in agent-comm client proto
+			nil, // signature    — not in agent-comm client proto
+			0,   // timestamp    — not in agent-comm client proto
+		)
+		writeResp(stream, &pb.URNRegistryResponse{
+			Op: &pb.URNRegistryResponse_Register{
+				Register: &pb.RegisterResponse{
+					Ok:   err == nil,
+					Info: func() string { if err != nil { return err.Error() }; return "" }(),
+				},
+			},
+		})
+
+	case *pb.URNRegistryRequest_Resolve:
+		entry, err := s.store.Resolve(op.Resolve.Urn)
 		if err != nil || entry == nil {
-			resp.Found = false
-		} else {
-			resp.Found = true
-			resp.PeerID = entry.PeerID
-			resp.Addrs = entry.Addrs
-			resp.X25519Pubkey = entry.X25519Pubkey
+			writeResp(stream, &pb.URNRegistryResponse{
+				Op: &pb.URNRegistryResponse_Resolve{
+					Resolve: &pb.ResolveResponse{Found: false},
+				},
+			})
+			return
 		}
+
+		// Validate peer.ID is well-formed
+		if _, err := peer.Decode(entry.PeerID); err != nil {
+			writeResp(stream, &pb.URNRegistryResponse{
+				Op: &pb.URNRegistryResponse_Resolve{
+					Resolve: &pb.ResolveResponse{Found: false},
+				},
+			})
+			return
+		}
+
+		writeResp(stream, &pb.URNRegistryResponse{
+			Op: &pb.URNRegistryResponse_Resolve{
+				Resolve: &pb.ResolveResponse{
+					Found:        true,
+					PeerId:       entry.PeerID,
+					Addrs:        entry.Addrs,
+					X25519Pubkey: entry.X25519Pubkey,
+				},
+			},
+		})
+
 	default:
-		resp.Info = "unknown op"
+		writeResp(stream, &pb.URNRegistryResponse{
+			Op: &pb.URNRegistryResponse_Register{
+				Register: &pb.RegisterResponse{
+					Ok:   false,
+					Info: "unknown op",
+				},
+			},
+		})
 	}
-	out, _ := json.Marshal(resp)
-	stream.Write(out)
+}
+
+func writeResp(stream network.Stream, resp *pb.URNRegistryResponse) {
+	data, err := goproto.Marshal(resp)
+	if err != nil {
+		return
+	}
+	stream.Write(data)
 }
