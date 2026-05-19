@@ -1,0 +1,14 @@
+services:
+  platform:
+    build: .
+    ports:
+      - "45041:45041"
+      - "45041:45041/udp"
+      - "8080:8080"
+    volumes:
+      - ./config.example.yaml:/etc/platform/config.yaml:ro
+      - platform_data:/data
+    restart: unless-stopped
+
+volumes:
+  platform_data:

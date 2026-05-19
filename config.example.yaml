@@ -1,0 +1,33 @@
+platform:
+  mode: "privacy"      # "privacy" | "compliance"
+  data_dir: "./data"
+
+identity:
+  keys_dir: "./data/keys"
+
+libp2p:
+  listen_addrs:
+    - "/ip4/0.0.0.0/tcp/45041"
+    - "/ip4/0.0.0.0/udp/45041/quic-v1"
+  external_addrs: []   # e.g. ["/ip4/1.2.3.4/tcp/45041"]
+
+registry:
+  persist_db: "./data/registry.db"
+  ttl_hours: 24
+  http_enabled: true
+
+relay:
+  enabled: true
+  max_reservations: 1000
+  max_circuit_duration: "2m"
+
+mq:
+  db_path: "./data/mq.db"
+  default_ttl_days: 7
+  max_msgs_per_urn: 500
+  http_enabled: true
+
+api:
+  listen_addr: ":8080"
+  tls_cert: ""
+  tls_key: ""

@@ -1,0 +1,150 @@
+// Package mq provides the high-availability async message queue (mailbox) for offline agents.
+package mq
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/google/uuid"
+	pb "github.com/BillShiyaoZhang/agent-comm-platform/proto"
+	goproto "google.golang.org/protobuf/proto"
+	_ "modernc.org/sqlite"
+)
+
+const schema = `
+CREATE TABLE IF NOT EXISTS messages (
+  id           TEXT PRIMARY KEY,
+  recipient    TEXT NOT NULL,
+  payload      BLOB NOT NULL,
+  expiry       INTEGER NOT NULL,
+  stored_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_recipient ON messages(recipient);
+CREATE INDEX IF NOT EXISTS idx_expiry    ON messages(expiry);
+`
+
+// Store is the SQLite-backed MQ store.
+type Store struct {
+	db            *sql.DB
+	defaultTTL    time.Duration
+	maxPerURN     int
+}
+
+// NewStore opens (or creates) the MQ database.
+func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open mq db: %w", err)
+	}
+	if _, err := db.Exec(schema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create mq schema: %w", err)
+	}
+	s := &Store{
+		db:         db,
+		defaultTTL: time.Duration(defaultTTLDays) * 24 * time.Hour,
+		maxPerURN:  maxPerURN,
+	}
+	go s.cleanupLoop()
+	return s, nil
+}
+
+// Store saves an EncryptedEnvelope for a recipient. Enforces per-URN quota (FIFO eviction).
+func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pb.EncryptedEnvelope, expiryUnix int64) (string, error) {
+	msgID := env.GetMessageId()
+	if msgID == "" {
+		msgID = uuid.New().String()
+	}
+
+	if expiryUnix == 0 {
+		expiryUnix = time.Now().Add(s.defaultTTL).Unix()
+	}
+
+	payload, err := goproto.Marshal(env)
+	if err != nil {
+		return "", fmt.Errorf("marshal envelope: %w", err)
+	}
+
+	// Enforce per-URN quota: delete oldest if over limit
+	if s.maxPerURN > 0 {
+		if _, err := s.db.ExecContext(ctx, `
+			DELETE FROM messages WHERE id IN (
+			  SELECT id FROM messages WHERE recipient=? ORDER BY stored_at ASC
+			  LIMIT MAX(0, (SELECT COUNT(*) FROM messages WHERE recipient=?) - ?)
+			)`, recipientURN, recipientURN, s.maxPerURN-1); err != nil {
+			log.Printf("[mq] quota eviction error: %v", err)
+		}
+	}
+
+	_, err = s.db.ExecContext(ctx,
+		"INSERT OR IGNORE INTO messages (id, recipient, payload, expiry, stored_at) VALUES (?, ?, ?, ?, ?)",
+		msgID, recipientURN, payload, expiryUnix, time.Now().Unix())
+	if err != nil {
+		return "", fmt.Errorf("insert message: %w", err)
+	}
+	return msgID, nil
+}
+
+// Retrieve returns all pending envelopes for a recipient (oldest first).
+func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*pb.EncryptedEnvelope, []string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT id, payload FROM messages WHERE recipient=? AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC",
+		recipientURN, time.Now().Unix())
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var envs []*pb.EncryptedEnvelope
+	var ids []string
+	for rows.Next() {
+		var id string
+		var data []byte
+		if err := rows.Scan(&id, &data); err != nil {
+			continue
+		}
+		var env pb.EncryptedEnvelope
+		if err := goproto.Unmarshal(data, &env); err != nil {
+			continue
+		}
+		envs = append(envs, &env)
+		ids = append(ids, id)
+	}
+	return envs, ids, nil
+}
+
+// Ack deletes the given message IDs.
+func (s *Store) Ack(ctx context.Context, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	placeholders := "?" 
+	args := make([]interface{}, len(ids))
+	args[0] = ids[0]
+	for i := 1; i < len(ids); i++ {
+		placeholders += ",?"
+		args[i] = ids[i]
+	}
+	res, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE id IN ("+placeholders+")", args...)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+// Close closes the database.
+func (s *Store) Close() error { return s.db.Close() }
+
+func (s *Store) cleanupLoop() {
+	tick := time.NewTicker(5 * time.Minute)
+	defer tick.Stop()
+	for range tick.C {
+		if _, err := s.db.Exec("DELETE FROM messages WHERE expiry>0 AND expiry<?", time.Now().Unix()); err != nil {
+			log.Printf("[mq] cleanup error: %v", err)
+		}
+	}
+}
