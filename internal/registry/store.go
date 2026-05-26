@@ -14,6 +14,9 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/BillShiyaoZhang/agent-comm/registry"
 )
 
 // Entry holds the full registration info for a URN.
@@ -33,6 +36,9 @@ type Store struct {
 	db  *sql.DB
 	ttl time.Duration
 }
+
+var _ registry.Store = (*Store)(nil)
+
 
 const schema = `
 CREATE TABLE IF NOT EXISTS registry (
@@ -63,9 +69,30 @@ func NewStore(dbPath string, ttlHours int) (*Store, error) {
 	return s, nil
 }
 
-// Register upserts a URN entry. If ed25519Pubkey+signature are provided,
+// Register satisfies the registry.Store interface from the core SDK.
+func (s *Store) Register(urn, peerID string, addrs []string, x25519PubKey []byte) (bool, string) {
+	err := s.RegisterWithSignature(urn, peerID, addrs, nil, x25519PubKey, nil, nil, 0)
+	if err != nil {
+		return false, err.Error()
+	}
+	return true, ""
+}
+
+// Resolve satisfies the registry.Store interface from the core SDK.
+func (s *Store) Resolve(urn string) (string, []string, []byte, bool) {
+	entry, err := s.ResolveEntry(urn)
+	if err != nil || entry == nil {
+		return "", nil, nil, false
+	}
+	if _, err := peer.Decode(entry.PeerID); err != nil {
+		return "", nil, nil, false
+	}
+	return entry.PeerID, entry.Addrs, entry.X25519Pubkey, true
+}
+
+// RegisterWithSignature upserts a URN entry. If ed25519Pubkey+signature are provided,
 // the signature is verified before storing. signature covers: urn||peer_id||timestamp (big-endian int64).
-func (s *Store) Register(urn, peerID string, addrs, relayAddrs []string,
+func (s *Store) RegisterWithSignature(urn, peerID string, addrs, relayAddrs []string,
 	x25519PK, ed25519PK, signature []byte, timestamp int64) error {
 
 	// Replay-attack guard: reject if timestamp is >5 min old
@@ -99,8 +126,8 @@ func (s *Store) Register(urn, peerID string, addrs, relayAddrs []string,
 	return err
 }
 
-// Resolve looks up a URN. Returns nil if not found or expired.
-func (s *Store) Resolve(urn string) (*Entry, error) {
+// ResolveEntry looks up a URN. Returns nil if not found or expired.
+func (s *Store) ResolveEntry(urn string) (*Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

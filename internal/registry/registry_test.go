@@ -19,7 +19,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	goproto "google.golang.org/protobuf/proto"
 
-	pb "github.com/BillShiyaoZhang/agent-comm-platform/proto"
+	coreregistry "github.com/BillShiyaoZhang/agent-comm/registry"
+	pb "github.com/BillShiyaoZhang/agent-comm/proto"
 )
 
 // Helper to create a signature
@@ -54,12 +55,12 @@ func TestRegistryStore(t *testing.T) {
 	}
 
 	// 1. Basic Register & Resolve (no signature)
-	err = store.Register(urn, peerID, addrs, nil, xPK, nil, nil, 0)
+	err = store.RegisterWithSignature(urn, peerID, addrs, nil, xPK, nil, nil, 0)
 	if err != nil {
 		t.Fatalf("Register error: %v", err)
 	}
 
-	entry, err := store.Resolve(urn)
+	entry, err := store.ResolveEntry(urn)
 	if err != nil {
 		t.Fatalf("Resolve error: %v", err)
 	}
@@ -71,7 +72,7 @@ func TestRegistryStore(t *testing.T) {
 	}
 
 	// 2. Resolve non-existent URN
-	entry, err = store.Resolve("urn:hermes:agent:nonexistent")
+	entry, err = store.ResolveEntry("urn:hermes:agent:nonexistent")
 	if err != nil {
 		t.Fatalf("Resolve nonexistent error: %v", err)
 	}
@@ -96,7 +97,7 @@ func TestRegistryStore(t *testing.T) {
 
 	// Valid signature
 	sig := makeRegistrySig(t, sigURN, sigPeerID, timestamp, privKey)
-	err = store.Register(sigURN, sigPeerID, addrs, nil, xPK, pubKey, sig, timestamp)
+	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, sig, timestamp)
 	if err != nil {
 		t.Errorf("expected valid signature to succeed, got: %v", err)
 	}
@@ -107,7 +108,7 @@ func TestRegistryStore(t *testing.T) {
 	if len(badSig) > 0 {
 		badSig[0] ^= 0xFF
 	}
-	err = store.Register(sigURN, sigPeerID, addrs, nil, xPK, pubKey, badSig, timestamp)
+	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, badSig, timestamp)
 	if err == nil || !strings.Contains(err.Error(), "invalid signature") {
 		t.Errorf("expected registration with bad signature to fail, got: %v", err)
 	}
@@ -115,7 +116,7 @@ func TestRegistryStore(t *testing.T) {
 	// Expired/Out of window timestamp
 	oldTimestamp := time.Now().Unix() - 600
 	oldSig := makeRegistrySig(t, sigURN, sigPeerID, oldTimestamp, privKey)
-	err = store.Register(sigURN, sigPeerID, addrs, nil, xPK, pubKey, oldSig, oldTimestamp)
+	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, oldSig, oldTimestamp)
 	if err == nil || !strings.Contains(err.Error(), "timestamp out of window") {
 		t.Errorf("expected registration with expired timestamp to fail, got: %v", err)
 	}
@@ -145,7 +146,7 @@ func TestRegistryLibp2pServer(t *testing.T) {
 	}
 	defer hSrv.Close()
 
-	NewServer(hSrv, store)
+	coreregistry.NewServer(hSrv, store).Register()
 
 	// 2. Setup Client Host
 	hCli, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
@@ -158,7 +159,7 @@ func TestRegistryLibp2pServer(t *testing.T) {
 	hCli.Peerstore().AddAddrs(hSrv.ID(), hSrv.Addrs(), peerstore.PermanentAddrTTL)
 
 	// 3. Test Register via libp2p stream
-	streamReg, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(ProtoID))
+	streamReg, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(coreregistry.ProtoID))
 	if err != nil {
 		t.Fatalf("open register stream: %v", err)
 	}
@@ -210,7 +211,7 @@ func TestRegistryLibp2pServer(t *testing.T) {
 	}
 
 	// 4. Test Resolve via libp2p stream
-	streamRes, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(ProtoID))
+	streamRes, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(coreregistry.ProtoID))
 	if err != nil {
 		t.Fatalf("open resolve stream: %v", err)
 	}
@@ -373,7 +374,7 @@ func TestRegistryResolveInvalidPeer(t *testing.T) {
 	defer store.Close()
 
 	// Register with an invalid peer ID string (won't decode using peer.Decode)
-	err = store.Register("urn:hermes:agent:invalid", "invalid-peer-id-format", []string{"/ip4/127.0.0.1"}, nil, nil, nil, nil, 0)
+	err = store.RegisterWithSignature("urn:hermes:agent:invalid", "invalid-peer-id-format", []string{"/ip4/127.0.0.1"}, nil, nil, nil, nil, 0)
 	if err != nil {
 		t.Fatalf("Register error: %v", err)
 	}
@@ -381,13 +382,13 @@ func TestRegistryResolveInvalidPeer(t *testing.T) {
 	// Test the libp2p server resolve behavior for this invalid entry
 	hSrv, _ := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	defer hSrv.Close()
-	NewServer(hSrv, store)
+	coreregistry.NewServer(hSrv, store).Register()
 
 	hCli, _ := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
 	defer hCli.Close()
 	hCli.Peerstore().AddAddrs(hSrv.ID(), hSrv.Addrs(), peerstore.PermanentAddrTTL)
 
-	stream, err := hCli.NewStream(context.Background(), hSrv.ID(), protocol.ID(ProtoID))
+	stream, err := hCli.NewStream(context.Background(), hSrv.ID(), protocol.ID(coreregistry.ProtoID))
 	if err != nil {
 		t.Fatalf("open resolve stream: %v", err)
 	}

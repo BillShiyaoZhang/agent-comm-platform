@@ -17,10 +17,12 @@ import (
 
 	"github.com/BillShiyaoZhang/agent-comm-platform/internal/api"
 	"github.com/BillShiyaoZhang/agent-comm-platform/internal/config"
-	"github.com/BillShiyaoZhang/agent-comm-platform/internal/identity"
 	mqpkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/mq"
 	registrypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/registry"
 	relaypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/relay"
+	"github.com/BillShiyaoZhang/agent-comm/crypto"
+	"github.com/BillShiyaoZhang/agent-comm/mq"
+	"github.com/BillShiyaoZhang/agent-comm/registry"
 )
 
 func main() {
@@ -39,14 +41,14 @@ func main() {
 	defer cancel()
 
 	// ── Identity ─────────────────────────────────────────────────────────────
-	id, err := identity.LoadOrCreate(cfg.Identity.KeysDir)
+	id, err := crypto.LoadOrCreateIdentity(cfg.Identity.KeysDir)
 	if err != nil {
 		log.Fatalf("load identity: %v", err)
 	}
-	log.Printf("Platform identity: %s", id.URN)
+	log.Printf("Platform identity: %s", id.Ed25519.URN())
 
 	// ── libp2p Host ───────────────────────────────────────────────────────────
-	libp2pPrivKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(id.Ed25519Priv)
+	libp2pPrivKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(id.Ed25519.PrivateKey)
 	if err != nil {
 		log.Fatalf("unmarshal libp2p key: %v", err)
 	}
@@ -71,12 +73,12 @@ func main() {
 		log.Fatalf("create registry store: %v", err)
 	}
 	defer regStore.Close()
-	_ = registrypkg.NewServer(h, regStore)
-	log.Printf("Registry: %s", registrypkg.ProtoID)
+	_ = registry.NewServer(h, regStore)
+	log.Printf("Registry: %s", registry.ProtoID)
 
 	// Self-register
-	_ = regStore.Register(id.URN, h.ID().String(), hostAddrs(h), nil,
-		id.X25519Pub[:], id.Ed25519Pub, nil, 0)
+	_ = regStore.RegisterWithSignature(id.Ed25519.URN(), h.ID().String(), hostAddrs(h), nil,
+		id.X25519PK, id.Ed25519.PublicKey, nil, 0)
 
 	// ── Relay v2 ─────────────────────────────────────────────────────────────
 	if cfg.Relay.Enabled {
@@ -99,8 +101,11 @@ func main() {
 		log.Fatalf("create mq store: %v", err)
 	}
 	defer mqStore.Close()
-	_ = mqpkg.NewStreamServer(h, mqStore)
-	log.Printf("MQ: %s", mqpkg.ProtoID)
+	_, err = mq.NewServer(h, mqStore)
+	if err != nil {
+		log.Fatalf("create mq server: %v", err)
+	}
+	log.Printf("MQ: %s", mq.ProtoID)
 
 	// ── HTTP API ─────────────────────────────────────────────────────────────
 	apiSrv := api.New(cfg.API.ListenAddr, regStore, mqStore)
@@ -114,7 +119,7 @@ func main() {
 	}()
 
 	fmt.Printf("\n=== Agent Comm Platform ===\nMode : %s\nHTTP : http://%s\nURN  : %s\nCtrl+C to stop.\n",
-		cfg.Platform.Mode, cfg.API.ListenAddr, id.URN)
+		cfg.Platform.Mode, cfg.API.ListenAddr, id.Ed25519.URN())
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)

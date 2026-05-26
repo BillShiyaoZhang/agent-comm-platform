@@ -37,7 +37,7 @@ func handleRegister(store *Store) http.HandlerFunc {
 		if req.Timestamp == 0 {
 			req.Timestamp = time.Now().Unix()
 		}
-		if err := store.Register(req.URN, req.PeerID, req.Addrs, req.RelayAddrs,
+		if err := store.RegisterWithSignature(req.URN, req.PeerID, req.Addrs, req.RelayAddrs,
 			req.X25519Pubkey, req.Ed25519Pubkey, req.Signature, req.Timestamp); err != nil {
 			http.Error(w, "register failed: "+err.Error(), http.StatusBadRequest)
 			return
@@ -54,7 +54,7 @@ func handleResolve(store *Store) http.HandlerFunc {
 			http.Error(w, "urn required", http.StatusBadRequest)
 			return
 		}
-		entry, err := store.Resolve(urn)
+		entry, err := store.ResolveEntry(urn)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return

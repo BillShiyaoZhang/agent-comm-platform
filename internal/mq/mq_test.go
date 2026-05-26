@@ -21,7 +21,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	goproto "google.golang.org/protobuf/proto"
 
-	pb "github.com/BillShiyaoZhang/agent-comm-platform/proto"
+	coremq "github.com/BillShiyaoZhang/agent-comm/mq"
+	pb "github.com/BillShiyaoZhang/agent-comm/proto"
 )
 
 // Helper to write length-prefixed protocol data
@@ -90,7 +91,7 @@ func TestMQStore(t *testing.T) {
 	}
 
 	// 2. Retrieve Envelopes
-	envs, ids, err := store.Retrieve(ctx, urn)
+	envs, ids, err := store.RetrieveEntry(ctx, urn)
 	if err != nil {
 		t.Fatalf("Retrieve error: %v", err)
 	}
@@ -108,7 +109,7 @@ func TestMQStore(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	store.StoreEnvelope(ctx, urn, env4, 0)
 
-	envs, _, err = store.Retrieve(ctx, urn)
+	envs, _, err = store.RetrieveEntry(ctx, urn)
 	if err != nil {
 		t.Fatalf("Retrieve after quota error: %v", err)
 	}
@@ -131,7 +132,7 @@ func TestMQStore(t *testing.T) {
 		t.Errorf("expected 2 deleted messages, got %d", deleted)
 	}
 
-	envs, _, err = store.Retrieve(ctx, urn)
+	envs, _, err = store.RetrieveEntry(ctx, urn)
 	if err != nil {
 		t.Fatalf("Retrieve after ack error: %v", err)
 	}
@@ -144,7 +145,7 @@ func TestMQStore(t *testing.T) {
 	pastExpiry := time.Now().Unix() - 10
 	store.StoreEnvelope(ctx, urn, expiredEnv, pastExpiry)
 
-	envs, _, err = store.Retrieve(ctx, urn)
+	envs, _, err = store.RetrieveEntry(ctx, urn)
 	if err != nil {
 		t.Fatalf("Retrieve with expired error: %v", err)
 	}
@@ -178,7 +179,10 @@ func TestMQStreamServer(t *testing.T) {
 	}
 	defer hSrv.Close()
 
-	NewStreamServer(hSrv, store)
+	_, err = coremq.NewServer(hSrv, store)
+	if err != nil {
+		t.Fatalf("failed to start mq server: %v", err)
+	}
 
 	// 2. Setup Client Host
 	hCli, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
@@ -189,7 +193,7 @@ func TestMQStreamServer(t *testing.T) {
 	hCli.Peerstore().AddAddrs(hSrv.ID(), hSrv.Addrs(), peerstore.PermanentAddrTTL)
 
 	// 3. Test Store Envelope via Stream
-	streamStore, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(ProtoID))
+	streamStore, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(coremq.ProtoID))
 	if err != nil {
 		t.Fatalf("open store stream: %v", err)
 	}
@@ -228,7 +232,7 @@ func TestMQStreamServer(t *testing.T) {
 	}
 
 	// 4. Test Retrieve via Stream
-	streamRetrieve, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(ProtoID))
+	streamRetrieve, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(coremq.ProtoID))
 	if err != nil {
 		t.Fatalf("open retrieve stream: %v", err)
 	}
@@ -260,7 +264,7 @@ func TestMQStreamServer(t *testing.T) {
 	}
 
 	// 5. Test Ack via Stream
-	streamAck, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(ProtoID))
+	streamAck, err := hCli.NewStream(ctx, hSrv.ID(), protocol.ID(coremq.ProtoID))
 	if err != nil {
 		t.Fatalf("open ack stream: %v", err)
 	}

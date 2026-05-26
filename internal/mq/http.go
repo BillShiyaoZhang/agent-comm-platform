@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	pb "github.com/BillShiyaoZhang/agent-comm-platform/proto"
+	proto "github.com/BillShiyaoZhang/agent-comm/proto"
 	goproto "google.golang.org/protobuf/proto"
 )
 
@@ -36,7 +36,7 @@ func handleStore(store *Store) http.HandlerFunc {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		var env pb.EncryptedEnvelope
+		var env proto.EncryptedEnvelope
 		if err := goproto.Unmarshal(req.PayloadProto, &env); err != nil {
 			http.Error(w, "invalid payload proto", http.StatusBadRequest)
 			return
@@ -81,7 +81,7 @@ func handleRetrieve(store *Store) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 
-		envs, ids, err := store.Retrieve(ctx, urn)
+		envs, ids, err := store.RetrieveEntry(ctx, urn)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return

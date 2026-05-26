@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	pb "github.com/BillShiyaoZhang/agent-comm-platform/proto"
+	proto "github.com/BillShiyaoZhang/agent-comm/proto"
+	"github.com/BillShiyaoZhang/agent-comm/mq"
 	goproto "google.golang.org/protobuf/proto"
 	_ "modernc.org/sqlite"
 )
@@ -33,6 +34,9 @@ type Store struct {
 	maxPerURN     int
 }
 
+var _ mq.Store = (*Store)(nil)
+
+
 // NewStore opens (or creates) the MQ database.
 func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
@@ -52,8 +56,8 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 	return s, nil
 }
 
-// Store saves an EncryptedEnvelope for a recipient. Enforces per-URN quota (FIFO eviction).
-func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pb.EncryptedEnvelope, expiryUnix int64) (string, error) {
+// StoreEnvelope saves an EncryptedEnvelope for a recipient. Enforces per-URN quota (FIFO eviction).
+func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *proto.EncryptedEnvelope, expiryUnix int64) (string, error) {
 	msgID := env.GetMessageId()
 	if msgID == "" {
 		msgID = uuid.New().String()
@@ -88,8 +92,14 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pb.
 	return msgID, nil
 }
 
-// Retrieve returns all pending envelopes for a recipient (oldest first).
-func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*pb.EncryptedEnvelope, []string, error) {
+// Retrieve satisfies the mq.Store interface from the core SDK.
+func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*proto.EncryptedEnvelope, error) {
+	envs, _, err := s.RetrieveEntry(ctx, recipientURN)
+	return envs, err
+}
+
+// RetrieveEntry returns all pending envelopes and their database IDs for a recipient (oldest first).
+func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*proto.EncryptedEnvelope, []string, error) {
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT id, payload FROM messages WHERE recipient=? AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC",
 		recipientURN, time.Now().Unix())
@@ -98,7 +108,7 @@ func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*pb.Encryp
 	}
 	defer rows.Close()
 
-	var envs []*pb.EncryptedEnvelope
+	var envs []*proto.EncryptedEnvelope
 	var ids []string
 	for rows.Next() {
 		var id string
@@ -106,7 +116,7 @@ func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*pb.Encryp
 		if err := rows.Scan(&id, &data); err != nil {
 			continue
 		}
-		var env pb.EncryptedEnvelope
+		var env proto.EncryptedEnvelope
 		if err := goproto.Unmarshal(data, &env); err != nil {
 			continue
 		}
@@ -117,7 +127,7 @@ func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*pb.Encryp
 }
 
 // Ack deletes the given message IDs.
-func (s *Store) Ack(ctx context.Context, ids []string) (int64, error) {
+func (s *Store) Ack(ctx context.Context, ids []string) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -133,7 +143,7 @@ func (s *Store) Ack(ctx context.Context, ids []string) (int64, error) {
 		return 0, err
 	}
 	n, _ := res.RowsAffected()
-	return n, nil
+	return int(n), nil
 }
 
 // Close closes the database.

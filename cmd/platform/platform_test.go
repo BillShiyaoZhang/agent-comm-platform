@@ -23,11 +23,13 @@ import (
 
 	"github.com/BillShiyaoZhang/agent-comm-platform/internal/api"
 	"github.com/BillShiyaoZhang/agent-comm-platform/internal/config"
-	"github.com/BillShiyaoZhang/agent-comm-platform/internal/identity"
 	mqpkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/mq"
 	registrypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/registry"
 	relaypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/relay"
-	pb "github.com/BillShiyaoZhang/agent-comm-platform/proto"
+	"github.com/BillShiyaoZhang/agent-comm/crypto"
+	"github.com/BillShiyaoZhang/agent-comm/mq"
+	"github.com/BillShiyaoZhang/agent-comm/registry"
+	pb "github.com/BillShiyaoZhang/agent-comm/proto"
 )
 
 // Helper to write length-prefixed protocol data
@@ -89,13 +91,13 @@ func TestPlatformFullIntegration(t *testing.T) {
 	cfg.Libp2p.ListenAddrs = []string{"/ip4/127.0.0.1/tcp/0"}
 
 	// 1. Identity
-	id, err := identity.LoadOrCreate(cfg.Identity.KeysDir)
+	id, err := crypto.LoadOrCreateIdentity(cfg.Identity.KeysDir)
 	if err != nil {
 		t.Fatalf("load identity: %v", err)
 	}
 
 	// 2. libp2p Host
-	libp2pPrivKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(id.Ed25519Priv)
+	libp2pPrivKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(id.Ed25519.PrivateKey)
 	if err != nil {
 		t.Fatalf("unmarshal key: %v", err)
 	}
@@ -114,11 +116,11 @@ func TestPlatformFullIntegration(t *testing.T) {
 		t.Fatalf("registry store: %v", err)
 	}
 	defer regStore.Close()
-	registrypkg.NewServer(h, regStore)
+	registry.NewServer(h, regStore).Register()
 
 	// Self-register
-	err = regStore.Register(id.URN, h.ID().String(), hostAddrs(h), nil,
-		id.X25519Pub[:], id.Ed25519Pub, nil, 0)
+	err = regStore.RegisterWithSignature(id.Ed25519.URN(), h.ID().String(), hostAddrs(h), nil,
+		id.X25519PK, id.Ed25519.PublicKey, nil, 0)
 	if err != nil {
 		t.Fatalf("self register: %v", err)
 	}
@@ -137,7 +139,10 @@ func TestPlatformFullIntegration(t *testing.T) {
 		t.Fatalf("mq store: %v", err)
 	}
 	defer mqStore.Close()
-	mqpkg.NewStreamServer(h, mqStore)
+	_, err = mq.NewServer(h, mqStore)
+	if err != nil {
+		t.Fatalf("create mq server: %v", err)
+	}
 
 	// 6. HTTP API
 	apiSrv := api.New(cfg.API.ListenAddr, regStore, mqStore)
@@ -194,7 +199,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	}
 
 	// --- VERIFICATION 3: libp2p Registry (Register & Resolve) ---
-	streamReg, err := hCli.NewStream(ctx, h.ID(), protocol.ID(registrypkg.ProtoID))
+	streamReg, err := hCli.NewStream(ctx, h.ID(), protocol.ID(registry.ProtoID))
 	if err != nil {
 		t.Fatalf("open reg stream: %v", err)
 	}
@@ -226,7 +231,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	}
 
 	// Resolve the URN over libp2p
-	streamRes, err := hCli.NewStream(ctx, h.ID(), protocol.ID(registrypkg.ProtoID))
+	streamRes, err := hCli.NewStream(ctx, h.ID(), protocol.ID(registry.ProtoID))
 	if err != nil {
 		t.Fatalf("open resolve stream: %v", err)
 	}
@@ -254,7 +259,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	}
 
 	// --- VERIFICATION 4: libp2p MQ (Store, Retrieve & Ack) ---
-	streamMQ, err := hCli.NewStream(ctx, h.ID(), protocol.ID(mqpkg.ProtoID))
+	streamMQ, err := hCli.NewStream(ctx, h.ID(), protocol.ID(mq.ProtoID))
 	if err != nil {
 		t.Fatalf("open MQ stream: %v", err)
 	}
@@ -287,7 +292,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	}
 
 	// Retrieve over libp2p
-	streamMQ2, err := hCli.NewStream(ctx, h.ID(), protocol.ID(mqpkg.ProtoID))
+	streamMQ2, err := hCli.NewStream(ctx, h.ID(), protocol.ID(mq.ProtoID))
 	if err != nil {
 		t.Fatalf("open MQ retrieve stream: %v", err)
 	}
@@ -314,7 +319,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	}
 
 	// Ack over libp2p
-	streamMQ3, err := hCli.NewStream(ctx, h.ID(), protocol.ID(mqpkg.ProtoID))
+	streamMQ3, err := hCli.NewStream(ctx, h.ID(), protocol.ID(mq.ProtoID))
 	if err != nil {
 		t.Fatalf("open MQ ack stream: %v", err)
 	}
