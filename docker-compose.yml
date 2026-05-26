@@ -1,6 +1,8 @@
 services:
   platform:
-    build: .
+    build:
+      context: ..
+      dockerfile: agent-comm-platform/Dockerfile
     ports:
       - "45041:45041"
       - "45041:45041/udp"
