@@ -10,7 +10,7 @@ services:
       - "45041:45041/udp"
     volumes:
       - ./config.example.yaml:/etc/platform/config.yaml:ro
-      - platform_data:/data
+      - ./data:/data
     environment:
       - PLATFORM_ADMIN_TOKEN=${PLATFORM_ADMIN_TOKEN}
     deploy:
@@ -35,6 +35,5 @@ services:
       - platform
 
 volumes:
-  platform_data:
   caddy_data:
   caddy_config:
