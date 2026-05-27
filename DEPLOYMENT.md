@@ -141,9 +141,9 @@ replace github.com/BillShiyaoZhang/agent-comm => ../agent-comm
    git clone https://github.com/BillShiyaoZhang/agent-comm-platform.git
    ```
 2. **复制配置到平台目录下**：将 `config.yaml` 配置文件保存在 `agent-comm-platform` 目录下。
-3. **创建 Caddy 配置文件**：在 `agent-comm-platform` 目录下创建 `Caddyfile`，并指定您的域名：
+3. **创建 Caddy 配置文件**：在您的数据盘挂载根目录下创建 `/data/Caddyfile`，并指定您的域名：
    ```caddy
-   # agent-comm-platform/Caddyfile
+   # /data/Caddyfile
    your-domain.com {
        encode gzip zstd
        reverse_proxy platform:8080
