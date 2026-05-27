@@ -16,26 +16,61 @@ import (
 	registrypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/registry"
 	"github.com/libp2p/go-libp2p/core/host"
 	"golang.org/x/time/rate"
+	"sync/atomic"
 )
 
 //go:embed web/*
 var webAssets embed.FS
 
+// SecurityPolicies holds thread-safe runtime policies for platform security.
+type SecurityPolicies struct {
+	StoreUserData            atomic.Bool
+	ForwardToStoragePlatforms atomic.Bool
+}
+
 // Server is the HTTP API server.
 type Server struct {
 	srv      *http.Server
 	AuditLog *AuditLog
+	Policies *SecurityPolicies
 }
 
 // New creates and configures the HTTP server with all API routes mounted.
 func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, hostID string, h host.Host) *Server {
 	mux := http.NewServeMux()
 
+	policies := &SecurityPolicies{}
+	policies.StoreUserData.Store(cfg.Platform.StoreUserData)
+	policies.ForwardToStoragePlatforms.Store(cfg.Platform.ForwardToStoragePlatforms)
+
 	// Registry API
-	mux.Handle("/api/v1/registry/", registrypkg.HTTPHandler(regStore))
+	isForwardAllowedRegistry := func(urn string) bool {
+		if policies.ForwardToStoragePlatforms.Load() {
+			return true
+		}
+		entry, err := regStore.ResolveEntry(urn)
+		if err != nil || entry == nil {
+			return true
+		}
+		return !entry.StoresUserData
+	}
+	mux.Handle("/api/v1/registry/", registrypkg.HTTPHandler(regStore, isForwardAllowedRegistry))
 
 	// MQ API
-	mux.Handle("/api/v1/mq/", mqpkg.HTTPHandler(mqStore))
+	isStoreAllowedMQ := func() bool {
+		return policies.StoreUserData.Load()
+	}
+	isForwardAllowedMQ := func(recipientURN string) bool {
+		if policies.ForwardToStoragePlatforms.Load() {
+			return true
+		}
+		entry, err := regStore.ResolveEntry(recipientURN)
+		if err != nil || entry == nil {
+			return true
+		}
+		return !entry.StoresUserData
+	}
+	mux.Handle("/api/v1/mq/", mqpkg.HTTPHandler(mqStore, isStoreAllowedMQ, isForwardAllowedMQ))
 
 	// Audit Log (persistent to SQLite)
 	var auditLog *AuditLog
@@ -47,12 +82,16 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 	}
 
 	// Admin API
-	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h, auditLog))
+	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h, auditLog, policies))
 
 	// Bootstrap info API
 	mux.HandleFunc("/api/v1/bootstrap", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"peer_id":"` + hostID + `"}`))
+		storesUserDataVal := "false"
+		if policies.StoreUserData.Load() {
+			storesUserDataVal = "true"
+		}
+		w.Write([]byte(`{"peer_id":"` + hostID + `","stores_user_data":` + storesUserDataVal + `}`))
 	})
 
 	// Health check
@@ -103,6 +142,7 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 			IdleTimeout:  60 * time.Second,
 		},
 		AuditLog: auditLog,
+		Policies: policies,
 	}
 }
 

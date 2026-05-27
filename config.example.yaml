@@ -1,6 +1,8 @@
 platform:
   mode: "privacy"      # "privacy" | "compliance"
   data_dir: "./data"
+  store_user_data: true             # Whether the platform itself stores user envelopes (e.g. offline messages in MQ)
+  forward_to_storage_platforms: true # Whether the platform allows forwarding/connecting to other platforms that store user data
 
 identity:
   keys_dir: "./data/keys"

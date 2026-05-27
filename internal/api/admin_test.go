@@ -55,7 +55,11 @@ func TestAdminAPIs(t *testing.T) {
 	}
 	defer auditLog.Close()
 
-	adminHandler := AdminHandler(cfg, regStore, mqStore, h, auditLog)
+	policies := &SecurityPolicies{}
+	policies.StoreUserData.Store(true)
+	policies.ForwardToStoragePlatforms.Store(true)
+
+	adminHandler := AdminHandler(cfg, regStore, mqStore, h, auditLog, policies)
 
 	t.Run("Unauthorized - No Token", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/admin/overview", nil)
@@ -106,7 +110,7 @@ func TestAdminAPIs(t *testing.T) {
 
 	t.Run("Authorized - Registry List and Evict", func(t *testing.T) {
 		// Register a dummy node
-		err := regStore.RegisterWithSignature("urn:hermes:agent:testnode", "peer-id-xyz", []string{"/ip4/1.2.3.4/tcp/123"}, nil, nil, nil, nil, 0)
+		err := regStore.RegisterWithSignature("urn:hermes:agent:testnode", "peer-id-xyz", []string{"/ip4/1.2.3.4/tcp/123"}, nil, nil, nil, nil, false, 0)
 		if err != nil {
 			t.Fatalf("register test node: %v", err)
 		}
@@ -276,6 +280,71 @@ func TestAdminAPIs(t *testing.T) {
 		}
 		if _, ok := entry["message"]; !ok {
 			t.Errorf("expected 'message' key in log entry")
+		}
+	})
+
+	t.Run("Authorized - Toggle Policies", func(t *testing.T) {
+		// 1. Toggle Storage Policy
+		reqToggleStorage := httptest.NewRequest("POST", "/api/v1/admin/config/toggle-storage", nil)
+		reqToggleStorage.Header.Set("X-Admin-Token", "test-secret-token")
+		w1 := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w1, reqToggleStorage)
+
+		if w1.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w1.Code)
+		}
+
+		var resp1 map[string]interface{}
+		json.NewDecoder(w1.Body).Decode(&resp1)
+		if resp1["ok"] != true || resp1["store_user_data"] != false {
+			t.Errorf("expected store_user_data toggle to return false, got %v", resp1)
+		}
+
+		// Verify state in policies
+		if policies.StoreUserData.Load() != false {
+			t.Error("expected StoreUserData policy to be false in memory")
+		}
+
+		// 2. Toggle Forwarding Policy
+		reqToggleForwarding := httptest.NewRequest("POST", "/api/v1/admin/config/toggle-forwarding", nil)
+		reqToggleForwarding.Header.Set("X-Admin-Token", "test-secret-token")
+		w2 := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w2, reqToggleForwarding)
+
+		if w2.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w2.Code)
+		}
+
+		var resp2 map[string]interface{}
+		json.NewDecoder(w2.Body).Decode(&resp2)
+		if resp2["ok"] != true || resp2["forward_to_storage_platforms"] != false {
+			t.Errorf("expected forward_to_storage_platforms toggle to return false, got %v", resp2)
+		}
+
+		// Verify state in policies
+		if policies.ForwardToStoragePlatforms.Load() != false {
+			t.Error("expected ForwardToStoragePlatforms policy to be false in memory")
+		}
+
+		// 3. Verify in Overview
+		reqOverview := httptest.NewRequest("GET", "/api/v1/admin/overview", nil)
+		reqOverview.Header.Set("X-Admin-Token", "test-secret-token")
+		w3 := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w3, reqOverview)
+
+		var resp3 map[string]interface{}
+		json.NewDecoder(w3.Body).Decode(&resp3)
+		if resp3["stores_user_data"] != false || resp3["forward_to_storage_platforms"] != false {
+			t.Errorf("expected overview to show false policies, got: %+v", resp3)
+		}
+
+		// 4. Toggle back
+		w4 := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w4, reqToggleStorage)
+		var resp4 map[string]interface{}
+		json.NewDecoder(w4.Body).Decode(&resp4)
+		if resp4["store_user_data"] != true {
+			t.Errorf("expected store_user_data toggle back to return true, got %v", resp4)
 		}
 	})
 }

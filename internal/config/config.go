@@ -19,8 +19,10 @@ type Config struct {
 }
 
 type PlatformConfig struct {
-	Mode    string `yaml:"mode"`     // "privacy" | "compliance"
-	DataDir string `yaml:"data_dir"`
+	Mode                      string `yaml:"mode"`     // "privacy" | "compliance"
+	DataDir                   string `yaml:"data_dir"`
+	StoreUserData             bool   `yaml:"store_user_data"`
+	ForwardToStoragePlatforms bool   `yaml:"forward_to_storage_platforms"`
 }
 
 type IdentityConfig struct {
@@ -62,7 +64,12 @@ type APIConfig struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		Platform: PlatformConfig{Mode: "privacy", DataDir: "./data"},
+		Platform: PlatformConfig{
+			Mode:                      "privacy",
+			DataDir:                   "./data",
+			StoreUserData:             true,
+			ForwardToStoragePlatforms: true,
+		},
 		Identity: IdentityConfig{KeysDir: "./data/keys"},
 		Libp2p: Libp2pConfig{
 			ListenAddrs: []string{

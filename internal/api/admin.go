@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"runtime"
 	"time"
@@ -17,16 +18,18 @@ import (
 var startTime = time.Now()
 
 // AdminHandler returns an http.Handler serving all admin APIs, wrapped with token auth.
-func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog) http.Handler {
+func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog, policies *SecurityPolicies) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/v1/admin/overview", handleOverview(cfg, regStore, mqStore, h))
+	mux.HandleFunc("GET /api/v1/admin/overview", handleOverview(cfg, regStore, mqStore, h, policies))
 	mux.HandleFunc("GET /api/v1/admin/registry", handleAdminRegistryList(regStore))
 	mux.HandleFunc("DELETE /api/v1/admin/registry", handleAdminRegistryEvict(regStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/mq", handleAdminMQList(mqStore))
 	mux.HandleFunc("DELETE /api/v1/admin/mq/clear", handleAdminMQClear(mqStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/config", handleAdminConfig(cfg))
-	mux.HandleFunc("GET /api/v1/admin/peers", handleAdminPeers(h))
+	mux.HandleFunc("POST /api/v1/admin/config/toggle-storage", handleToggleStorage(policies, auditLog))
+	mux.HandleFunc("POST /api/v1/admin/config/toggle-forwarding", handleToggleForwarding(policies, auditLog))
+	mux.HandleFunc("GET /api/v1/admin/peers", handleAdminPeers(h, regStore))
 	mux.HandleFunc("GET /api/v1/admin/logs", handleAdminLogs(auditLog))
 
 	return adminAuth(cfg.API.AdminToken, mux)
@@ -57,7 +60,7 @@ func adminAuth(adminToken string, next http.Handler) http.Handler {
 	})
 }
 
-func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host) http.HandlerFunc {
+func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, policies *SecurityPolicies) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var m runtime.MemStats
 		runtime.ReadMemStats(&m)
@@ -90,21 +93,23 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 		}
 
 		resp := map[string]interface{}{
-			"status":            "ok",
-			"uptime_seconds":    int64(time.Since(startTime).Seconds()),
-			"go_version":        runtime.Version(),
-			"goroutines":        runtime.NumGoroutine(),
-			"memory_alloc_mb":   float64(m.Alloc) / 1024 / 1024,
-			"memory_sys_mb":     float64(m.Sys) / 1024 / 1024,
-			"platform_mode":     cfg.Platform.Mode,
-			"peer_id":           h.ID().String(),
-			"listen_addrs":      addrs,
-			"connected_peers":   len(h.Network().Peers()),
-			"inbound_conns":     inbound,
-			"outbound_conns":    outbound,
-			"registry_count":    len(urns),
-			"mq_queues_count":   len(mqStats),
-			"mq_messages_count": totalPendingMessages,
+			"status":                       "ok",
+			"uptime_seconds":               int64(time.Since(startTime).Seconds()),
+			"go_version":                   runtime.Version(),
+			"goroutines":                   runtime.NumGoroutine(),
+			"memory_alloc_mb":              float64(m.Alloc) / 1024 / 1024,
+			"memory_sys_mb":                float64(m.Sys) / 1024 / 1024,
+			"platform_mode":                cfg.Platform.Mode,
+			"stores_user_data":             policies.StoreUserData.Load(),
+			"forward_to_storage_platforms": policies.ForwardToStoragePlatforms.Load(),
+			"peer_id":                      h.ID().String(),
+			"listen_addrs":                 addrs,
+			"connected_peers":              len(h.Network().Peers()),
+			"inbound_conns":                inbound,
+			"outbound_conns":               outbound,
+			"registry_count":               len(urns),
+			"mq_queues_count":              len(mqStats),
+			"mq_messages_count":            totalPendingMessages,
 		}
 
 		json.NewEncoder(w).Encode(resp)
@@ -201,17 +206,66 @@ func handleAdminConfig(cfg *config.Config) http.HandlerFunc {
 	}
 }
 
-// PeerInfo represents information about a connected libp2p peer.
-type PeerInfo struct {
-	PeerID    string   `json:"peer_id"`
-	Addrs     []string `json:"addrs"`
-	Direction string   `json:"direction"` // "inbound", "outbound", "both"
-	ConnCount int      `json:"conn_count"`
-	Protocols []string `json:"protocols"`
+func handleToggleStorage(policies *SecurityPolicies, auditLog *AuditLog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		current := policies.StoreUserData.Load()
+		next := !current
+		policies.StoreUserData.Store(next)
+
+		msg := fmt.Sprintf("Changed platform store user data policy to: %t", next)
+		if auditLog != nil {
+			auditLog.Record("warn", "admin", msg, "")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":              true,
+			"store_user_data": next,
+		})
+	}
 }
 
-func handleAdminPeers(h host.Host) http.HandlerFunc {
+func handleToggleForwarding(policies *SecurityPolicies, auditLog *AuditLog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		current := policies.ForwardToStoragePlatforms.Load()
+		next := !current
+		policies.ForwardToStoragePlatforms.Store(next)
+
+		msg := fmt.Sprintf("Changed platform forwarding to storage platforms policy to: %t", next)
+		if auditLog != nil {
+			auditLog.Record("warn", "admin", msg, "")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":                           true,
+			"forward_to_storage_platforms": next,
+		})
+	}
+}
+
+// PeerInfo represents information about a connected libp2p peer.
+type PeerInfo struct {
+	PeerID         string   `json:"peer_id"`
+	Addrs          []string `json:"addrs"`
+	Direction      string   `json:"direction"` // "inbound", "outbound", "both"
+	ConnCount      int      `json:"conn_count"`
+	Protocols      []string `json:"protocols"`
+	StoresUserData bool     `json:"stores_user_data"`
+}
+
+func handleAdminPeers(h host.Host, regStore *registrypkg.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		peerToStorage := make(map[string]bool)
+		if regStore != nil {
+			entries, err := regStore.ListEntries()
+			if err == nil {
+				for _, entry := range entries {
+					peerToStorage[entry.PeerID] = entry.StoresUserData
+				}
+			}
+		}
+
 		peers := h.Network().Peers()
 		infos := make([]*PeerInfo, 0, len(peers))
 
@@ -222,8 +276,9 @@ func handleAdminPeers(h host.Host) http.HandlerFunc {
 			}
 
 			info := &PeerInfo{
-				PeerID:    pid.String(),
-				ConnCount: len(conns),
+				PeerID:         pid.String(),
+				ConnCount:      len(conns),
+				StoresUserData: peerToStorage[pid.String()],
 			}
 
 			// Determine direction

@@ -25,10 +25,14 @@ import (
 )
 
 // Helper to create a signature
-func makeRegistrySig(t *testing.T, urn, peerID string, timestamp int64, privKey ed25519.PrivateKey) []byte {
+func makeRegistrySig(t *testing.T, urn, peerID string, storesUserData bool, timestamp int64, privKey ed25519.PrivateKey) []byte {
 	ts := make([]byte, 8)
 	binary.BigEndian.PutUint64(ts, uint64(timestamp))
-	msg := []byte(urn + "|" + peerID + "|")
+	flag := "0"
+	if storesUserData {
+		flag = "1"
+	}
+	msg := []byte(urn + "|" + peerID + "|" + flag + "|")
 	msg = append(msg, ts...)
 	return ed25519.Sign(privKey, msg)
 }
@@ -56,7 +60,7 @@ func TestRegistryStore(t *testing.T) {
 	}
 
 	// 1. Basic Register & Resolve (no signature)
-	err = store.RegisterWithSignature(urn, peerID, addrs, nil, xPK, nil, nil, 0)
+	err = store.RegisterWithSignature(urn, peerID, addrs, nil, xPK, nil, nil, false, 0)
 	if err != nil {
 		t.Fatalf("Register error: %v", err)
 	}
@@ -97,8 +101,8 @@ func TestRegistryStore(t *testing.T) {
 	timestamp := time.Now().Unix()
 
 	// Valid signature
-	sig := makeRegistrySig(t, sigURN, sigPeerID, timestamp, privKey)
-	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, sig, timestamp)
+	sig := makeRegistrySig(t, sigURN, sigPeerID, false, timestamp, privKey)
+	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, sig, false, timestamp)
 	if err != nil {
 		t.Errorf("expected valid signature to succeed, got: %v", err)
 	}
@@ -109,15 +113,15 @@ func TestRegistryStore(t *testing.T) {
 	if len(badSig) > 0 {
 		badSig[0] ^= 0xFF
 	}
-	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, badSig, timestamp)
+	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, badSig, false, timestamp)
 	if err == nil || !strings.Contains(err.Error(), "invalid signature") {
 		t.Errorf("expected registration with bad signature to fail, got: %v", err)
 	}
 
 	// Expired/Out of window timestamp
 	oldTimestamp := time.Now().Unix() - 600
-	oldSig := makeRegistrySig(t, sigURN, sigPeerID, oldTimestamp, privKey)
-	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, oldSig, oldTimestamp)
+	oldSig := makeRegistrySig(t, sigURN, sigPeerID, false, oldTimestamp, privKey)
+	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, oldSig, false, oldTimestamp)
 	if err == nil || !strings.Contains(err.Error(), "timestamp out of window") {
 		t.Errorf("expected registration with expired timestamp to fail, got: %v", err)
 	}
@@ -278,7 +282,7 @@ func TestRegistryHTTPHandlers(t *testing.T) {
 	}
 	defer store.Close()
 
-	handler := HTTPHandler(store)
+	handler := HTTPHandler(store, func(urn string) bool { return true })
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
@@ -293,16 +297,17 @@ func TestRegistryHTTPHandlers(t *testing.T) {
 
 	pubKey, privKey, _ := ed25519.GenerateKey(nil)
 	timestamp := time.Now().Unix()
-	sig := makeRegistrySig(t, urn, peerID, timestamp, privKey)
+	sig := makeRegistrySig(t, urn, peerID, false, timestamp, privKey)
 
 	regReq := registerReq{
-		URN:           urn,
-		PeerID:        peerID,
-		Addrs:         addrs,
-		X25519Pubkey:  xPK,
-		Ed25519Pubkey: pubKey,
-		Signature:     sig,
-		Timestamp:     timestamp,
+		URN:            urn,
+		PeerID:         peerID,
+		Addrs:          addrs,
+		X25519Pubkey:   xPK,
+		Ed25519Pubkey:  pubKey,
+		StoresUserData: false,
+		Signature:      sig,
+		Timestamp:      timestamp,
 	}
 
 	bodyBytes, _ := json.Marshal(regReq)
@@ -405,7 +410,7 @@ func TestRegistryResolveInvalidPeer(t *testing.T) {
 	defer store.Close()
 
 	// Register with an invalid peer ID string (won't decode using peer.Decode)
-	err = store.RegisterWithSignature("urn:hermes:agent:invalid", "invalid-peer-id-format", []string{"/ip4/127.0.0.1"}, nil, nil, nil, nil, 0)
+	err = store.RegisterWithSignature("urn:hermes:agent:invalid", "invalid-peer-id-format", []string{"/ip4/127.0.0.1"}, nil, nil, nil, nil, false, 0)
 	if err != nil {
 		t.Fatalf("Register error: %v", err)
 	}
@@ -449,3 +454,68 @@ func TestRegistryResolveInvalidPeer(t *testing.T) {
 		t.Error("expected found=false for invalid peer ID (since peer.Decode should fail in stream handler)")
 	}
 }
+
+func TestRegistryHTTPForwardingPolicy(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "registry-policy-test")
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "registry.db")
+	store, err := NewStore(dbPath, 1)
+	if err != nil {
+		t.Fatalf("NewStore error: %v", err)
+	}
+	defer store.Close()
+
+	// Register two agents: one storing user data, one not
+	urnStoring := "urn:hermes:agent:storing"
+	urnSafe := "urn:hermes:agent:safe"
+
+	_ = store.RegisterWithSignature(urnStoring, "peer-storing", []string{"/ip4/1.2.3.4"}, nil, nil, nil, nil, true, 0)
+	_ = store.RegisterWithSignature(urnSafe, "peer-safe", []string{"/ip4/5.6.7.8"}, nil, nil, nil, nil, false, 0)
+
+	// Setup handler with forward allowed check: reject forwarding to agents that store user data
+	isForwardAllowed := func(urn string) bool {
+		entry, err := store.ResolveEntry(urn)
+		if err != nil || entry == nil {
+			return true
+		}
+		return !entry.StoresUserData
+	}
+
+	handler := HTTPHandler(store, isForwardAllowed)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	// 1. Resolve safe agent: should succeed
+	respSafe, err := http.Get(srv.URL + "/api/v1/registry/resolve?urn=" + urnSafe)
+	if err != nil {
+		t.Fatalf("GET resolve safe error: %v", err)
+	}
+	defer respSafe.Body.Close()
+	if respSafe.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200 for safe agent, got %d", respSafe.StatusCode)
+	}
+
+	// 2. Resolve storing agent: should be forbidden (403)
+	respStoring, err := http.Get(srv.URL + "/api/v1/registry/resolve?urn=" + urnStoring)
+	if err != nil {
+		t.Fatalf("GET resolve storing error: %v", err)
+	}
+	defer respStoring.Body.Close()
+	if respStoring.StatusCode != http.StatusForbidden {
+		t.Errorf("expected status 403 for storing agent under policy, got %d", respStoring.StatusCode)
+	}
+
+	var errResp map[string]interface{}
+	json.NewDecoder(respStoring.Body).Decode(&errResp)
+	if errResp["found"] == true {
+		t.Error("expected found=false in error response")
+	}
+	if !strings.Contains(errResp["error"].(string), "forwarding to storage platforms is disabled") {
+		t.Errorf("expected custom security message, got %v", errResp["error"])
+	}
+}
+

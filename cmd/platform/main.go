@@ -79,7 +79,7 @@ func main() {
 
 	// Self-register
 	_ = regStore.RegisterWithSignature(id.Ed25519.URN(), h.ID().String(), hostAddrs(h), nil,
-		id.X25519PK, id.Ed25519.PublicKey, nil, 0)
+		id.X25519PK, id.Ed25519.PublicKey, nil, cfg.Platform.StoreUserData, 0)
 
 	// ── Relay v2 ─────────────────────────────────────────────────────────────
 	if cfg.Relay.Enabled {

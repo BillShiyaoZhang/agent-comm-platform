@@ -311,7 +311,7 @@ func TestMQHTTPHandlers(t *testing.T) {
 	}
 	defer store.Close()
 
-	handler := HTTPHandler(store)
+	handler := HTTPHandler(store, func() bool { return true }, func(recipientURN string) bool { return true })
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
@@ -445,3 +445,97 @@ func TestMQHTTPHandlers(t *testing.T) {
 		t.Errorf("unexpected ack response: %v", ackRespObj)
 	}
 }
+
+func TestMQStoragePolicy(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "mq-policy-test")
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "mq.db")
+	store, err := NewStore(dbPath, 1, 10)
+	if err != nil {
+		t.Fatalf("NewStore error: %v", err)
+	}
+	defer store.Close()
+
+	// 1. Test isStoreAllowed = false
+	handler1 := HTTPHandler(store, func() bool { return false }, func(recipientURN string) bool { return true })
+	srv1 := httptest.NewServer(handler1)
+	defer srv1.Close()
+
+	senderPubKey, senderPrivKey, _ := ed25519.GenerateKey(nil)
+	kp := &crypto.IdentityKeyPair{PublicKey: senderPubKey, PrivateKey: senderPrivKey}
+	senderURN := kp.URN()
+
+	urn := "urn:hermes:agent:recipient-policy"
+	env := &pb.EncryptedEnvelope{
+		MessageId:  "msg-policy-1",
+		Ciphertext: []byte("ciphertext"),
+		SenderUrn:  senderURN,
+	}
+	envBytes, _ := goproto.Marshal(env)
+
+	storeReqObj := storeReq{
+		RecipientURN: urn,
+		PayloadProto: envBytes,
+	}
+	bodyBytes, _ := json.Marshal(storeReqObj)
+
+	req1, _ := http.NewRequest("POST", srv1.URL+"/api/v1/mq/store", strings.NewReader(string(bodyBytes)))
+	req1.Header.Set("Content-Type", "application/json")
+	payloadSig := ed25519.Sign(senderPrivKey, bodyBytes)
+	req1.Header.Set("Authorization", "Ed25519 "+hex.EncodeToString(payloadSig)+":"+hex.EncodeToString(senderPubKey))
+
+	client := &http.Client{}
+	resp1, err := client.Do(req1)
+	if err != nil {
+		t.Fatalf("POST store when store disabled error: %v", err)
+	}
+	defer resp1.Body.Close()
+
+	if resp1.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request when store is disabled, got %d", resp1.StatusCode)
+	}
+
+	// 2. Test isForwardAllowed = false for specific URN
+	handler2 := HTTPHandler(store, func() bool { return true }, func(recipientURN string) bool {
+		return recipientURN != "urn:hermes:agent:blocked-recipient"
+	})
+	srv2 := httptest.NewServer(handler2)
+	defer srv2.Close()
+
+	// Store to non-blocked recipient: should succeed (200)
+	req2Ok, _ := http.NewRequest("POST", srv2.URL+"/api/v1/mq/store", strings.NewReader(string(bodyBytes)))
+	req2Ok.Header.Set("Content-Type", "application/json")
+	req2Ok.Header.Set("Authorization", "Ed25519 "+hex.EncodeToString(payloadSig)+":"+hex.EncodeToString(senderPubKey))
+	resp2Ok, err := client.Do(req2Ok)
+	if err != nil {
+		t.Fatalf("POST store non-blocked error: %v", err)
+	}
+	defer resp2Ok.Body.Close()
+	if resp2Ok.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK for allowed recipient, got %d", resp2Ok.StatusCode)
+	}
+
+	// Store to blocked recipient: should fail with 403
+	blockedReqObj := storeReq{
+		RecipientURN: "urn:hermes:agent:blocked-recipient",
+		PayloadProto: envBytes,
+	}
+	blockedBodyBytes, _ := json.Marshal(blockedReqObj)
+	req2Blocked, _ := http.NewRequest("POST", srv2.URL+"/api/v1/mq/store", strings.NewReader(string(blockedBodyBytes)))
+	req2Blocked.Header.Set("Content-Type", "application/json")
+	blockedPayloadSig := ed25519.Sign(senderPrivKey, blockedBodyBytes)
+	req2Blocked.Header.Set("Authorization", "Ed25519 "+hex.EncodeToString(blockedPayloadSig)+":"+hex.EncodeToString(senderPubKey))
+	resp2Blocked, err := client.Do(req2Blocked)
+	if err != nil {
+		t.Fatalf("POST store blocked error: %v", err)
+	}
+	defer resp2Blocked.Body.Close()
+	if resp2Blocked.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 Forbidden for blocked recipient, got %d", resp2Blocked.StatusCode)
+	}
+}
+

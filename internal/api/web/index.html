@@ -1422,6 +1422,56 @@
         transform: translateX(-100%);
       }
     }
+
+    /* Switch / Toggle Button Styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .3s;
+      border-radius: 24px;
+      border: 1px solid var(--border-color);
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      transition: .3s;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    input:checked + .slider {
+      background-color: var(--primary);
+      border-color: rgba(99, 102, 241, 0.4);
+      box-shadow: 0 0 8px var(--primary-glow);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
   </style>
 </head>
 <body>
@@ -1583,6 +1633,45 @@
         </div>
 
         <div class="details-grid">
+          <!-- Security Policies -->
+          <div class="card-large col-12" style="margin-bottom: 8px;">
+            <div class="card-header-title">
+              <span>
+                <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                <span data-i18n="security_policies">安全与隐私策略 (Security & Privacy Policies)</span>
+              </span>
+            </div>
+            <div class="policies-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+              <!-- Policy 1: Store User Data -->
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <span style="font-weight: 600; font-size: 0.95rem; color: #fff;" data-i18n="policy_store_title">自身数据存储开关</span>
+                  <span style="font-size: 0.8rem; color: var(--text-muted);" id="policyStoreDesc" data-i18n="policy_store_desc">允许平台代存离线信箱消息(MQ)</span>
+                </div>
+                <div class="switch-control">
+                  <label class="switch">
+                    <input type="checkbox" id="policyStoreToggle" onchange="toggleStorePolicy()">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Policy 2: Forward to Storage Platforms -->
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <span style="font-weight: 600; font-size: 0.95rem; color: #fff;" data-i18n="policy_forward_title">安全连接转发隔离</span>
+                  <span style="font-size: 0.8rem; color: var(--text-muted);" id="policyForwardDesc" data-i18n="policy_forward_desc">禁止向存储用户数据的三方节点转发消息</span>
+                </div>
+                <div class="switch-control">
+                  <label class="switch">
+                    <input type="checkbox" id="policyForwardToggle" onchange="toggleForwardPolicy()">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- libp2p Node details -->
           <div class="card-large col-8">
             <div class="card-header-title">
@@ -2042,6 +2131,15 @@
         peer_id: "节点 Peer ID",
         listen_addrs: "监听 Multiaddresses",
         platform_mode: "通信平台模式",
+        platform_mode_privacy: "隐私保护模式 (Privacy Mode)",
+        platform_mode_compliance: "合规审查模式 (Compliance Mode)",
+        security_policies: "安全与隐私策略",
+        policy_store_title: "自身数据存储开关",
+        policy_store_desc: "开启以接收并代存离线消息信箱(MQ)",
+        policy_forward_title: "允许向三方存储节点转发",
+        policy_forward_desc: "允许向外部存储用户数据的平台进行连接或消息转发",
+        storage_badge_warning: "存储用户数据",
+        forwarding_restricted: "转发受限",
         mem_alloc: "已分配内存",
         mem_sys: "系统预留",
         goroutines: "协程 Goroutines",
@@ -2134,6 +2232,15 @@
         peer_id: "Node Peer ID",
         listen_addrs: "Listen Multiaddresses",
         platform_mode: "Platform Mode",
+        platform_mode_privacy: "Privacy Mode",
+        platform_mode_compliance: "Compliance Mode",
+        security_policies: "Security & Privacy Policies",
+        policy_store_title: "Self Data Storage",
+        policy_store_desc: "Allow this platform to receive and queue offline envelopes",
+        policy_forward_title: "Allow Forwarding to Storage Nodes",
+        policy_forward_desc: "Allow routing or forwarding messages to third-party platforms that store user data",
+        storage_badge_warning: "Stores User Data",
+        forwarding_restricted: "Forward Restricted",
         mem_alloc: "Allocated Mem",
         mem_sys: "System Reserved",
         goroutines: "Goroutines",
@@ -2691,6 +2798,9 @@
       // Host details URN/PeerID/Mode
       document.getElementById('peerIDVal').textContent = data.peer_id;
       
+      state.storesUserData = data.stores_user_data;
+      state.forwardToStoragePlatforms = data.forward_to_storage_platforms;
+
       const modeIndicator = document.getElementById('platformModeIndicator');
       if (data.platform_mode === 'privacy') {
         modeIndicator.className = 'mode-indicator privacy';
@@ -2726,11 +2836,51 @@
       // Update gauges
       updateGauges(data.memory_alloc_mb, data.goroutines);
 
+      // Update policy switches
+      const storeToggle = document.getElementById('policyStoreToggle');
+      if (storeToggle) {
+        storeToggle.checked = !!data.stores_user_data;
+      }
+      const forwardToggle = document.getElementById('policyForwardToggle');
+      if (forwardToggle) {
+        forwardToggle.checked = !!data.forward_to_storage_platforms;
+      }
+
       // Record chart history
       updateSparkHistory('peers', data.connected_peers);
       updateSparkHistory('registry', data.registry_count);
       updateSparkHistory('mq', data.mq_messages_count);
       updateSparkHistory('uptime', Math.floor(data.uptime_seconds / 60));
+    }
+
+    function toggleStorePolicy() {
+      apiCall('/api/v1/admin/config/toggle-storage', 'POST')
+      .then(res => {
+        const msg = state.lang === 'zh'
+          ? `平台数据存储已${res.store_user_data ? '开启' : '关闭'}`
+          : `Self data storage is now ${res.store_user_data ? 'ENABLED' : 'DISABLED'}`;
+        showToast(msg, 'success');
+        refreshOverview();
+      })
+      .catch(err => {
+        showToast(err.message || 'Failed to toggle storage policy', 'error');
+        refreshOverview();
+      });
+    }
+
+    function toggleForwardPolicy() {
+      apiCall('/api/v1/admin/config/toggle-forwarding', 'POST')
+      .then(res => {
+        const msg = state.lang === 'zh'
+          ? `外部转发隔离政策已${res.forward_to_storage_platforms ? '允许转发' : '禁止转发'}`
+          : `Forwarding to storage nodes is now ${res.forward_to_storage_platforms ? 'ALLOWED' : 'RESTRICTED'}`;
+        showToast(msg, 'success');
+        refreshOverview();
+      })
+      .catch(err => {
+        showToast(err.message || 'Failed to toggle forwarding policy', 'error');
+        refreshOverview();
+      });
     }
 
     // Export raw platform JSON metrics report
@@ -2836,11 +2986,15 @@
         if (addrs.length > 2) addrsHTML += `<div style="font-size:0.75rem; color:var(--text-dim);">+ ${addrs.length - 2} more addresses</div>`;
         if (relayAddrs.length > 0) addrsHTML += `<div style="font-family: monospace; font-size:0.8rem; color:var(--accent-cyan); font-weight:500;">[Relayed via ${relayAddrs.length} paths]</div>`;
 
+        const storageBadge = e.StoresUserData
+          ? ` <span class="badge" style="margin-left: 8px; background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.3); color: var(--accent-rose); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${i18n[state.lang].storage_badge_warning}</span>`
+          : '';
+
         tr.innerHTML = `
           <td class="checkbox-cell" onclick="event.stopPropagation()">
             <input type="checkbox" class="reg-select-box" value="${e.URN}" ${checked} onchange="toggleSelectReg('${e.URN}', this)">
           </td>
-          <td style="font-weight:700; color:var(--primary);" onclick="showNodeDetails('${e.URN}')">${e.URN}</td>
+          <td style="font-weight:700; color:var(--primary);" onclick="showNodeDetails('${e.URN}')">${e.URN}${storageBadge}</td>
           <td style="font-family: monospace; font-size:0.85rem;" onclick="showNodeDetails('${e.URN}')">${e.PeerID}</td>
           <td onclick="showNodeDetails('${e.URN}')">${addrsHTML || `<span style="color:var(--text-dim);">[Native Loopback / Indirect]</span>`}</td>
           <td onclick="showNodeDetails('${e.URN}')">${ttlHTML}</td>
@@ -2995,6 +3149,29 @@
         </div>
       `;
 
+      // Privacy & Data Storage Declaration
+      const privacyStatusText = entry.StoresUserData
+        ? (state.lang === 'zh' ? '该节点声明：会接收并暂存离线消息数据 (Stores User Data)' : 'This platform declares that it stores user message data.')
+        : (state.lang === 'zh' ? '该节点声明：不留存任何用户消息数据 (No User Data Stored)' : 'This platform declares that it does not store user data.');
+      const privacyColor = entry.StoresUserData ? 'var(--accent-rose)' : 'var(--success)';
+      const privacyBg = entry.StoresUserData ? 'rgba(244, 63, 94, 0.08)' : 'rgba(16, 185, 129, 0.08)';
+      const privacyBorder = entry.StoresUserData ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+
+      contentHTML += `
+        <div class="drawer-section">
+          <div class="drawer-section-title">${state.lang === 'zh' ? '安全与隐私声明 (Privacy Declaration)' : 'Data Privacy Declaration'}</div>
+          <div style="background: ${privacyBg}; border: 1px solid ${privacyBorder}; padding: 12px; border-radius: 8px; font-size: 0.85rem; color: ${privacyColor}; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+            <svg style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2.5;" viewBox="0 0 24 24">
+              ${entry.StoresUserData 
+                ? '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>'
+                : '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>'
+              }
+            </svg>
+            <span>${privacyStatusText}</span>
+          </div>
+        </div>
+      `;
+
       openDrawer(title, contentHTML);
     }
 
@@ -3061,8 +3238,20 @@
         let protosHTML = protos.slice(0, 3).map(p => `<span style="display:inline-block; font-size:0.75rem; background:rgba(255,255,255,0.05); padding: 2px 6px; border-radius:4px; margin-right:4px; margin-bottom:4px; font-family:monospace;">${p}</span>`).join('');
         if (protos.length > 3) protosHTML += `<span style="font-size:0.75rem; color:var(--text-dim);">+${protos.length - 3}</span>`;
 
+        let storageBadge = '';
+        if (e.stores_user_data) {
+          const isBlocked = (state.forwardToStoragePlatforms === false);
+          const badgeColor = isBlocked ? 'var(--accent-rose)' : 'var(--accent-amber)';
+          const badgeBg = isBlocked ? 'rgba(244,63,94,0.15)' : 'rgba(245,158,11,0.15)';
+          const badgeBorder = isBlocked ? 'rgba(244,63,94,0.3)' : 'rgba(245,158,11,0.3)';
+          const labelText = isBlocked 
+            ? (state.lang === 'zh' ? '存储平台 (通信受限)' : 'Storage Node (Restricted)')
+            : (state.lang === 'zh' ? '存储平台' : 'Storage Node');
+          storageBadge = ` <span class="badge" style="margin-left: 8px; background: ${badgeBg}; border: 1px solid ${badgeBorder}; color: ${badgeColor}; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${labelText}</span>`;
+        }
+
         tr.innerHTML = `
-          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails('${e.peer_id}')">${e.peer_id}</td>
+          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails('${e.peer_id}')">${e.peer_id}${storageBadge}</td>
           <td onclick="showPeerDetails('${e.peer_id}')">${dirHTML}</td>
           <td style="font-weight:700;" onclick="showPeerDetails('${e.peer_id}')">${e.conn_count}</td>
           <td onclick="showPeerDetails('${e.peer_id}')">${addrsHTML || `<span style="color:var(--text-dim);">[Internal Node Loopback]</span>`}</td>
@@ -3129,6 +3318,41 @@
           <div class="drawer-section-title">Supported Wire Protocols (${peer.protocols?.length || 0})</div>
           <div style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; padding-right:4px;">
             ${protocols || `<div class="addr-item">--</div>`}
+          </div>
+        </div>
+      `;
+
+      // Safety & Privacy declaration
+      const privacyStatusText = peer.stores_user_data
+        ? (state.lang === 'zh' ? '该物理节点被标记为：接收并存储用户数据' : 'This physical peer is identified as storing user message data.')
+        : (state.lang === 'zh' ? '该物理节点被标记为：不存储用户数据' : 'This physical peer is identified as not storing user data.');
+      
+      const isBlocked = peer.stores_user_data && (state.forwardToStoragePlatforms === false);
+      
+      const privacyColor = isBlocked ? 'var(--accent-rose)' : (peer.stores_user_data ? 'var(--accent-amber)' : 'var(--success)');
+      const privacyBg = isBlocked ? 'rgba(244, 63, 94, 0.08)' : (peer.stores_user_data ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)');
+      const privacyBorder = isBlocked ? 'rgba(244, 63, 94, 0.2)' : (peer.stores_user_data ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)');
+
+      const blockedNotice = isBlocked 
+        ? `<div style="margin-top: 8px; font-size: 0.8rem; color: var(--accent-rose); font-weight: 500;">
+             ${state.lang === 'zh' ? '⚠️ 由于系统“安全连接转发隔离”策略已启用，该节点已被限制接收转发消息。' : '⚠️ Due to forwarding restriction policies, communication with this node is currently restricted.'}
+           </div>`
+        : '';
+
+      contentHTML += `
+        <div class="drawer-section">
+          <div class="drawer-section-title">${state.lang === 'zh' ? '安全风控状态' : 'Security Policy Status'}</div>
+          <div style="background: ${privacyBg}; border: 1px solid ${privacyBorder}; padding: 12px; border-radius: 8px; font-size: 0.85rem; color: ${privacyColor}; font-weight: 600; display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2.5;" viewBox="0 0 24 24">
+                ${peer.stores_user_data 
+                  ? '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>'
+                  : '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>'
+                }
+              </svg>
+              <span>${privacyStatusText}</span>
+            </div>
+            ${blockedNotice}
           </div>
         </div>
       `;

@@ -120,7 +120,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 
 	// Self-register
 	err = regStore.RegisterWithSignature(id.Ed25519.URN(), h.ID().String(), hostAddrs(h), nil,
-		id.X25519PK, id.Ed25519.PublicKey, nil, 0)
+		id.X25519PK, id.Ed25519.PublicKey, nil, cfg.Platform.StoreUserData, 0)
 	if err != nil {
 		t.Fatalf("self register: %v", err)
 	}

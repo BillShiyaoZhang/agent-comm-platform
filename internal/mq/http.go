@@ -16,9 +16,9 @@ import (
 )
 
 // HTTPHandler returns an http.Handler for the MQ REST API.
-func HTTPHandler(store *Store) http.Handler {
+func HTTPHandler(store *Store, isStoreAllowed func() bool, isForwardAllowed func(recipientURN string) bool) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/mq/store", auth.VerifySignatureMiddleware(handleStore(store)))
+	mux.HandleFunc("POST /api/v1/mq/store", auth.VerifySignatureMiddleware(handleStore(store, isStoreAllowed, isForwardAllowed)))
 	mux.HandleFunc("GET /api/v1/mq/retrieve", handleRetrieve(store))
 	mux.HandleFunc("POST /api/v1/mq/ack", handleAck(store))
 	return mux
@@ -31,13 +31,32 @@ type storeReq struct {
 	PayloadProto []byte `json:"payload_proto"`
 }
 
-func handleStore(store *Store) http.HandlerFunc {
+func handleStore(store *Store, isStoreAllowed func() bool, isForwardAllowed func(recipientURN string) bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if isStoreAllowed != nil && !isStoreAllowed() {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Bad Request: message queue storage is disabled on this platform",
+			})
+			return
+		}
+
 		var req storeReq
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+
+		if isForwardAllowed != nil && !isForwardAllowed(req.RecipientURN) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Forbidden: sending messages to storage platforms is disabled by security policy",
+			})
+			return
+		}
+
 		var env proto.EncryptedEnvelope
 		if err := goproto.Unmarshal(req.PayloadProto, &env); err != nil {
 			http.Error(w, "invalid payload proto", http.StatusBadRequest)
