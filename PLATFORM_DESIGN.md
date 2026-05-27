@@ -31,9 +31,20 @@
 - **职责**：公钥劫持托管与代解密审查。
 - **机制**：对全网公示的是网关代理的 X25519 公钥，外部用户 A 实际上是在与网关建立 DR 会话。网关解密、过风控后，再通过内部会话重加密发给目标 B (架构见图 3.1)。
 
-## 3. 架构与流程图
+## 3. 核心库复用与可插拔存储设计 (Option A)
 
-### 3.1 合规模式下的网关代理流 (Gateway MITM Proxy)
+平台服务 (`agent-comm-platform`) 与核心 SDK 库 (`agent-comm`) 采用**组件重用**设计，消除了多余的代码冗余：
+*   **流处理器复用**：平台的 Registry 协议寻址和 MQ 信箱中转的底层 libp2p 流监听逻辑完全由 `agent-comm` 核心库的 `registry.Server` 和 `mq.Server` 来承载。
+*   **可插拔存储接口**：核心库中定义了通用的存储层抽象接口（`registry.Store` 和 `mq.Store`），平台在本地实现它们并与平台的 SQLite 数据库对接：
+    *   `registry.Store`：负责节点名片数据的落库、查询及验签。
+    *   `mq.Store`：负责接收方离线密文信封的盲存和 Ack 销毁。
+*   **无冗余 Proto 定义**：平台不维护自身的 protobuf 协议代码，直接引入并依赖 `agent-comm` 里的 `proto` 契约定义和 `crypto` 密钥管理工具。
+
+---
+
+## 4. 架构与流程图
+
+### 4.1 合规模式下的网关代理流 (Gateway MITM Proxy)
 
 ```mermaid
 sequenceDiagram
@@ -60,8 +71,10 @@ sequenceDiagram
     end
 ```
 
-## 4. 后续开发规划
+---
+
+## 5. 后续开发规划
 
 1. **改造 `cmd/bootstrap` 为微服务**：使其能够承受高并发的流媒体中继和 MQ 信封持久化。
 2. **云端超级 Registry 搭建**：在现有 Registry 的网络流基础上，增加基于 HTTP/gRPC 的直读直写旁路，用于高并发寻址竞速。
-3. **Gateway 模块研发**：实现双向 Double Ratchet 状态机的拼接与代持逻辑；对接外部内容审核引擎。
+3. **Gateway 模块研发**：实现双向 Double Ratchet 状态机的拼接与代持逻辑；对接外部内容审核引擎。

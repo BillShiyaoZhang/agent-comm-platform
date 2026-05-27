@@ -117,15 +117,35 @@ libp2p:
 
 ## 6. 使用 Docker Compose 运行服务
 
-在您的 ECS 服务器上（例如在 `/data` 目录）创建 `docker-compose.yml` 文件：
+### ⚠️ 核心构建前提 (Go Module 本地依赖)
+由于平台服务直接复用了核心 SDK 的代码，平台在 `go.mod` 中以本地替换方式依赖核心库 `agent-comm`：
+```go
+replace github.com/BillShiyaoZhang/agent-comm => ../agent-comm
+```
+因此在 ECS 上进行 Docker 构建前，**必须将 `agent-comm` 和 `agent-comm-platform` 两个代码库并排放置在同一个父目录下**（例如 `/data/app/`）：
+```text
+/data/app/
+├── agent-comm/          # 核心 SDK 代码库
+└── agent-comm-platform/ # 平台代码库 (在此目录下运行 docker compose)
+```
+
+### 部署步骤：
+1. **拉取两个仓库代码**：
+   ```bash
+   cd /data/app
+   git clone https://github.com/BillShiyaoZhang/agent-comm.git
+   git clone https://github.com/BillShiyaoZhang/agent-comm-platform.git
+   ```
+2. **复制配置到平台目录下**：将 `config.yaml` 配置文件保存在 `agent-comm-platform` 目录下。
+3. **运行 Docker Compose**：进入 `agent-comm-platform` 目录，创建或编辑 `docker-compose.yml`：
 
 ```yaml
 services:
   platform:
     image: agent-comm-platform:latest
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: agent-comm-platform/Dockerfile
     ports:
       - "45041:45041"
       - "45041:45041/udp"
@@ -139,8 +159,10 @@ services:
 
 ### 启动平台：
 ```bash
-docker-compose up --build -d
+cd /data/app/agent-comm-platform
+docker compose up --build -d
 ```
+
 
 通过健康检查接口验证是否启动成功：
 ```bash
