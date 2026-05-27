@@ -171,7 +171,7 @@ services:
       - "45041:45041/udp"
     volumes:
       - ./config.yaml:/etc/platform/config.yaml:ro
-      - ./data:/data
+      - /data:/data
     deploy:
       resources:
         limits:
