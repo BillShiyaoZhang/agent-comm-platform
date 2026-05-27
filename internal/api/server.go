@@ -18,7 +18,7 @@ type Server struct {
 }
 
 // New creates and configures the HTTP server with all API routes mounted.
-func New(listenAddr string, regStore *registrypkg.Store, mqStore *mqpkg.Store) *Server {
+func New(listenAddr string, regStore *registrypkg.Store, mqStore *mqpkg.Store, hostID string) *Server {
 	mux := http.NewServeMux()
 
 	// Registry API
@@ -26,6 +26,12 @@ func New(listenAddr string, regStore *registrypkg.Store, mqStore *mqpkg.Store) *
 
 	// MQ API
 	mux.Handle("/api/v1/mq/", mqpkg.HTTPHandler(mqStore))
+
+	// Bootstrap info API
+	mux.HandleFunc("/api/v1/bootstrap", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"peer_id":"` + hostID + `"}`))
+	})
 
 	// Health check
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
