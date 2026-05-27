@@ -146,6 +146,51 @@ func (s *Store) Ack(ctx context.Context, ids []string) (int, error) {
 	return int(n), nil
 }
 
+// QueueStat represents statistics about a recipient's message queue.
+type QueueStat struct {
+	Recipient string `json:"recipient"`
+	Count     int    `json:"count"`
+	TotalSize int64  `json:"total_size"`
+	OldestAt  int64  `json:"oldest_at"`
+	NewestAt  int64  `json:"newest_at"`
+}
+
+// ListQueueStats returns statistics about all active message queues in the system.
+func (s *Store) ListQueueStats(ctx context.Context) ([]*QueueStat, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT recipient, COUNT(*), SUM(LENGTH(payload)), MIN(stored_at), MAX(stored_at)
+		FROM messages
+		WHERE expiry = 0 OR expiry > ?
+		GROUP BY recipient
+		ORDER BY COUNT(*) DESC`, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var stats []*QueueStat
+	for rows.Next() {
+		var qs QueueStat
+		if err := rows.Scan(&qs.Recipient, &qs.Count, &qs.TotalSize, &qs.OldestAt, &qs.NewestAt); err != nil {
+			continue
+		}
+		stats = append(stats, &qs)
+	}
+	if stats == nil {
+		stats = []*QueueStat{}
+	}
+	return stats, nil
+}
+
+// PurgeQueue deletes all messages for a recipient.
+func (s *Store) PurgeQueue(ctx context.Context, recipient string) (int, error) {
+	res, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE recipient = ?", recipient)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
 

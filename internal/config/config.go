@@ -55,6 +55,7 @@ type APIConfig struct {
 	ListenAddr string `yaml:"listen_addr"`
 	TLSCert    string `yaml:"tls_cert"`
 	TLSKey     string `yaml:"tls_key"`
+	AdminToken string `yaml:"admin_token"`
 }
 
 func DefaultConfig() *Config {
@@ -92,6 +93,9 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("PLATFORM_DATA_DIR"); v != "" {
 		cfg.Platform.DataDir = v
+	}
+	if v := os.Getenv("PLATFORM_ADMIN_TOKEN"); v != "" {
+		cfg.API.AdminToken = v
 	}
 	return cfg, nil
 }

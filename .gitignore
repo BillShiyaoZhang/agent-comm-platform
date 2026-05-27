@@ -1,0 +1,21 @@
+# Databases and storage
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+keys/
+platform_data/
+
+# Local configurations containing actual secrets
+config.yaml
+.env
+
+# Go build binaries
+/platform
+/platform.exe
+/build/
+
+# OS specific files
+.DS_Store
+Thumbs.db

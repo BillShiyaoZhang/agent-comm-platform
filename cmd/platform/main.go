@@ -108,7 +108,7 @@ func main() {
 	log.Printf("MQ: %s", mq.ProtoID)
 
 	// ── HTTP API ─────────────────────────────────────────────────────────────
-	apiSrv := api.New(cfg.API.ListenAddr, regStore, mqStore, h.ID().String())
+	apiSrv := api.New(cfg, regStore, mqStore, h.ID().String(), h)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {

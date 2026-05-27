@@ -169,6 +169,38 @@ func (s *Store) ListURNs() ([]string, error) {
 	return urns, nil
 }
 
+// ListEntries returns all non-expired entries in the registry.
+func (s *Store) ListEntries() ([]*Entry, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows, err := s.db.QueryContext(context.Background(),
+		"SELECT urn, peer_id, addrs, relay_addrs, x25519_pubkey, ed25519_pubkey, expires_at FROM registry WHERE expires_at > ?", time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []*Entry
+	for rows.Next() {
+		var e Entry
+		var addrsJSON, relayJSON string
+		if err := rows.Scan(&e.URN, &e.PeerID, &addrsJSON, &relayJSON, &e.X25519Pubkey, &e.Ed25519Pubkey, &e.ExpiresAt); err != nil {
+			continue
+		}
+		e.Addrs = decodeStringSlice(addrsJSON)
+		e.RelayAddrs = decodeStringSlice(relayJSON)
+		entries = append(entries, &e)
+	}
+	return entries, nil
+}
+
+// EvictEntry deletes a URN entry from the database.
+func (s *Store) EvictEntry(urn string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec("DELETE FROM registry WHERE urn = ?", urn)
+	return err
+}
+
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
 

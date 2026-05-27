@@ -145,7 +145,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	}
 
 	// 6. HTTP API
-	apiSrv := api.New(cfg.API.ListenAddr, regStore, mqStore, h.ID().String())
+	apiSrv := api.New(cfg, regStore, mqStore, h.ID().String(), h)
 	
 	// We need to resolve the actual port bound to the HTTP server
 	// We can listen on a TCP port first to get a random port, close it, and bind the server,
@@ -156,7 +156,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	// Let's find a free port:
 	freePort := 1024 + (time.Now().UnixNano() % 50000)
 	cfg.API.ListenAddr = fmt.Sprintf("127.0.0.1:%d", freePort)
-	apiSrv = api.New(cfg.API.ListenAddr, regStore, mqStore, h.ID().String())
+	apiSrv = api.New(cfg, regStore, mqStore, h.ID().String(), h)
 
 	go func() {
 		apiSrv.Start(ctx)

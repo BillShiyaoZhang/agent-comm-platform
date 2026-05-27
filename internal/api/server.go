@@ -3,14 +3,21 @@ package api
 
 import (
 	"context"
+	"embed"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"time"
 
-	registrypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/registry"
+	"github.com/BillShiyaoZhang/agent-comm-platform/internal/config"
 	mqpkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/mq"
+	registrypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/registry"
+	"github.com/libp2p/go-libp2p/core/host"
 )
+
+//go:embed web/*
+var webAssets embed.FS
 
 // Server is the HTTP API server.
 type Server struct {
@@ -18,7 +25,7 @@ type Server struct {
 }
 
 // New creates and configures the HTTP server with all API routes mounted.
-func New(listenAddr string, regStore *registrypkg.Store, mqStore *mqpkg.Store, hostID string) *Server {
+func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, hostID string, h host.Host) *Server {
 	mux := http.NewServeMux()
 
 	// Registry API
@@ -26,6 +33,9 @@ func New(listenAddr string, regStore *registrypkg.Store, mqStore *mqpkg.Store, h
 
 	// MQ API
 	mux.Handle("/api/v1/mq/", mqpkg.HTTPHandler(mqStore))
+
+	// Admin API
+	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h))
 
 	// Bootstrap info API
 	mux.HandleFunc("/api/v1/bootstrap", func(w http.ResponseWriter, r *http.Request) {
@@ -46,11 +56,23 @@ func New(listenAddr string, regStore *registrypkg.Store, mqStore *mqpkg.Store, h
 		w.Write([]byte(`{"registry_urns":` + itoa(len(urns)) + `}`))
 	})
 
+	// Admin Web Console
+	subFS, err := fs.Sub(webAssets, "web")
+	if err != nil {
+		log.Printf("[api] failed to load embedded web assets: %v", err)
+	} else {
+		fileServer := http.FileServer(http.FS(subFS))
+		mux.Handle("/admin/", http.StripPrefix("/admin", fileServer))
+		mux.HandleFunc("GET /admin", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/admin/", http.StatusMovedPermanently)
+		})
+	}
+
 	handler := loggingMiddleware(mux)
 
 	return &Server{
 		srv: &http.Server{
-			Addr:         listenAddr,
+			Addr:         cfg.API.ListenAddr,
 			Handler:      handler,
 			ReadTimeout:  15 * time.Second,
 			WriteTimeout: 30 * time.Second,

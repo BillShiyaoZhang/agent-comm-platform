@@ -31,3 +31,4 @@ api:
   listen_addr: ":8080"
   tls_cert: ""
   tls_key: ""
+  admin_token: "" # Leave empty to disable admin APIs by default. Configure locally in config.yaml or override via environment variable: PLATFORM_ADMIN_TOKEN=your_token
