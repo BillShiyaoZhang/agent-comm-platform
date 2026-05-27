@@ -1,15 +1,18 @@
 package registry
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"strconv"
+
+	"github.com/BillShiyaoZhang/agent-comm-platform/internal/auth"
 )
 
 // HTTPHandler returns an http.Handler for the Registry REST API.
 func HTTPHandler(store *Store) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/registry/register", handleRegister(store))
+	mux.HandleFunc("POST /api/v1/registry/register", auth.VerifySignatureMiddleware(handleRegister(store)))
 	mux.HandleFunc("GET /api/v1/registry/resolve", handleResolve(store))
 	mux.HandleFunc("GET /api/v1/registry/list", handleList(store))
 	return mux
@@ -37,6 +40,14 @@ func handleRegister(store *Store) http.HandlerFunc {
 			http.Error(w, "register failed: signature, ed25519_pubkey, and timestamp are required", http.StatusUnauthorized)
 			return
 		}
+
+		// Verify that the public key in Authorization matches req.Ed25519Pubkey
+		authPubkey, err := auth.ExtractPubkeyFromAuth(r.Header.Get("Authorization"))
+		if err != nil || !bytes.Equal(authPubkey, req.Ed25519Pubkey) {
+			http.Error(w, "register failed: public key mismatch between Authorization header and body", http.StatusUnauthorized)
+			return
+		}
+
 		if err := store.RegisterWithSignature(req.URN, req.PeerID, req.Addrs, req.RelayAddrs,
 			req.X25519Pubkey, req.Ed25519Pubkey, req.Signature, req.Timestamp); err != nil {
 			http.Error(w, "register failed: "+err.Error(), http.StatusBadRequest)

@@ -21,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	goproto "google.golang.org/protobuf/proto"
 
+	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	coremq "github.com/BillShiyaoZhang/agent-comm/mq"
 	pb "github.com/BillShiyaoZhang/agent-comm/proto"
 )
@@ -314,10 +315,15 @@ func TestMQHTTPHandlers(t *testing.T) {
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
+	senderPubKey, senderPrivKey, _ := ed25519.GenerateKey(nil)
+	kp := &crypto.IdentityKeyPair{PublicKey: senderPubKey, PrivateKey: senderPrivKey}
+	senderURN := kp.URN()
+
 	urn := "urn:hermes:agent:http-recipient"
 	env := &pb.EncryptedEnvelope{
 		MessageId:  "msg-http-id",
 		Ciphertext: []byte("ciphertext bytes over http"),
+		SenderUrn:  senderURN,
 	}
 	envBytes, _ := goproto.Marshal(env)
 
@@ -327,14 +333,21 @@ func TestMQHTTPHandlers(t *testing.T) {
 		PayloadProto: envBytes,
 	}
 	bodyBytes, _ := json.Marshal(storeReqObj)
-	respStore, err := http.Post(srv.URL+"/api/v1/mq/store", "application/json", strings.NewReader(string(bodyBytes)))
+	reqStore, _ := http.NewRequest("POST", srv.URL+"/api/v1/mq/store", strings.NewReader(string(bodyBytes)))
+	reqStore.Header.Set("Content-Type", "application/json")
+	payloadSig := ed25519.Sign(senderPrivKey, bodyBytes)
+	reqStore.Header.Set("Authorization", "Ed25519 "+hex.EncodeToString(payloadSig)+":"+hex.EncodeToString(senderPubKey))
+
+	client := &http.Client{}
+	respStore, err := client.Do(reqStore)
 	if err != nil {
 		t.Fatalf("POST store error: %v", err)
 	}
 	defer respStore.Body.Close()
 
 	if respStore.StatusCode != http.StatusOK {
-		t.Errorf("expected store status 200, got %d", respStore.StatusCode)
+		b, _ := io.ReadAll(respStore.Body)
+		t.Errorf("expected store status 200, got %d, body: %s", respStore.StatusCode, string(b))
 	}
 
 	var storeRespObj map[string]interface{}
@@ -353,7 +366,6 @@ func TestMQHTTPHandlers(t *testing.T) {
 	msg := append([]byte("mq-retrieve|"+urn+"|"), tsBuf...)
 	sig := ed25519.Sign(privKey, msg)
 
-	client := &http.Client{}
 	reqRetrieve, _ := http.NewRequest("GET", srv.URL+"/api/v1/mq/retrieve", nil)
 	reqRetrieve.Header.Set("X-URN", urn)
 	reqRetrieve.Header.Set("X-Timestamp", strconv.FormatInt(timestamp, 10))

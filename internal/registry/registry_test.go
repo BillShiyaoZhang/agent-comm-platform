@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -305,14 +306,21 @@ func TestRegistryHTTPHandlers(t *testing.T) {
 	}
 
 	bodyBytes, _ := json.Marshal(regReq)
-	resp, err := http.Post(srv.URL+"/api/v1/registry/register", "application/json", strings.NewReader(string(bodyBytes)))
+	reqRegister, _ := http.NewRequest("POST", srv.URL+"/api/v1/registry/register", strings.NewReader(string(bodyBytes)))
+	reqRegister.Header.Set("Content-Type", "application/json")
+	payloadSig := ed25519.Sign(privKey, bodyBytes)
+	reqRegister.Header.Set("Authorization", "Ed25519 "+hex.EncodeToString(payloadSig)+":"+hex.EncodeToString(pubKey))
+
+	client := &http.Client{}
+	resp, err := client.Do(reqRegister)
 	if err != nil {
 		t.Fatalf("POST register error: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+		t.Errorf("expected status 200, got %d, body: %s", resp.StatusCode, string(b))
 	}
 
 	var regResp map[string]interface{}

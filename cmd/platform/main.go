@@ -73,7 +73,8 @@ func main() {
 		log.Fatalf("create registry store: %v", err)
 	}
 	defer regStore.Close()
-	_ = registry.NewServer(h, regStore)
+	regSrv := registry.NewServer(h, regStore)
+	regSrv.Register()
 	log.Printf("Registry: %s", registry.ProtoID)
 
 	// Self-register

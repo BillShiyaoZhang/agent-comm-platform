@@ -9,14 +9,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	proto "github.com/BillShiyaoZhang/agent-comm/proto"
+	"github.com/BillShiyaoZhang/agent-comm-platform/internal/auth"
 	goproto "google.golang.org/protobuf/proto"
 )
 
 // HTTPHandler returns an http.Handler for the MQ REST API.
 func HTTPHandler(store *Store) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/mq/store", handleStore(store))
+	mux.HandleFunc("POST /api/v1/mq/store", auth.VerifySignatureMiddleware(handleStore(store)))
 	mux.HandleFunc("GET /api/v1/mq/retrieve", handleRetrieve(store))
 	mux.HandleFunc("POST /api/v1/mq/ack", handleAck(store))
 	return mux
@@ -41,6 +43,22 @@ func handleStore(store *Store) http.HandlerFunc {
 			http.Error(w, "invalid payload proto", http.StatusBadRequest)
 			return
 		}
+
+		// Extract public key from Authorization header
+		authPubkey, err := auth.ExtractPubkeyFromAuth(r.Header.Get("Authorization"))
+		if err != nil {
+			http.Error(w, "store failed: invalid authorization header", http.StatusUnauthorized)
+			return
+		}
+
+		// Derive URN and verify it matches the envelope's SenderUrn
+		kp := &crypto.IdentityKeyPair{PublicKey: ed25519.PublicKey(authPubkey)}
+		expectedURN := kp.URN()
+		if env.SenderUrn != expectedURN {
+			http.Error(w, "store failed: sender URN mismatch with signing key", http.StatusUnauthorized)
+			return
+		}
+
 		id, err := store.StoreEnvelope(r.Context(), req.RecipientURN, &env, req.ExpiryUnix)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
