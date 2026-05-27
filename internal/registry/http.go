@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"time"
 )
 
 // HTTPHandler returns an http.Handler for the Registry REST API.
@@ -34,8 +33,9 @@ func handleRegister(store *Store) http.HandlerFunc {
 			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		if req.Timestamp == 0 {
-			req.Timestamp = time.Now().Unix()
+		if len(req.Signature) == 0 || len(req.Ed25519Pubkey) == 0 || req.Timestamp == 0 {
+			http.Error(w, "register failed: signature, ed25519_pubkey, and timestamp are required", http.StatusUnauthorized)
+			return
 		}
 		if err := store.RegisterWithSignature(req.URN, req.PeerID, req.Addrs, req.RelayAddrs,
 			req.X25519Pubkey, req.Ed25519Pubkey, req.Signature, req.Timestamp); err != nil {

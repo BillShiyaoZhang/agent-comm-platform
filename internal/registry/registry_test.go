@@ -290,12 +290,18 @@ func TestRegistryHTTPHandlers(t *testing.T) {
 		xPK = append(xPK, make([]byte, 32-len(xPK))...)
 	}
 
+	pubKey, privKey, _ := ed25519.GenerateKey(nil)
+	timestamp := time.Now().Unix()
+	sig := makeRegistrySig(t, urn, peerID, timestamp, privKey)
+
 	regReq := registerReq{
-		URN:          urn,
-		PeerID:       peerID,
-		Addrs:        addrs,
-		X25519Pubkey: xPK,
-		Timestamp:    time.Now().Unix(),
+		URN:           urn,
+		PeerID:        peerID,
+		Addrs:         addrs,
+		X25519Pubkey:  xPK,
+		Ed25519Pubkey: pubKey,
+		Signature:     sig,
+		Timestamp:     timestamp,
 	}
 
 	bodyBytes, _ := json.Marshal(regReq)
@@ -313,6 +319,23 @@ func TestRegistryHTTPHandlers(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&regResp)
 	if regResp["ok"] != true {
 		t.Errorf("expected ok=true, got %v", regResp)
+	}
+
+	// 1.5. POST /api/v1/registry/register without signature (should fail with 401)
+	regReqNoSig := registerReq{
+		URN:          urn + "-no-sig",
+		PeerID:       peerID,
+		Addrs:        addrs,
+		X25519Pubkey: xPK,
+	}
+	bodyBytesNoSig, _ := json.Marshal(regReqNoSig)
+	respNoSig, err := http.Post(srv.URL+"/api/v1/registry/register", "application/json", strings.NewReader(string(bodyBytesNoSig)))
+	if err != nil {
+		t.Fatalf("POST register no sig error: %v", err)
+	}
+	defer respNoSig.Body.Close()
+	if respNoSig.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected status 401 for unsigned register, got %d", respNoSig.StatusCode)
 	}
 
 	// 2. GET /api/v1/registry/resolve?urn=...

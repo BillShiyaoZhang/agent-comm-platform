@@ -70,12 +70,15 @@ func handleRetrieve(store *Store) http.HandlerFunc {
 			return
 		}
 
-		// Verify auth if credentials are provided
-		if pubkeyHex != "" && sigHex != "" && tsStr != "" {
-			if err := verifyRetrieveAuth(urn, tsStr, pubkeyHex, sigHex); err != nil {
-				http.Error(w, "auth failed: "+err.Error(), http.StatusUnauthorized)
-				return
-			}
+		// Verify auth is provided and valid
+		if pubkeyHex == "" || sigHex == "" || tsStr == "" {
+			http.Error(w, "auth failed: signature headers (X-Pubkey, X-Signature, X-Timestamp) are required", http.StatusUnauthorized)
+			return
+		}
+
+		if err := verifyRetrieveAuth(urn, tsStr, pubkeyHex, sigHex); err != nil {
+			http.Error(w, "auth failed: "+err.Error(), http.StatusUnauthorized)
+			return
 		}
 
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)

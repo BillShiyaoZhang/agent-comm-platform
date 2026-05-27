@@ -400,6 +400,18 @@ func TestMQHTTPHandlers(t *testing.T) {
 		t.Errorf("expected retrieve with bad auth status 401, got %d", respRetrieveBad.StatusCode)
 	}
 
+	// 3.5. GET /api/v1/mq/retrieve (With MISSING signature headers)
+	reqRetrieveNoHeaders, _ := http.NewRequest("GET", srv.URL+"/api/v1/mq/retrieve", nil)
+	reqRetrieveNoHeaders.Header.Set("X-URN", urn)
+	respRetrieveNoHeaders, err := client.Do(reqRetrieveNoHeaders)
+	if err != nil {
+		t.Fatalf("GET retrieve with missing headers error: %v", err)
+	}
+	defer respRetrieveNoHeaders.Body.Close()
+	if respRetrieveNoHeaders.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected retrieve with missing headers status 401, got %d", respRetrieveNoHeaders.StatusCode)
+	}
+
 	// 4. POST /api/v1/mq/ack
 	ackReqObj := ackReq{
 		MessageIDs: []string{"msg-http-id"},
