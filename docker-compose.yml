@@ -10,6 +10,8 @@ services:
     volumes:
       - ./config.example.yaml:/etc/platform/config.yaml:ro
       - platform_data:/data
+    environment:
+      - PLATFORM_ADMIN_TOKEN=${PLATFORM_ADMIN_TOKEN}
     restart: unless-stopped
 
 volumes:
