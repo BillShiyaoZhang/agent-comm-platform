@@ -6,6 +6,7 @@ require (
 	github.com/BillShiyaoZhang/agent-comm v0.0.0-00010101000000-000000000000
 	github.com/google/uuid v1.6.0
 	github.com/libp2p/go-libp2p v0.45.0
+	golang.org/x/time v0.12.0
 	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.50.1
@@ -100,7 +101,6 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260209163413-e7419c687ee4 // indirect
 	golang.org/x/text v0.34.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 	modernc.org/libc v1.72.3 // indirect

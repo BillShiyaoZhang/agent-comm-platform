@@ -52,10 +52,12 @@ type MQConfig struct {
 }
 
 type APIConfig struct {
-	ListenAddr string `yaml:"listen_addr"`
-	TLSCert    string `yaml:"tls_cert"`
-	TLSKey     string `yaml:"tls_key"`
-	AdminToken string `yaml:"admin_token"`
+	ListenAddr     string  `yaml:"listen_addr"`
+	TLSCert        string  `yaml:"tls_cert"`
+	TLSKey         string  `yaml:"tls_key"`
+	AdminToken     string  `yaml:"admin_token"`
+	RateLimitRate  float64 `yaml:"rate_limit_rate"`  // requests per second per IP (0 to disable)
+	RateLimitBurst int     `yaml:"rate_limit_burst"` // burst size
 }
 
 func DefaultConfig() *Config {
@@ -71,7 +73,7 @@ func DefaultConfig() *Config {
 		Registry: RegistryConfig{PersistDB: "./data/registry.db", TTLHours: 24, HTTPEnabled: true},
 		Relay:    RelayConfig{Enabled: true, MaxReservations: 1000, MaxCircuitDuration: "2m"},
 		MQ:       MQConfig{DBPath: "./data/mq.db", DefaultTTLDays: 7, MaxMsgsPerURN: 500, HTTPEnabled: true},
-		API:      APIConfig{ListenAddr: ":8080"},
+		API:      APIConfig{ListenAddr: ":8080", RateLimitRate: 10.0, RateLimitBurst: 20},
 	}
 }
 

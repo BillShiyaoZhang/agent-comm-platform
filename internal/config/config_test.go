@@ -17,6 +17,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.API.ListenAddr != ":8080" {
 		t.Errorf("expected API.ListenAddr ':8080', got %q", cfg.API.ListenAddr)
 	}
+	if cfg.API.RateLimitRate != 10.0 {
+		t.Errorf("expected API.RateLimitRate 10.0, got %f", cfg.API.RateLimitRate)
+	}
+	if cfg.API.RateLimitBurst != 20 {
+		t.Errorf("expected API.RateLimitBurst 20, got %d", cfg.API.RateLimitBurst)
+	}
 }
 
 func TestLoad(t *testing.T) {

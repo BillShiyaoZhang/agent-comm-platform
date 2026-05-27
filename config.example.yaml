@@ -32,3 +32,5 @@ api:
   tls_cert: ""
   tls_key: ""
   admin_token: "" # Leave empty to disable admin APIs by default. Configure locally in config.yaml or override via environment variable: PLATFORM_ADMIN_TOKEN=your_token
+  rate_limit_rate: 10.0 # HTTP rate limit: allowed requests per second per IP (0 to disable)
+  rate_limit_burst: 20  # HTTP rate limit: maximum burst size per IP

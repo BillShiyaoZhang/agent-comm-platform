@@ -3,16 +3,38 @@ services:
     build:
       context: ..
       dockerfile: agent-comm-platform/Dockerfile
+    expose:
+      - "8080"
     ports:
       - "45041:45041"
       - "45041:45041/udp"
-      - "8080:8080"
     volumes:
       - ./config.example.yaml:/etc/platform/config.yaml:ro
       - platform_data:/data
     environment:
       - PLATFORM_ADMIN_TOKEN=${PLATFORM_ADMIN_TOKEN}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # 启用 HTTP/3 支持
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - platform
 
 volumes:
   platform_data:
+  caddy_data:
+  caddy_config:

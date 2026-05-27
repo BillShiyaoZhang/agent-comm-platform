@@ -15,22 +15,26 @@
 
 ## 2. ECS 安全组配置 (防火墙端口开放)
 
-平台同时运行了 HTTP 接口服务和 libp2p P2P 网络协议，您必须在阿里云安全组中放行以下端口：
+平台同时运行了 HTTPS 反向代理服务和 libp2p P2P 网络协议，您必须在阿里云安全组中放行以下端口：
 
 ### 配置步骤：
 1. 登录 **阿里云 ECS 管理控制台**。
 2. 在左侧导航栏中，选择 **网络与安全** > **安全组**。
 3. 选择实例所在的地域，找到关联的安全组，点击 **管理规则**。
-4. 在 **入方向** 标签页下，点击 **添加规则**，配置以下三个端口：
+4. 在 **入方向** 标签页下，点击 **添加规则**，配置以下端口：
 
 | 优先级 | 策略 | 协议类型 | 端口范围 | 授权对象 | 描述 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| 1 | 允许 | **TCP** | `8080` | `0.0.0.0/0` | HTTP REST API 访问端口（Registry & MQ 服务） |
+| 1 | 允许 | **TCP** | `80` | `0.0.0.0/0` | HTTP 访问端口（用于 Let's Encrypt 证书验证与 80 端口重定向） |
+| 1 | 允许 | **TCP** | `443` | `0.0.0.0/0` | HTTPS 流量入口（安全加密 REST API 访问端口） |
+| 1 | 允许 | **UDP** | `443` | `0.0.0.0/0` | HTTP/3 支持流量入口 |
 | 1 | 允许 | **TCP** | `45041` | `0.0.0.0/0` | libp2p TCP 基础流通信端口 |
 | 1 | 允许 | **UDP** | `45041` | `0.0.0.0/0` | libp2p UDP/QUIC 流量（用于打洞及 NAT 穿透） |
 
 > [!WARNING]
-> 请务必同时开放 `45041` 端口的 **TCP** 和 **UDP** 协议。如果 UDP 协议被封禁，libp2p 节点将无法通过 QUIC 完成 NAT 穿透打洞。
+> 为了系统安全，**请勿在安全组中放行 8080 端口**。所有的 API 访问都必须通过 Caddy 的 80/443 端口进行 HTTPS 反向代理，以保障传输数据安全。
+> 
+> 同时，请务必放行 `45041` 端口的 **TCP** 和 **UDP** 协议，以确保 libp2p 节点能够正常工作。
 
 ---
 
@@ -137,7 +141,21 @@ replace github.com/BillShiyaoZhang/agent-comm => ../agent-comm
    git clone https://github.com/BillShiyaoZhang/agent-comm-platform.git
    ```
 2. **复制配置到平台目录下**：将 `config.yaml` 配置文件保存在 `agent-comm-platform` 目录下。
-3. **运行 Docker Compose**：进入 `agent-comm-platform` 目录，创建或编辑 `docker-compose.yml`：
+3. **创建 Caddy 配置文件**：在 `agent-comm-platform` 目录下创建 `Caddyfile`，并指定您的域名：
+   ```caddy
+   # agent-comm-platform/Caddyfile
+   your-domain.com {
+       encode gzip zstd
+       reverse_proxy platform:8080
+       header {
+           Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+           X-Frame-Options "DENY"
+           X-Content-Type-Options "nosniff"
+           -Server
+       }
+   }
+   ```
+4. **编辑 `docker-compose.yml`**：在 `agent-comm-platform` 目录下，创建或编辑 `docker-compose.yml`：
 
 ```yaml
 services:
@@ -146,15 +164,39 @@ services:
     build:
       context: ..
       dockerfile: agent-comm-platform/Dockerfile
+    expose:
+      - "8080"
     ports:
       - "45041:45041"
       - "45041:45041/udp"
-      - "8080:8080"
     volumes:
       - ./config.yaml:/etc/platform/config.yaml:ro
       - ./keys:/data/keys
       - .:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - platform
+
+volumes:
+  caddy_data:
+  caddy_config:
 ```
 
 ### 启动平台：
@@ -163,9 +205,18 @@ cd /data/app/agent-comm-platform
 docker compose up --build -d
 ```
 
-
-通过健康检查接口验证是否启动成功：
-```bash
-curl http://localhost:8080/healthz
-# 期望输出: {"status":"ok"}
-```
+### 验证部署与健康状态：
+1. **查看 Caddy 日志**，确认 Let's Encrypt 证书已成功签发：
+   ```bash
+   docker compose logs caddy
+   ```
+2. **测试 HTTPS 访问**：
+   ```bash
+   curl https://your-domain.com/healthz
+   # 期望输出: {"status":"ok"}
+   ```
+3. **测试 HTTP 自动重定向**：
+   ```bash
+   curl -I http://your-domain.com
+   # 应当返回 301 重定向到 https://your-domain.com
+   ```
