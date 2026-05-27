@@ -49,7 +49,13 @@ func TestAdminAPIs(t *testing.T) {
 		API:      config.APIConfig{AdminToken: "test-secret-token"},
 	}
 
-	adminHandler := AdminHandler(cfg, regStore, mqStore, h)
+	auditLog, err := NewAuditLog(tempDir)
+	if err != nil {
+		t.Fatalf("create audit log: %v", err)
+	}
+	defer auditLog.Close()
+
+	adminHandler := AdminHandler(cfg, regStore, mqStore, h, auditLog)
 
 	t.Run("Unauthorized - No Token", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/admin/overview", nil)
@@ -213,6 +219,63 @@ func TestAdminAPIs(t *testing.T) {
 		json.NewDecoder(w.Body).Decode(&resp)
 		if resp.API.AdminToken != "******" {
 			t.Errorf("expected admin token to be redacted, got %s", resp.API.AdminToken)
+		}
+	})
+
+	t.Run("Authorized - Peers", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/admin/peers", nil)
+		req.Header.Set("X-Admin-Token", "test-secret-token")
+		w := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w.Code)
+		}
+
+		var resp map[string]interface{}
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode peers resp: %v", err)
+		}
+		if _, ok := resp["peers"]; !ok {
+			t.Errorf("expected 'peers' key in response")
+		}
+		if _, ok := resp["count"]; !ok {
+			t.Errorf("expected 'count' key in response")
+		}
+	})
+
+	t.Run("Authorized - Logs", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/admin/logs", nil)
+		req.Header.Set("X-Admin-Token", "test-secret-token")
+		w := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w.Code)
+		}
+
+		var resp map[string]interface{}
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode logs resp: %v", err)
+		}
+		entries := resp["entries"].([]interface{})
+		if len(entries) < 2 {
+			t.Errorf("expected at least 2 log entries from registry eviction and MQ purge, got %d", len(entries))
+		}
+
+		// Verify fields of the first entry (should be the MQ purge or eviction, order desc)
+		entry := entries[0].(map[string]interface{})
+		if _, ok := entry["timestamp"]; !ok {
+			t.Errorf("expected 'timestamp' key in log entry")
+		}
+		if _, ok := entry["level"]; !ok {
+			t.Errorf("expected 'level' key in log entry")
+		}
+		if _, ok := entry["source"]; !ok {
+			t.Errorf("expected 'source' key in log entry")
+		}
+		if _, ok := entry["message"]; !ok {
+			t.Errorf("expected 'message' key in log entry")
 		}
 	})
 }

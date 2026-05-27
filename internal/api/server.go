@@ -23,7 +23,8 @@ var webAssets embed.FS
 
 // Server is the HTTP API server.
 type Server struct {
-	srv *http.Server
+	srv      *http.Server
+	AuditLog *AuditLog
 }
 
 // New creates and configures the HTTP server with all API routes mounted.
@@ -36,8 +37,17 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 	// MQ API
 	mux.Handle("/api/v1/mq/", mqpkg.HTTPHandler(mqStore))
 
+	// Audit Log (persistent to SQLite)
+	var auditLog *AuditLog
+	if al, err := NewAuditLog(cfg.Platform.DataDir); err != nil {
+		log.Printf("[api] WARNING: failed to create audit log: %v (admin audit logging disabled)", err)
+	} else {
+		auditLog = al
+		log.Printf("[api] Audit log initialized at %s/audit.db", cfg.Platform.DataDir)
+	}
+
 	// Admin API
-	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h))
+	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h, auditLog))
 
 	// Bootstrap info API
 	mux.HandleFunc("/api/v1/bootstrap", func(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +102,7 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 			WriteTimeout: 30 * time.Second,
 			IdleTimeout:  60 * time.Second,
 		},
+		AuditLog: auditLog,
 	}
 }
 

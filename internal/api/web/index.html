@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent Comm Platform 管理后台</title>
+  <title data-i18n="title">Agent Comm Platform 管理后台</title>
   <!-- Google Fonts Outfit & Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,21 +12,32 @@
   <style>
     /* Design Tokens */
     :root {
-      --bg-gradient: linear-gradient(135deg, #0b0f19 0%, #111827 50%, #0f172a 100%);
-      --surface-glass: rgba(17, 24, 39, 0.6);
-      --surface-glass-hover: rgba(31, 41, 55, 0.7);
-      --border-color: rgba(255, 255, 255, 0.08);
-      --border-color-hover: rgba(99, 102, 241, 0.3);
       --primary: #6366f1;
       --primary-hover: #4f46e5;
-      --primary-glow: rgba(99, 102, 241, 0.15);
+      --primary-glow: rgba(99, 102, 241, 0.25);
+      
+      --accent-cyan: #06b6d4;
+      --accent-cyan-hover: #0891b2;
+      --accent-cyan-glow: rgba(6, 182, 212, 0.25);
+      
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-rose-hover: #e11d48;
       --success: #10b981;
-      --danger: #ef4444;
-      --danger-hover: #dc2626;
+      
+      --bg-dark: #070913;
+      --surface-glass: rgba(13, 20, 38, 0.45);
+      --surface-glass-hover: rgba(22, 32, 59, 0.6);
+      --border-color: rgba(255, 255, 255, 0.05);
+      --border-color-hover: rgba(255, 255, 255, 0.12);
+      
       --text-main: #f3f4f6;
       --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      
       --font-display: 'Outfit', 'Inter', sans-serif;
       --font-body: 'Inter', sans-serif;
+      --sidebar-width: 280px;
     }
 
     * {
@@ -36,7 +47,7 @@
     }
 
     body {
-      background: var(--bg-gradient);
+      background: var(--bg-dark);
       color: var(--text-main);
       font-family: var(--font-body);
       min-height: 100vh;
@@ -44,20 +55,63 @@
       display: flex;
     }
 
+    /* Aurora animated background */
+    .aurora-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: -2;
+      background: radial-gradient(circle at 50% 50%, #0c0f24 0%, #050711 100%);
+    }
+
+    .aurora-glow {
+      position: absolute;
+      width: 80vw;
+      height: 80vw;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.12;
+      mix-blend-mode: screen;
+      animation: rotateGlow 25s infinite linear;
+    }
+
+    .aurora-1 {
+      top: -25%;
+      left: -25%;
+      background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+    }
+
+    .aurora-2 {
+      bottom: -25%;
+      right: -25%;
+      background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 70%);
+      animation-duration: 35s;
+      animation-direction: reverse;
+    }
+
+    @keyframes rotateGlow {
+      0% { transform: rotate(0deg) translate(-5%, -5%) scale(1); }
+      50% { transform: rotate(180deg) translate(5%, 5%) scale(1.15); }
+      100% { transform: rotate(360deg) translate(-5%, -5%) scale(1); }
+    }
+
     /* Scrollbar Styling */
     ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
     }
     ::-webkit-scrollbar-track {
       background: rgba(0, 0, 0, 0.2);
     }
     ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.18);
     }
 
     /* Container & Layout */
@@ -69,72 +123,86 @@
 
     /* Sidebar */
     .sidebar {
-      width: 280px;
-      background: rgba(10, 15, 26, 0.85);
+      width: var(--sidebar-width);
+      background: rgba(8, 12, 24, 0.75);
       border-right: 1px solid var(--border-color);
-      backdrop-filter: blur(20px);
-      padding: 24px;
+      backdrop-filter: blur(25px);
+      padding: 28px 24px;
       display: flex;
       flex-direction: column;
       position: fixed;
       height: 100vh;
-      z-index: 10;
+      z-index: 100;
+      transition: transform 0.3s ease;
     }
 
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 40px;
+      margin-bottom: 36px;
     }
 
     .brand-logo {
-      width: 36px;
-      height: 36px;
-      background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
-      border-radius: 10px;
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 14px var(--primary-glow);
+      box-shadow: 0 8px 20px var(--primary-glow);
     }
 
     .brand-logo svg {
-      width: 20px;
-      height: 20px;
+      width: 22px;
+      height: 22px;
       fill: #fff;
+    }
+
+    .brand-info {
+      display: flex;
+      flex-direction: column;
     }
 
     .brand-title {
       font-family: var(--font-display);
       font-size: 1.15rem;
-      font-weight: 700;
+      font-weight: 800;
       letter-spacing: 0.5px;
       background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
+    .brand-subtitle {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 1px;
+    }
+
     .menu {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       flex-grow: 1;
     }
 
     .menu-item {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
       padding: 12px 16px;
-      border-radius: 8px;
+      border-radius: 10px;
       color: var(--text-muted);
       text-decoration: none;
       font-weight: 500;
       font-size: 0.95rem;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
     }
 
     .menu-item svg {
@@ -142,6 +210,8 @@
       height: 20px;
       stroke: currentColor;
       fill: none;
+      stroke-width: 1.8;
+      transition: transform 0.2s ease;
     }
 
     .menu-item:hover {
@@ -149,70 +219,132 @@
       background: rgba(255, 255, 255, 0.03);
     }
 
+    .menu-item:hover svg {
+      transform: scale(1.05);
+    }
+
     .menu-item.active {
       color: #ffffff;
-      background: rgba(99, 102, 241, 0.15);
-      border-color: rgba(99, 102, 241, 0.25);
+      background: rgba(99, 102, 241, 0.12);
+      border-color: rgba(99, 102, 241, 0.2);
       box-shadow: inset 0 0 12px rgba(99, 102, 241, 0.05);
+    }
+
+    .menu-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 25%;
+      height: 50%;
+      width: 4px;
+      background: var(--primary);
+      border-radius: 0 4px 4px 0;
+      box-shadow: 0 0 8px var(--primary);
     }
 
     .sidebar-footer {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 16px;
       border-top: 1px solid var(--border-color);
       padding-top: 20px;
+      margin-top: auto;
     }
 
     .status-badge {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       font-size: 0.85rem;
       color: var(--text-muted);
+      background: rgba(0, 0, 0, 0.2);
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
     }
 
     .status-dot {
       width: 8px;
       height: 8px;
-      background-color: var(--danger);
+      background-color: var(--accent-rose);
       border-radius: 50%;
-      box-shadow: 0 0 8px var(--danger);
+      box-shadow: 0 0 10px var(--accent-rose);
+      position: relative;
     }
 
     .status-dot.online {
       background-color: var(--success);
-      box-shadow: 0 0 8px var(--success);
+      box-shadow: 0 0 10px var(--success);
+      animation: pulseGreen 2s infinite;
     }
 
-    .btn-logout {
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .btn-action-side {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 8px 16px;
-      background: rgba(255, 255, 255, 0.05);
+      padding: 10px 16px;
+      background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border-color);
-      border-radius: 6px;
+      border-radius: 8px;
       color: var(--text-main);
       cursor: pointer;
       font-size: 0.85rem;
       font-weight: 500;
       transition: all 0.2s ease;
+      width: 100%;
     }
 
-    .btn-logout:hover {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: rgba(239, 68, 68, 0.2);
-      color: var(--danger);
+    .btn-action-side:hover {
+      background: rgba(244, 63, 94, 0.08);
+      border-color: rgba(244, 63, 94, 0.2);
+      color: var(--accent-rose);
+    }
+
+    .lang-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .lang-toggle button {
+      flex: 1;
+      padding: 6px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 5px;
+      transition: all 0.2s ease;
+    }
+
+    .lang-toggle button.active {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
 
     /* Main Content Area */
     .main-content {
-      margin-left: 280px;
-      padding: 40px;
+      margin-left: var(--sidebar-width);
+      padding: 40px 48px;
       flex-grow: 1;
-      width: calc(100% - 280px);
+      width: calc(100% - var(--sidebar-width));
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     .header-bar {
@@ -220,13 +352,17 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 32px;
+      gap: 16px;
     }
 
     .header-title h1 {
       font-family: var(--font-display);
-      font-size: 1.75rem;
-      font-weight: 700;
-      margin-bottom: 4px;
+      font-size: 1.85rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
     .header-title p {
@@ -234,83 +370,149 @@
       font-size: 0.95rem;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Mobile toggle */
+    .mobile-header {
+      display: none;
+      background: rgba(8, 12, 24, 0.85);
+      border-bottom: 1px solid var(--border-color);
+      backdrop-filter: blur(15px);
+      padding: 16px 20px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 99;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .menu-btn {
+      background: transparent;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .menu-btn svg {
+      width: 24px;
+      height: 24px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
     /* View Switcher Container */
     .view-pane {
       display: none;
-      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation: paneFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      flex-grow: 1;
     }
 
     .view-pane.active {
-      display: block;
+      display: flex;
+      flex-direction: column;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
+    @keyframes paneFadeIn {
+      from { opacity: 0; transform: translateY(12px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
     /* Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 20px;
-      margin-bottom: 32px;
+      margin-bottom: 28px;
     }
 
     .card-stat {
       background: var(--surface-glass);
       border: 1px solid var(--border-color);
-      border-radius: 12px;
+      border-radius: 16px;
       padding: 24px;
-      backdrop-filter: blur(12px);
-      transition: all 0.3s ease;
+      backdrop-filter: blur(16px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
     .card-stat:hover {
-      border-color: var(--border-color-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+      border-color: rgba(99, 102, 241, 0.25);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3), 0 0 1px 1px rgba(99, 102, 241, 0.1) inset;
     }
 
-    .card-stat::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 4px;
-      background: linear-gradient(90deg, var(--primary), #a855f7);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-
-    .card-stat:hover::before {
-      opacity: 1;
+    .card-stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
     }
 
     .card-stat-title {
       font-size: 0.85rem;
       color: var(--text-muted);
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 12px;
+      letter-spacing: 0.6px;
+    }
+
+    .card-stat-icon {
+      color: var(--primary);
+      background: rgba(99, 102, 241, 0.08);
+      padding: 6px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-stat-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
     }
 
     .card-stat-value {
       font-family: var(--font-display);
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 6px;
+      font-size: 2.15rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
     .card-stat-desc {
       font-size: 0.8rem;
-      color: var(--text-muted);
+      color: var(--text-dim);
     }
 
-    /* Overview Details */
+    /* Sparkline Canvas */
+    .sparkline-container {
+      margin-top: auto;
+      padding-top: 16px;
+      height: 48px;
+      position: relative;
+    }
+
+    .sparkline-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Overview Details Grid */
     .details-grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
@@ -320,27 +522,44 @@
     .card-large {
       background: var(--surface-glass);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
+      border-radius: 20px;
       padding: 28px;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      transition: border-color 0.25s ease;
+    }
+
+    .card-large:hover {
+      border-color: rgba(255,255,255,0.08);
     }
 
     .col-8 { grid-column: span 8; }
     .col-4 { grid-column: span 4; }
+    .col-6 { grid-column: span 6; }
     .col-12 { grid-column: span 12; }
-
-    @media (max-width: 1200px) {
-      .col-8, .col-4 { grid-column: span 12; }
-    }
 
     .card-header-title {
       font-family: var(--font-display);
       font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 20px;
+      font-weight: 700;
+      margin-bottom: 22px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+    }
+
+    .card-header-title span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-header-title svg {
+      width: 20px;
+      height: 20px;
+      stroke: var(--primary);
+      stroke-width: 2;
+      fill: none;
     }
 
     .info-list {
@@ -354,7 +573,7 @@
       justify-content: space-between;
       align-items: center;
       padding-bottom: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
 
     .info-item:last-child {
@@ -365,49 +584,164 @@
     .info-label {
       color: var(--text-muted);
       font-size: 0.9rem;
+      font-weight: 500;
     }
 
     .info-value {
-      font-weight: 500;
+      font-weight: 600;
       font-size: 0.9rem;
-      max-width: 60%;
+      max-width: 65%;
       word-break: break-all;
       text-align: right;
     }
 
     .multi-addrs-list {
-      max-height: 180px;
+      max-height: 200px;
       overflow-y: auto;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 8px;
-      padding: 12px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 10px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.03);
     }
 
     .addr-item {
       font-family: monospace;
       font-size: 0.8rem;
-      background: rgba(255, 255, 255, 0.03);
-      padding: 6px 10px;
-      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 8px 12px;
+      border-radius: 6px;
       border-left: 3px solid var(--primary);
       word-break: break-all;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s;
     }
 
-    /* Tables & Controls */
-    .table-container {
-      overflow-x: auto;
-      margin-top: 16px;
+    .addr-item:hover {
+      background: rgba(255, 255, 255, 0.05);
     }
 
+    .copy-btn-inline {
+      opacity: 0;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px;
+      border-radius: 4px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+    }
+
+    .addr-item:hover .copy-btn-inline {
+      opacity: 1;
+    }
+
+    .copy-btn-inline:hover {
+      color: #fff;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .copy-btn-inline svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    /* Compliance/Privacy mode indicator badge */
+    .mode-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border: 1px solid transparent;
+    }
+
+    .mode-indicator.privacy {
+      background: rgba(6, 182, 212, 0.08);
+      border-color: rgba(6, 182, 212, 0.2);
+      color: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.05);
+    }
+
+    .mode-indicator.compliance {
+      background: rgba(245, 158, 11, 0.08);
+      border-color: rgba(245, 158, 11, 0.2);
+      color: var(--accent-amber);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.05);
+    }
+
+    /* System metrics SVG gauges */
+    .metrics-container {
+      display: flex;
+      justify-content: space-around;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .gauge-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .gauge-svg {
+      width: 80px;
+      height: 80px;
+      transform: rotate(-90deg);
+    }
+
+    .gauge-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.04);
+      stroke-width: 6;
+    }
+
+    .gauge-fill {
+      fill: none;
+      stroke: var(--primary);
+      stroke-width: 6;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .gauge-fill.cyan {
+      stroke: var(--accent-cyan);
+    }
+
+    .gauge-text {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .gauge-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Tables, Controls, Filters */
     .table-controls {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 22px;
     }
 
     .search-input-wrapper {
@@ -418,10 +752,10 @@
 
     .search-input {
       width: 100%;
-      padding: 10px 16px 10px 36px;
-      background: rgba(255, 255, 255, 0.04);
+      padding: 10px 16px 10px 40px;
+      background: rgba(0, 0, 0, 0.2);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
+      border-radius: 10px;
       color: var(--text-main);
       font-size: 0.9rem;
       outline: none;
@@ -430,58 +764,49 @@
 
     .search-input:focus {
       border-color: var(--primary);
-      background: rgba(255, 255, 255, 0.07);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      background: rgba(0, 0, 0, 0.35);
+      box-shadow: 0 0 0 3px var(--primary-glow);
     }
 
     .search-icon {
       position: absolute;
-      left: 12px;
+      left: 14px;
       top: 50%;
       transform: translateY(-50%);
-      width: 16px;
-      height: 16px;
-      stroke: var(--text-muted);
+      width: 18px;
+      height: 18px;
+      stroke: var(--text-dim);
       fill: none;
+      stroke-width: 2;
     }
 
-    .btn {
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-weight: 500;
-      font-size: 0.9rem;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      display: inline-flex;
+    .filter-group {
+      display: flex;
       align-items: center;
       gap: 8px;
-      border: none;
     }
 
-    .btn-primary {
-      background: var(--primary);
-      color: white;
+    .filter-select {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      color: var(--text-main);
+      padding: 10px 16px;
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s;
     }
 
-    .btn-primary:hover {
-      background: var(--primary-hover);
+    .filter-select:focus {
+      border-color: var(--primary);
     }
 
-    .btn-danger-outline {
-      background: transparent;
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: var(--danger);
-    }
-
-    .btn-danger-outline:hover {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: var(--danger);
-    }
-
-    .btn-sm {
-      padding: 6px 12px;
-      font-size: 0.8rem;
-      border-radius: 6px;
+    .table-container {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      background: rgba(0, 0, 0, 0.15);
     }
 
     table {
@@ -493,46 +818,324 @@
     th {
       font-weight: 600;
       color: var(--text-muted);
-      border-bottom: 2px solid var(--border-color);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       padding: 16px 20px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
+      background: rgba(255, 255, 255, 0.01);
+      user-select: none;
+    }
+
+    th.sortable {
+      cursor: pointer;
+    }
+
+    th.sortable:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .sort-icon {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-left: 6px;
+      vertical-align: middle;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
     }
 
     td {
       padding: 16px 20px;
-      border-bottom: 1px solid var(--border-color);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
       font-size: 0.9rem;
-      word-break: break-all;
+      color: var(--text-main);
+      transition: background 0.15s ease;
     }
 
-    tr:hover td {
-      background: rgba(255, 255, 255, 0.01);
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr {
+      cursor: pointer;
+    }
+
+    tbody tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Batch Actions Bar */
+    .batch-actions-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: rgba(244, 63, 94, 0.04);
+      border: 1px solid rgba(244, 63, 94, 0.15);
+      border-radius: 10px;
+      margin-bottom: 16px;
+      animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Common Buttons */
+    .btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      outline: none;
+      user-select: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-cyan {
+      background: var(--accent-cyan);
+      color: white;
+      box-shadow: 0 4px 12px var(--accent-cyan-glow);
+    }
+
+    .btn-cyan:hover {
+      background: var(--accent-cyan-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-danger-outline {
+      background: transparent;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: var(--accent-rose);
+    }
+
+    .btn-danger-outline:hover {
+      background: rgba(244, 63, 94, 0.08);
+      border-color: var(--accent-rose);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      border-radius: 8px;
+    }
+
+    /* Custom Checkbox */
+    .checkbox-cell {
+      width: 50px;
+      text-align: center;
+    }
+
+    input[type="checkbox"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid var(--text-dim);
+      border-radius: 4px;
+      background: transparent;
+      outline: none;
+      cursor: pointer;
+      display: inline-grid;
+      place-content: center;
+      transition: all 0.15s;
+    }
+
+    input[type="checkbox"]:checked {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    input[type="checkbox"]:checked::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      background-color: white;
+      clip-path: polygon(14% 44%, 0 58%, 33% 90%, 100% 25%, 86% 11%, 33% 62%);
     }
 
     .table-empty {
       text-align: center;
-      padding: 48px;
-      color: var(--text-muted);
+      padding: 40px !important;
+      color: var(--text-dim);
     }
 
-    /* Modals & Popups */
+    .table-empty svg {
+      width: 48px;
+      height: 48px;
+      stroke: var(--text-dim);
+      fill: none;
+      stroke-width: 1.5;
+      margin-bottom: 12px;
+    }
+
+    /* TTL & Quota Progress Bars */
+    .progress-bar-container {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--accent-cyan));
+      transition: width 0.4s ease;
+    }
+
+    .progress-bar-fill.warning {
+      background: var(--accent-amber);
+    }
+
+    .progress-bar-fill.danger {
+      background: var(--accent-rose);
+    }
+
+    /* Detail Drawer */
+    .drawer-overlay {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .drawer-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer-container {
+      position: fixed;
+      top: 0;
+      right: -450px;
+      width: 450px;
+      height: 100%;
+      background: rgba(10, 15, 30, 0.95);
+      backdrop-filter: blur(25px);
+      border-left: 1px solid var(--border-color);
+      z-index: 201;
+      padding: 36px 28px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -10px 0 40px rgba(0, 0, 0, 0.5);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .drawer-overlay.active + .drawer-container,
+    .drawer-container.active {
+      transform: translateX(-450px);
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+    }
+
+    .drawer-title {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .drawer-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .drawer-close:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .drawer-close svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .drawer-content {
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+
+    .drawer-section {
+      margin-bottom: 24px;
+    }
+
+    .drawer-section-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    /* Modal / Dialog Overlays */
     .modal-overlay {
       position: fixed;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      width: 100vw;
+      height: 100vh;
+      background: rgba(3, 5, 12, 0.7);
       backdrop-filter: blur(12px);
-      z-index: 100;
       display: flex;
       align-items: center;
       justify-content: center;
+      z-index: 500;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .modal-overlay.active {
@@ -540,52 +1143,73 @@
       pointer-events: auto;
     }
 
-    .modal-box {
-      width: 100%;
-      max-width: 460px;
-      background: rgba(17, 24, 39, 0.9);
+    .modal-card {
+      background: rgba(13, 20, 38, 0.85);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 32px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-      transform: translateY(20px);
-      transition: transform 0.3s ease;
+      border-radius: 20px;
+      padding: 36px;
+      width: 100%;
+      max-width: 440px;
+      backdrop-filter: blur(25px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 1px 1px rgba(255,255,255,0.05) inset;
+      transform: scale(0.95);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-overlay.active .modal-card {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       text-align: center;
+      margin-bottom: 24px;
     }
 
-    .modal-overlay.active .modal-box {
-      transform: translateY(0);
-    }
-
-    .modal-logo {
+    .modal-icon-wrapper {
       width: 56px;
       height: 56px;
-      background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
-      border-radius: 14px;
-      display: inline-flex;
+      border-radius: 16px;
+      display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 24px;
-      box-shadow: 0 8px 24px var(--primary-glow);
+      margin-bottom: 16px;
     }
 
-    .modal-logo svg {
+    .modal-icon-wrapper.danger {
+      background: rgba(244, 63, 94, 0.08);
+      color: var(--accent-rose);
+      border: 1px solid rgba(244, 63, 94, 0.15);
+      box-shadow: 0 8px 20px rgba(244, 63, 94, 0.1);
+    }
+
+    .modal-icon-wrapper.primary {
+      background: rgba(99, 102, 241, 0.08);
+      color: var(--primary);
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.1);
+    }
+
+    .modal-icon-wrapper svg {
       width: 28px;
       height: 28px;
-      fill: #fff;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
     }
 
-    .modal-box h2 {
+    .modal-title {
       font-family: var(--font-display);
-      font-size: 1.5rem;
+      font-size: 1.35rem;
       font-weight: 700;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
-    .modal-box p {
+    .modal-subtitle {
       color: var(--text-muted);
-      font-size: 0.95rem;
-      margin-bottom: 24px;
+      font-size: 0.88rem;
     }
 
     .modal-input {
@@ -593,31 +1217,27 @@
       padding: 12px 16px;
       background: rgba(0, 0, 0, 0.3);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
-      color: white;
-      font-size: 1rem;
-      margin-bottom: 20px;
+      border-radius: 10px;
+      color: var(--text-main);
+      font-size: 0.95rem;
       outline: none;
+      margin-bottom: 20px;
+      transition: all 0.2s;
       text-align: center;
     }
 
     .modal-input:focus {
       border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+      box-shadow: 0 0 0 3px var(--primary-glow);
     }
 
-    /* Code View Configuration */
-    .config-pre {
-      font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
-      font-size: 0.9rem;
-      background: rgba(0, 0, 0, 0.3);
-      padding: 24px;
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      overflow-x: auto;
-      white-space: pre-wrap;
-      color: #cbd5e1;
-      max-height: 60vh;
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .modal-actions button {
+      flex: 1;
     }
 
     /* Toast Notification */
@@ -625,210 +1245,439 @@
       position: fixed;
       bottom: 24px;
       right: 24px;
+      z-index: 1000;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      z-index: 200;
+      gap: 8px;
+      pointer-events: none;
     }
 
     .toast {
       padding: 12px 20px;
-      border-radius: 8px;
-      background: rgba(17, 24, 39, 0.9);
-      border: 1px solid var(--border-color);
+      border-radius: 10px;
       color: white;
-      font-size: 0.9rem;
-      font-weight: 500;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      font-size: 0.88rem;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      animation: toastIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      border: 1px solid transparent;
       display: flex;
       align-items: center;
       gap: 10px;
-      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      backdrop-filter: blur(10px);
+      pointer-events: auto;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.9); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .toast-success {
-      border-left: 4px solid var(--success);
+      background: rgba(16, 185, 129, 0.9);
+      border-color: rgba(16, 185, 129, 0.2);
     }
 
     .toast-error {
-      border-left: 4px solid var(--danger);
+      background: rgba(244, 63, 94, 0.9);
+      border-color: rgba(244, 63, 94, 0.2);
     }
 
-    @keyframes slideIn {
-      from { transform: translateX(100%); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
+    /* Activity Logs Stream */
+    .log-stream {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      max-height: 480px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .log-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      line-height: 1.4;
+      padding: 4px 6px;
+      border-radius: 4px;
+      animation: logSlideIn 0.2s ease-out forwards;
+    }
+
+    @keyframes logSlideIn {
+      from { opacity: 0; transform: translateX(-4px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .log-row:hover {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .log-ts {
+      color: var(--text-dim);
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .log-level {
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .log-level.info {
+      background: rgba(16, 185, 129, 0.12);
+      color: var(--success);
+    }
+
+    .log-level.warn {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--accent-amber);
+    }
+
+    .log-level.error {
+      background: rgba(244, 63, 94, 0.12);
+      color: var(--accent-rose);
+    }
+
+    .log-src {
+      color: var(--accent-cyan);
+      font-weight: 600;
+      white-space: nowrap;
+      min-width: 70px;
+    }
+
+    .log-msg {
+      color: var(--text-main);
+      word-break: break-all;
+    }
+
+    .log-details {
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      margin-left: auto;
+      max-width: 40%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Configuration highlighters */
+    .config-pre {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      overflow: auto;
+      font-family: monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      max-height: 600px;
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .config-key { color: #818cf8; }
+    .config-string { color: #34d399; }
+    .config-number { color: #fb7185; }
+    .config-boolean { color: #f472b6; }
+    .config-null { color: #9ca3af; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+      .sidebar.active {
+        transform: translateX(0);
+      }
+      .main-content {
+        margin-left: 0;
+        width: 100%;
+        padding: 90px 20px 40px 20px;
+      }
+      .mobile-header {
+        display: flex;
+      }
+      .details-grid {
+        display: flex;
+        flex-direction: column;
+      }
+      .col-8, .col-4, .col-6, .col-12 {
+        grid-column: span 12;
+      }
+      .drawer-container {
+        width: 100%;
+        right: -100%;
+      }
+      .drawer-overlay.active + .drawer-container,
+      .drawer-container.active {
+        transform: translateX(-100%);
+      }
     }
   </style>
 </head>
 <body>
 
-  <!-- Token Modal (Authentication Prompt) -->
-  <div class="modal-overlay" id="authModal">
-    <div class="modal-box">
-      <div class="modal-logo">
-        <svg viewBox="0 0 24 24">
-          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.4 0 2.5 1.1 2.5 2.5S13.4 12 12 12s-2.5-1.1-2.5-2.5S10.6 7 12 7zm0 13.5c-2.33-.8-4.13-2.94-4.82-5.46.2-.66.82-1.04 1.82-1.04h6c1 0 1.62.38 1.82 1.04-.69 2.52-2.49 4.66-4.82 5.46z"/>
-        </svg>
+  <!-- Background glows -->
+  <div class="aurora-bg">
+    <div class="aurora-glow aurora-1"></div>
+    <div class="aurora-glow aurora-2"></div>
+  </div>
+
+  <!-- Mobile Top Navigation Header -->
+  <div class="mobile-header">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
       </div>
-      <h2>管理后台登录</h2>
-      <p>请输入在云服务器 `config.yaml` 中配置的 `admin_token` 以启用控制权。</p>
-      <input type="password" id="adminTokenInput" class="modal-input" placeholder="输入 Admin Token...">
-      <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="saveToken()">连接到服务</button>
+      <div class="brand-info">
+        <span class="brand-title">Agent Comm</span>
+      </div>
     </div>
+    <button class="menu-btn" onclick="toggleMobileSidebar()">
+      <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16m-7 6h7"/></svg>
+    </button>
   </div>
 
   <div class="app-container">
+    
     <!-- Sidebar -->
-    <div class="sidebar">
+    <div class="sidebar" id="appSidebar">
       <div class="brand">
         <div class="brand-logo">
-          <svg viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
-          </svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </div>
-        <div class="brand-title">Agent Comm</div>
+        <div class="brand-info">
+          <span class="brand-title">Agent Comm</span>
+          <span class="brand-subtitle" data-i18n="subtitle">通信平台管理后台</span>
+        </div>
       </div>
 
       <nav class="menu">
-        <a class="menu-item active" onclick="switchView('overview', this)">
-          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-          控制面板
+        <a class="menu-item active" onclick="switchView('dashboard', this)">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
+          <span data-i18n="tab_dashboard">控制面板</span>
         </a>
         <a class="menu-item" onclick="switchView('registry', this)">
-          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          注册名册 (Registry)
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <span data-i18n="tab_registry">注册名册</span>
+        </a>
+        <a class="menu-item" onclick="switchView('relay', this)">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <span data-i18n="tab_relay">中继网络</span>
         </a>
         <a class="menu-item" onclick="switchView('mq', this)">
-          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          离线信箱 (MQ)
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0l-3.586-3.586a2 2 0 00-2.828 0L12 11.586l-1.586-1.586a2 2 0 00-2.828 0L4 13"/></svg>
+          <span data-i18n="tab_mq">离线信箱</span>
+        </a>
+        <a class="menu-item" onclick="switchView('logs', this)">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span data-i18n="tab_logs">活动日志</span>
         </a>
         <a class="menu-item" onclick="switchView('config', this)">
-          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          参数配置 (Config)
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span data-i18n="tab_config">系统配置</span>
         </a>
       </nav>
 
       <div class="sidebar-footer">
+        <div class="lang-toggle">
+          <button id="btnLangZh" class="active" onclick="changeLang('zh')">中文</button>
+          <button id="btnLangEn" onclick="changeLang('en')">EN</button>
+        </div>
         <div class="status-badge">
           <div class="status-dot" id="healthDot"></div>
-          <span id="healthText">正在检查连接...</span>
+          <span id="healthText" data-i18n="status_disconnected">未连接</span>
         </div>
-        <button class="btn-logout" onclick="clearToken()">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-          断开连接
-        </button>
+        <button class="btn-action-side" onclick="clearToken(true)" data-i18n="logout">注销登录</button>
       </div>
     </div>
 
     <!-- Main Content -->
     <div class="main-content">
       
-      <!-- Controls Panel (Dashboard) -->
-      <div class="view-pane active" id="pane-overview">
+      <!-- 1. Dashboard Pane -->
+      <div class="view-pane active" id="pane-dashboard">
         <div class="header-bar">
           <div class="header-title">
-            <h1 id="platformModeTitle">P2P 基础设施平台</h1>
-            <p>实时监控、寻址目录管理和离线信封中转分析</p>
+            <h1 data-i18n="tab_dashboard">控制面板</h1>
+            <p data-i18n="subtitle">平台整体运营指标、状态摘要与实时图表监控</p>
           </div>
-          <div>
-            <button class="btn btn-primary btn-sm" onclick="refreshOverview()">⚡ 刷新数据</button>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" onclick="exportOverviewReport()">
+              <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span data-i18n="export_json">导出 JSON 报告</span>
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="refreshOverview(true)">
+              <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
+              <span data-i18n="refresh">刷新</span>
+            </button>
           </div>
         </div>
 
         <div class="stats-grid">
+          <!-- Peers connected -->
           <div class="card-stat">
-            <div class="card-stat-title">已连接 Peers</div>
-            <div class="card-stat-value" id="statPeers">-</div>
-            <div class="card-stat-desc">libp2p 当前物理连接</div>
+            <div class="card-stat-header">
+              <span class="card-stat-title" data-i18n="stat_peers">已连接 Peer</span>
+              <div class="card-stat-icon">
+                <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              </div>
+            </div>
+            <div class="card-stat-value" id="statPeers">0</div>
+            <div class="card-stat-desc" data-i18n="stat_peers_desc">当前活跃 P2P 连接</div>
+            <div class="sparkline-container">
+              <canvas id="canvasSparkPeers" class="sparkline-canvas"></canvas>
+            </div>
           </div>
+          <!-- Registry Count -->
           <div class="card-stat">
-            <div class="card-stat-title">注册 URN</div>
-            <div class="card-stat-value" id="statRegistry">-</div>
-            <div class="card-stat-desc">注册名册在线地址数</div>
+            <div class="card-stat-header">
+              <span class="card-stat-title" data-i18n="stat_registry">注册 URN 数</span>
+              <div class="card-stat-icon" style="color: var(--accent-cyan); background: rgba(6, 182, 212, 0.08);">
+                <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+              </div>
+            </div>
+            <div class="card-stat-value" id="statRegistry">0</div>
+            <div class="card-stat-desc" data-i18n="stat_registry_desc">全局已认证节点身份</div>
+            <div class="sparkline-container">
+              <canvas id="canvasSparkRegistry" class="sparkline-canvas"></canvas>
+            </div>
           </div>
+          <!-- MQ Messages -->
           <div class="card-stat">
-            <div class="card-stat-title">信箱消息总数</div>
-            <div class="card-stat-value" id="statMQMessages">-</div>
-            <div class="card-stat-desc">MQ 暂存盲存密文信封</div>
+            <div class="card-stat-header">
+              <span class="card-stat-title" data-i18n="stat_mq">信箱暂存数</span>
+              <div class="card-stat-icon" style="color: var(--accent-amber); background: rgba(245, 158, 11, 0.08);">
+                <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              </div>
+            </div>
+            <div class="card-stat-value" id="statMQMessages">0</div>
+            <div class="card-stat-desc" data-i18n="stat_mq_desc">离线队列密文信封</div>
+            <div class="sparkline-container">
+              <canvas id="canvasSparkMQ" class="sparkline-canvas"></canvas>
+            </div>
           </div>
+          <!-- Uptime -->
           <div class="card-stat">
-            <div class="card-stat-title">运行时长 (Uptime)</div>
-            <div class="card-stat-value" id="statUptime" style="font-size: 1.5rem; line-height: 2.5rem;">-</div>
-            <div class="card-stat-desc">服务器连续运行时间</div>
+            <div class="card-stat-header">
+              <span class="card-stat-title" data-i18n="stat_uptime">运行时间</span>
+              <div class="card-stat-icon" style="color: var(--success); background: rgba(16, 185, 129, 0.08);">
+                <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+            </div>
+            <div class="card-stat-value" id="statUptime" style="font-size: 1.5rem; line-height: 2.5rem;">00:00:00</div>
+            <div class="card-stat-desc" data-i18n="stat_uptime_desc">系统连续运行时间</div>
+            <div class="sparkline-container">
+              <canvas id="canvasSparkUptime" class="sparkline-canvas"></canvas>
+            </div>
           </div>
         </div>
 
         <div class="details-grid">
+          <!-- libp2p Node details -->
           <div class="card-large col-8">
             <div class="card-header-title">
-              <span>libp2p 节点信息 (Host Details)</span>
+              <span>
+                <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <span data-i18n="host_details">libp2p 节点信息 (Host Details)</span>
+              </span>
+              <span id="platformModeIndicator" class="mode-indicator">UNKNOWN</span>
             </div>
             <div class="info-list">
               <div class="info-item">
-                <span class="info-label">Peer ID</span>
-                <span class="info-value" id="peerIDVal" style="font-family: monospace; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px;">-</span>
+                <span class="info-label" data-i18n="peer_id">节点 Peer ID</span>
+                <span class="info-value" id="peerIDVal" style="font-family: monospace; background: rgba(255,255,255,0.04); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">--</span>
               </div>
               <div class="info-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-                <span class="info-label">监听 Multiaddresses (声明声明)</span>
+                <span class="info-label" data-i18n="listen_addrs">监听 Multiaddresses</span>
                 <div class="multi-addrs-list" id="multiAddrsList" style="width: 100%;">
-                  <!-- multiaddrs go here -->
-                  <div class="addr-item">暂无监听地址</div>
+                  <div class="addr-item">--</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="card-large col-4">
+          <!-- OS Metrics circular gauges -->
+          <div class="card-large col-4" style="display: flex; flex-direction: column;">
             <div class="card-header-title">
-              <span>系统运行指标 (OS & Runtime)</span>
+              <span>
+                <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span data-i18n="os_details">运行指标 (OS & Runtime)</span>
+              </span>
             </div>
-            <div class="info-list">
+            <div class="metrics-container">
+              <!-- Memory Gauge -->
+              <div class="gauge-wrapper">
+                <svg class="gauge-svg">
+                  <circle class="gauge-bg" cx="40" cy="40" r="34"></circle>
+                  <circle class="gauge-fill" id="gaugeMem" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="213.6"></circle>
+                  <text class="gauge-text" x="40" y="45" text-anchor="middle" id="gaugeMemText">0%</text>
+                </svg>
+                <span class="gauge-label" data-i18n="mem_alloc">已分配内存</span>
+              </div>
+              <!-- Goroutine Gauge -->
+              <div class="gauge-wrapper">
+                <svg class="gauge-svg">
+                  <circle class="gauge-bg" cx="40" cy="40" r="34"></circle>
+                  <circle class="gauge-fill cyan" id="gaugeGoro" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="213.6"></circle>
+                  <text class="gauge-text" x="40" y="45" text-anchor="middle" id="gaugeGoroText">0</text>
+                </svg>
+                <span class="gauge-label" data-i18n="goroutines">Goroutines</span>
+              </div>
+            </div>
+            <div class="info-list" style="margin-top: auto; padding-top: 24px;">
               <div class="info-item">
-                <span class="info-label">运行模式 (Mode)</span>
-                <span class="info-value" id="platformModeVal">-</span>
+                <span class="info-label" data-i18n="mem_sys">系统预留内存</span>
+                <span class="info-value" id="memSysVal">0.00 MB</span>
               </div>
               <div class="info-item">
-                <span class="info-label">内存分配 (Alloc)</span>
-                <span class="info-value" id="memAllocVal">-</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">系统预留 (Sys)</span>
-                <span class="info-value" id="memSysVal">-</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Goroutines 协程</span>
-                <span class="info-value" id="goroutineVal">-</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Go 内核版本</span>
-                <span class="info-value" id="goVersionVal">-</span>
+                <span class="info-label" data-i18n="go_version">Go 版本</span>
+                <span class="info-value" id="goVersionVal">--</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Controls Panel (Registry Explorer) -->
+      <!-- 2. Registry Pane -->
       <div class="view-pane" id="pane-registry">
         <div class="header-bar">
           <div class="header-title">
-            <h1>注册名册 (Registry Explorer)</h1>
-            <p>全局已绑定的自证明身份 (URN)、物理 IP 地址与密钥映射</p>
+            <h1 data-i18n="registry_title">注册名册</h1>
+            <p data-i18n="registry_sub">全局已认证节点身份 (URN)、物理多地址与过期生命周期映射管理</p>
           </div>
           <div>
-            <button class="btn btn-primary btn-sm" onclick="refreshRegistry()">⚡ 刷新</button>
+            <button class="btn btn-primary btn-sm" onclick="refreshRegistry()">
+              <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
+              <span data-i18n="refresh">刷新</span>
+            </button>
           </div>
         </div>
 
         <div class="card-large col-12">
+          <!-- Batch actions -->
+          <div id="regBatchBar" class="batch-actions-bar" style="display: none;">
+            <svg style="width:20px;height:20px;stroke:var(--accent-rose);fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <span style="font-size:0.9rem; color:var(--text-main); font-weight:600;"><span data-i18n="actions">已选择</span>: <span id="regSelectCount">0</span> URNs</span>
+            <button class="btn btn-danger-outline btn-sm" onclick="batchEvictNodes()" style="margin-left: auto;" data-i18n="batch_evict">批量驱逐选定节点</button>
+          </div>
+
           <div class="table-controls">
             <div class="search-input-wrapper">
-              <input type="text" id="registrySearch" class="search-input" placeholder="输入 URN 或 PeerID 筛选..." oninput="filterRegistryTable()">
+              <input type="text" id="registrySearch" class="search-input" placeholder="输入 URN 或 PeerID 筛选..." oninput="debouncedFilterRegistry()">
               <svg class="search-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
             <div style="font-size: 0.9rem; color: var(--text-muted);">
-              显示结果数: <span id="registryCountVal">0</span>
+              <span data-i18n="actions">显示结果数</span>: <span id="registryCountVal" style="color: #fff; font-weight:600;">0</span>
             </div>
           </div>
 
@@ -836,16 +1685,20 @@
             <table id="registryTable">
               <thead>
                 <tr>
-                  <th>URN</th>
-                  <th>PeerID</th>
-                  <th>绑定的 Multiaddresses / Relay Addrs</th>
-                  <th>过期时间 (TTL)</th>
-                  <th style="width: 100px; text-align: center;">操作</th>
+                  <th class="checkbox-cell"><input type="checkbox" id="selectAllReg" onchange="toggleSelectAllReg(this)"></th>
+                  <th class="sortable" onclick="sortTable('registry', 'URN')" data-i18n="urn">URN <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('registry', 'PeerID')" data-i18n="peer_id_col">PeerID <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th data-i18n="bind_addrs">绑定的 Multiaddresses / Relay Addrs</th>
+                  <th class="sortable" onclick="sortTable('registry', 'ExpiresAt')" data-i18n="expires_at">过期时间 (TTL) <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th style="width: 100px; text-align: center;" data-i18n="actions">操作</th>
                 </tr>
               </thead>
               <tbody id="registryTableBody">
                 <tr>
-                  <td colspan="5" class="table-empty">正在加载注册表数据...</td>
+                  <td colspan="6" class="table-empty">
+                    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    <div>正在加载注册名册数据...</div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -853,26 +1706,108 @@
         </div>
       </div>
 
-      <!-- Controls Panel (MQ Monitor) -->
-      <div class="view-pane" id="pane-mq">
+      <!-- 3. Relay Pane [New] -->
+      <div class="view-pane" id="pane-relay">
         <div class="header-bar">
           <div class="header-title">
-            <h1>离线消息邮箱 (MQ Queue Monitor)</h1>
-            <p>查看各 Agent 信封积压大小，执行离线队列清理，实现高效的垃圾邮件清理和存储管控</p>
+            <h1 data-i18n="relay_title">中继网络</h1>
+            <p data-i18n="relay_sub">系统 P2P 物理连接拓扑、Relay v2 中继线路预订与传输协议监控</p>
           </div>
           <div>
-            <button class="btn btn-primary btn-sm" onclick="refreshMQ()">⚡ 刷新</button>
+            <button class="btn btn-primary btn-sm" onclick="refreshPeers()">
+              <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
+              <span data-i18n="refresh">刷新</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Topology Stats -->
+        <div class="stats-grid" style="margin-bottom: 24px;">
+          <div class="card-stat">
+            <div class="card-stat-header">
+              <span class="card-stat-title" data-i18n="peers_total">已连节点总数</span>
+            </div>
+            <div class="card-stat-value" id="topoTotalPeers">0</div>
+            <div class="card-stat-desc">活跃 TCP/QUIC 传输信道</div>
+          </div>
+          <div class="card-stat">
+            <div class="card-stat-header">
+              <span class="card-stat-title" data-i18n="inbound_conns">入站连接数</span>
+            </div>
+            <div class="card-stat-value" id="topoInbound">0</div>
+            <div class="card-stat-desc">由外部节点发起的主动连接</div>
+          </div>
+          <div class="card-stat">
+            <div class="card-stat-header">
+              <span class="card-stat-title" data-i18n="outbound_conns">出站连接数</span>
+            </div>
+            <div class="card-stat-value" id="topoOutbound">0</div>
+            <div class="card-stat-desc">本节点连出的主动信道</div>
           </div>
         </div>
 
         <div class="card-large col-12">
           <div class="table-controls">
             <div class="search-input-wrapper">
-              <input type="text" id="mqSearch" class="search-input" placeholder="输入接收方 URN 筛选..." oninput="filterMQTable()">
+              <input type="text" id="peersSearch" class="search-input" placeholder="输入 Peer ID 搜索物理节点..." oninput="filterPeersTable()">
               <svg class="search-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
+          </div>
+
+          <div class="table-container">
+            <table id="peersTable">
+              <thead>
+                <tr>
+                  <th data-i18n="peer_id_col">PeerID</th>
+                  <th data-i18n="direction">连接方向</th>
+                  <th data-i18n="conns">连接线数</th>
+                  <th data-i18n="bind_addrs">端点物理多地址</th>
+                  <th data-i18n="protocols">支持的传输协议 (Protocols)</th>
+                </tr>
+              </thead>
+              <tbody id="peersTableBody">
+                <tr>
+                  <td colspan="5" class="table-empty">
+                    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    <div data-i18n="no_peers">当前没有建立 P2P 网络连接</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. MQ Pane -->
+      <div class="view-pane" id="pane-mq">
+        <div class="header-bar">
+          <div class="header-title">
+            <h1 data-i18n="mq_title">离线信箱暂存</h1>
+            <p data-i18n="mq_sub">管理未在线 Agent 的缓存密文信封堆积，监控资源配额健康度并执行清理</p>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" onclick="refreshMQ()">
+              <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
+              <span data-i18n="refresh">刷新</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card-large col-12">
+          <!-- Batch actions -->
+          <div id="mqBatchBar" class="batch-actions-bar" style="display: none;">
+            <svg style="width:20px;height:20px;stroke:var(--accent-rose);fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <span style="font-size:0.9rem; color:var(--text-main); font-weight:600;"><span data-i18n="actions">已选择</span>: <span id="mqSelectCount">0</span> URNs</span>
+            <button class="btn btn-danger-outline btn-sm" onclick="batchClearQueues()" style="margin-left: auto;" data-i18n="batch_clear">批量清空选定信箱</button>
+          </div>
+
+          <div class="table-controls">
+            <div class="search-input-wrapper">
+              <input type="text" id="mqSearch" class="search-input" placeholder="输入接收方 URN 筛选..." oninput="debouncedFilterMQ()">
+              <svg class="search-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
             <div style="font-size: 0.9rem; color: var(--text-muted);">
-              活跃邮箱数: <span id="mqCountVal">0</span>
+              <span data-i18n="actions">活跃邮箱数</span>: <span id="mqCountVal" style="color:#fff; font-weight:600;">0</span>
             </div>
           </div>
 
@@ -880,17 +1815,21 @@
             <table id="mqTable">
               <thead>
                 <tr>
-                  <th>接收方 URN</th>
-                  <th>未读信封数</th>
-                  <th>累积消息体大小</th>
-                  <th>最早存储时间</th>
-                  <th>最晚更新时间</th>
-                  <th style="width: 100px; text-align: center;">操作</th>
+                  <th class="checkbox-cell"><input type="checkbox" id="selectAllMQ" onchange="toggleSelectAllMQ(this)"></th>
+                  <th class="sortable" onclick="sortTable('mq', 'recipient')" data-i18n="recipient">接收方 URN <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('mq', 'count')" data-i18n="msg_count">暂存信封数 <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('mq', 'total_size')" data-i18n="total_size">累积大小 <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('mq', 'oldest_at')" data-i18n="oldest_time">最早存入时间 <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('mq', 'newest_at')" data-i18n="newest_time">最晚更新时间 <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th style="width: 100px; text-align: center;" data-i18n="actions">操作</th>
                 </tr>
               </thead>
               <tbody id="mqTableBody">
                 <tr>
-                  <td colspan="6" class="table-empty">正在加载离线消息队列...</td>
+                  <td colspan="7" class="table-empty">
+                    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <div data-i18n="no_mq">目前没有积压的消息队列</div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -898,78 +1837,461 @@
         </div>
       </div>
 
-      <!-- Controls Panel (Config Viewer) -->
+      <!-- 5. Activity Logs Pane [New] -->
+      <div class="view-pane" id="pane-logs">
+        <div class="header-bar">
+          <div class="header-title">
+            <h1 data-i18n="logs_title">活动日志</h1>
+            <p data-i18n="logs_sub">记录平台内部事件、连接变动与管理员的操作审计流水记录</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.85rem; color:var(--text-muted); cursor:pointer;">
+              <input type="checkbox" id="logAutoRefresh" checked onchange="toggleLogAutoRefresh()">
+              <span>实时自动滚动</span>
+            </label>
+            <button class="btn btn-primary btn-sm" onclick="refreshLogs()">
+              <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
+              <span data-i18n="refresh">刷新</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card-large col-12">
+          <div class="table-controls">
+            <div class="search-input-wrapper">
+              <input type="text" id="logSearch" class="search-input" placeholder="过滤关键字..." oninput="debouncedFilterLogs()">
+              <svg class="search-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            
+            <div class="filter-group">
+              <select id="logFilterLevel" class="filter-select" onchange="refreshLogs()">
+                <option value="" data-i18n="level_all">所有级别</option>
+                <option value="info">INFO</option>
+                <option value="warn">WARN</option>
+                <option value="error">ERROR</option>
+              </select>
+              <select id="logFilterSource" class="filter-select" onchange="refreshLogs()">
+                <option value="" data-i18n="source_all">所有来源</option>
+                <option value="registry">Registry</option>
+                <option value="mq">MQ</option>
+                <option value="relay">Relay</option>
+                <option value="admin">Admin</option>
+                <option value="system">System</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Log stream element -->
+          <div class="log-stream" id="logStreamContainer">
+            <!-- logs insert here -->
+            <div style="color:var(--text-dim); text-align:center; padding: 20px;" data-i18n="no_logs">正在拉取系统审计活动记录...</div>
+          </div>
+
+          <!-- Pagination -->
+          <div style="display:flex; justify-content: space-between; align-items:center; margin-top: 16px;">
+            <div style="font-size:0.85rem; color:var(--text-muted);">
+              Total: <span id="logTotalCount" style="color:#fff; font-weight:600;">0</span> entries
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-secondary btn-sm" id="btnPrevLogPage" onclick="changeLogPage(-1)" disabled>◀</button>
+              <span id="logPageIndicator" style="font-size:0.85rem; display:inline-flex; align-items:center; padding:0 8px; color:var(--text-muted);">Page 1</span>
+              <button class="btn btn-secondary btn-sm" id="btnNextLogPage" onclick="changeLogPage(1)" disabled>▶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Config Pane -->
       <div class="view-pane" id="pane-config">
         <div class="header-bar">
           <div class="header-title">
-            <h1>系统配置信息 (Configurations)</h1>
-            <p>只读查看当前节点的 API 端口、存储路径与中继连接池大小 (敏感私钥已被自动脱敏)</p>
+            <h1 data-i18n="config_title">系统配置信息</h1>
+            <p data-i18n="config_sub">只读查看当前节点底层运行环境参数 (敏感私钥、接口令牌已被自动脱敏脱密)</p>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" onclick="copyConfigToClipboard()">
+              <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+              <span data-i18n="copy_btn">复制配置 JSON</span>
+            </button>
           </div>
         </div>
 
         <div class="card-large col-12">
           <div class="card-header-title">
-            <span>config.yaml 参数</span>
-            <button class="btn btn-primary btn-sm" style="font-size: 0.75rem; padding: 4px 8px;" onclick="refreshConfig()">⚡ 重新加载</button>
+            <span>config.yaml Config Objects</span>
+            <button class="btn btn-primary btn-sm" style="font-size: 0.75rem; padding: 4px 10px;" onclick="refreshConfig()">
+              <svg style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
+              <span data-i18n="refresh">重新加载</span>
+            </button>
           </div>
-          <pre class="config-pre" id="configContent">正在获取节点配置...</pre>
+          <pre class="config-pre" id="configContent">Getting node runtime structures...</pre>
         </div>
       </div>
 
     </div>
   </div>
 
+  <!-- Detail Slider Drawer -->
+  <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+  <div class="drawer-container" id="detailDrawer">
+    <div class="drawer-header">
+      <h3 class="drawer-title" id="drawerTitle">Node Details</h3>
+      <button class="drawer-close" onclick="closeDrawer()">
+        <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="drawer-content" id="drawerContent">
+      <!-- Dynamic detailed statistics populated via JS -->
+    </div>
+  </div>
+
+  <!-- custom confirmation dialog modal -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon-wrapper danger">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <h2 class="modal-title" id="confirmModalTitle" data-i18n="confirm_title">安全警示</h2>
+        <p class="modal-subtitle" id="confirmModalText">您确认要执行此高风险操作吗？</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeConfirmModal()" id="btnConfirmCancel" data-i18n="cancel_btn">取消</button>
+        <button class="btn btn-primary" style="background:var(--accent-rose); box-shadow: 0 4px 12px rgba(244,63,94,0.2);" id="btnConfirmProceed" data-i18n="confirm_btn">确认执行</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Login Auth Overlay -->
+  <div class="modal-overlay" id="authModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon-wrapper primary">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        </div>
+        <h2 class="modal-title" data-i18n="login_title">管理后台授权</h2>
+        <p class="modal-subtitle" data-i18n="login_sub">请输入节点配置文件中配置的后台访问令牌 (admin_token)</p>
+      </div>
+      <input type="password" id="adminTokenInput" class="modal-input" placeholder="输入访问密钥 Token..." onkeydown="if(event.key==='Enter') saveToken()" data-i18n="login_placeholder">
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="saveToken()" style="width: 100%;" data-i18n="login_btn">验证进入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Toast Notifications -->
   <div class="toast-container" id="toastContainer"></div>
 
-  <!-- Scripts -->
+  <!-- Javascript Logic -->
   <script>
-    let registryData = [];
-    let mqData = [];
-    let statsTimer = null;
+    // State management
+    let state = {
+      lang: localStorage.getItem('admin_lang') || 'zh',
+      registryData: [],
+      mqData: [],
+      peersData: [],
+      logsData: [],
+      configData: {},
+      selectedRegistryURNs: new Set(),
+      selectedMQURNs: new Set(),
+      logPage: 0,
+      logLimit: 100,
+      logTotal: 0,
+      activeView: 'dashboard',
+      sortConfig: {
+        registry: { key: 'URN', desc: false },
+        mq: { key: 'recipient', desc: false }
+      },
+      // Sparkline history caches (keep last 30 intervals)
+      sparkHistory: {
+        peers: [],
+        registry: [],
+        mq: [],
+        uptime: []
+      }
+    };
 
-    // Check if token exists on boot
+    // Dictionary
+    const i18n = {
+      zh: {
+        title: "Agent Comm Platform 管理后台",
+        subtitle: "通信平台管理与运维控制台",
+        conn_status: "连接状态",
+        connected: "已连接",
+        disconnected: "未连接",
+        connecting: "连接中...",
+        logout: "注销登录",
+        refresh: "刷新",
+        actions: "操作",
+        tab_dashboard: "控制面板",
+        tab_registry: "注册名册",
+        tab_relay: "中继网络",
+        tab_mq: "离线信箱",
+        tab_logs: "活动日志",
+        tab_config: "系统配置",
+        stat_peers: "已连接 Peer",
+        stat_peers_desc: "当前活跃 P2P 连接",
+        stat_registry: "注册 URN 数",
+        stat_registry_desc: "全局已认证节点身份",
+        stat_mq: "信箱暂存数",
+        stat_mq_desc: "离线队列密文信封",
+        stat_uptime: "运行时间",
+        stat_uptime_desc: "系统连续运行时间",
+        host_details: "libp2p 节点信息 (Host Details)",
+        os_details: "运行指标 (OS & Runtime)",
+        peer_id: "节点 Peer ID",
+        listen_addrs: "监听 Multiaddresses",
+        platform_mode: "通信平台模式",
+        mem_alloc: "已分配内存",
+        mem_sys: "系统预留",
+        goroutines: "协程 Goroutines",
+        go_version: "Go 版本",
+        export_json: "导出 JSON 报告",
+        registry_title: "注册名册",
+        registry_sub: "全局已认证节点身份 (URN)、物理多地址与生命周期管理",
+        search_reg: "输入 URN 或 PeerID 筛选...",
+        batch_evict: "批量驱逐选定节点",
+        urn: "URN 标识",
+        peer_id_col: "节点 ID (Peer ID)",
+        bind_addrs: "物理多地址 / 中继中转 (Multiaddress)",
+        expires_at: "过期时间 (TTL)",
+        evict: "驱逐",
+        no_reg: "暂无任何注册节点记录",
+        relay_title: "中继网络监控",
+        relay_sub: "系统物理 P2P 连接细节、中继服务承载拓扑与协议树",
+        peers_total: "已连节点总数",
+        inbound_conns: "入站连接数",
+        outbound_conns: "出站连接数",
+        direction: "连接方向",
+        conns: "物理信道",
+        protocols: "承载协议 (Protocols)",
+        no_peers: "当前没有建立 P2P 连通",
+        mq_title: "离线信箱暂存",
+        mq_sub: "管理未在线 Agent 的离线密文缓存，执行配额清理及生命周期控制",
+        search_mq: "输入接收方 URN 筛选...",
+        batch_clear: "批量清空选定信箱",
+        recipient: "接收方 URN",
+        msg_count: "未读信封数",
+        total_size: "累积字节大小",
+        oldest_time: "最早存入时间",
+        newest_time: "最晚更新时间",
+        clear: "清空",
+        no_mq: "目前没有积压的消息队列",
+        logs_title: "活动日志审计",
+        logs_sub: "记录平台事件、中继拓扑跳变与管理员的操作追踪记录",
+        search_log: "过滤关键字...",
+        level_all: "所有日志级别",
+        source_all: "所有组件来源",
+        log_time: "事件时间",
+        log_level: "级别",
+        log_source: "来源组件",
+        log_msg: "事件描述",
+        no_logs: "暂无事件日志审计流水",
+        config_title: "节点配置参数",
+        config_sub: "只读查看底层的 config.yaml 参数设定 (已对隐私项目脱密)",
+        copy_success: "配置 JSON 成功复制到剪贴板",
+        copy_btn: "复制配置 JSON",
+        login_title: "管理后台授权认证",
+        login_sub: "请输入节点配置文件中配置的后台访问令牌 (admin_token)",
+        login_btn: "验证进入控制台",
+        login_placeholder: "输入访问密钥 Token...",
+        login_empty: "Token 不能为空",
+        login_error: "令牌验证失败，请重新输入",
+        confirm_title: "高危安全确认",
+        confirm_btn: "确认执行",
+        cancel_btn: "取消",
+        confirm_evict: "您确认要将以下节点从注册名册中移除吗？移除后其通信路由将不可达。",
+        confirm_clear: "警告：您确认要清空以下节点的所有暂存离线信封吗？删除后数据无法恢复！",
+        confirm_batch_evict: "您确认要批量驱逐选中的 {count} 个节点吗？",
+        confirm_batch_clear: "警告：您确认要批量清空选中的 {count} 个信箱队列吗？此操作无法恢复！",
+      },
+      en: {
+        title: "Agent Comm Platform Console",
+        subtitle: "Operations & Admin Console",
+        conn_status: "Connection",
+        connected: "Connected",
+        disconnected: "Disconnected",
+        connecting: "Connecting...",
+        logout: "Logout",
+        refresh: "Refresh",
+        actions: "Actions",
+        tab_dashboard: "Dashboard",
+        tab_registry: "Registry",
+        tab_relay: "Relay Network",
+        tab_mq: "Offline MQ",
+        tab_logs: "Activity Logs",
+        tab_config: "System Config",
+        stat_peers: "Connected Peers",
+        stat_peers_desc: "Active physical P2P channels",
+        stat_registry: "Registry Count",
+        stat_registry_desc: "Authenticated URN identities",
+        stat_mq: "Inbox Queues",
+        stat_mq_desc: "Cryptographic envelopes stored",
+        stat_uptime: "Uptime",
+        stat_uptime_desc: "Total continuous duration",
+        host_details: "libp2p Host Details",
+        os_details: "OS & Runtime Metrics",
+        peer_id: "Node Peer ID",
+        listen_addrs: "Listen Multiaddresses",
+        platform_mode: "Platform Mode",
+        mem_alloc: "Allocated Mem",
+        mem_sys: "System Reserved",
+        goroutines: "Goroutines",
+        go_version: "Go Version",
+        export_json: "Export JSON",
+        registry_title: "Registry Explorer",
+        registry_sub: "Lifecycle mapping of authenticated agent URNs to transport multiaddresses",
+        search_reg: "Filter URN or Peer ID...",
+        batch_evict: "Evict Selected Nodes",
+        urn: "URN Identity",
+        peer_id_col: "Peer ID",
+        bind_addrs: "Bound Multiaddresses / Relays",
+        expires_at: "TTL Expiration",
+        evict: "Evict",
+        no_reg: "No registered agent records available",
+        relay_title: "Relay / Peer Topology",
+        relay_sub: "Real-time P2P connections details, wire protocols, and relay paths",
+        peers_total: "Peers Connected",
+        inbound_conns: "Inbound Conns",
+        outbound_conns: "Outbound Conns",
+        direction: "Direction",
+        conns: "Conns",
+        protocols: "Wire Protocols",
+        no_peers: "No active P2P overlay connections",
+        mq_title: "Offline MQ Monitor",
+        mq_sub: "Manage offline ciphertext envelopes queues, storage quotas, and garbage collections",
+        search_mq: "Filter recipient URN...",
+        batch_clear: "Purge Selected Mailboxes",
+        recipient: "Recipient URN",
+        msg_count: "Buffered Envelopes",
+        total_size: "Total Size",
+        oldest_time: "Oldest Time",
+        newest_time: "Last Updated",
+        clear: "Clear",
+        no_mq: "No offline buffered message queues",
+        logs_title: "Activity Auditing Logs",
+        logs_sub: "Platform system events logs, connection transitions, and admin audits",
+        search_log: "Filter messages...",
+        level_all: "All Levels",
+        source_all: "All Components",
+        log_time: "Log Time",
+        log_level: "Level",
+        log_source: "Source",
+        log_msg: "Message",
+        no_logs: "No system audit events logged",
+        config_title: "System Config",
+        config_sub: "Read-only configurations. Yaml structures with sensitive parameters redacted",
+        copy_success: "Configuration JSON copied to clipboard",
+        copy_btn: "Copy JSON",
+        login_title: "Administrative Sign In",
+        login_sub: "Provide administrative token (admin_token) defined inside config.yaml",
+        login_btn: "Authenticate Console",
+        login_placeholder: "Enter admin_token...",
+        login_empty: "Token cannot be empty",
+        login_error: "Authentication failed. Try again.",
+        confirm_title: "Warning: Destructive Action",
+        confirm_btn: "Confirm Proceed",
+        cancel_btn: "Cancel",
+        confirm_evict: "Are you sure you want to evict this node from registry? Its routing path will be deleted.",
+        confirm_clear: "Warning: Are you sure you want to clear this URN mailbox? All envelopes will be deleted forever!",
+        confirm_batch_evict: "Are you sure you want to evict {count} selected nodes from registry?",
+        confirm_batch_clear: "Warning: Are you sure you want to clear {count} selected queues? This action is irreversible!",
+      }
+    };
+
+    // Timer refs
+    let statsTimer = null;
+    let logsTimer = null;
+    
+    // Search debouncing helper
+    function debounce(func, delay = 300) {
+      let timer;
+      return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => func.apply(this, args), delay);
+      };
+    }
+
+    // Toggle language
+    function changeLang(langCode) {
+      state.lang = langCode;
+      localStorage.setItem('admin_lang', langCode);
+      
+      document.getElementById('btnLangZh').classList.toggle('active', langCode === 'zh');
+      document.getElementById('btnLangEn').classList.toggle('active', langCode === 'en');
+      
+      updateUILanguage();
+      
+      // Re-render components with new language text
+      if (state.registryData.length > 0) renderRegistryTable();
+      if (state.mqData.length > 0) renderMQTable();
+      if (state.peersData.length > 0) renderPeersTable();
+      if (state.logsData.length > 0) renderLogsStream();
+    }
+
+    // Apply translations to all DOM elements with data-i18n attributes
+    function updateUILanguage() {
+      const dict = i18n[state.lang];
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) {
+          if (el.tagName === 'INPUT') {
+            el.setAttribute('placeholder', dict[key]);
+          } else {
+            el.textContent = dict[key];
+          }
+        }
+      });
+      // Page title
+      document.title = dict.title;
+    }
+
+    // DOM Bootstrapping
     window.addEventListener('DOMContentLoaded', () => {
+      // Toggle to default saved language
+      changeLang(state.lang);
+
       const token = localStorage.getItem('admin_token');
       if (!token) {
         document.getElementById('authModal').classList.add('active');
       } else {
         verifyHealthAndLoad();
       }
+
+      // Keyboard shortcuts: 1-6 switch views, Esc close modal/drawers, R refresh active
+      window.addEventListener('keydown', (e) => {
+        if (document.getElementById('authModal').classList.contains('active')) return;
+        
+        if (e.key === 'Escape') {
+          closeDrawer();
+          closeConfirmModal();
+        }
+        if (e.key.toLowerCase() === 'r' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
+          refreshActiveView();
+        }
+        
+        // 1-6 keys for navigation (when not focused on input fields)
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.ctrlKey && !e.metaKey) {
+          const menuItems = document.querySelectorAll('.menu-item');
+          if (e.key === '1') switchView('dashboard', menuItems[0]);
+          if (e.key === '2') switchView('registry', menuItems[1]);
+          if (e.key === '3') switchView('relay', menuItems[2]);
+          if (e.key === '4') switchView('mq', menuItems[3]);
+          if (e.key === '5') switchView('logs', menuItems[4]);
+          if (e.key === '6') switchView('config', menuItems[5]);
+        }
+      });
     });
 
-    function saveToken() {
-      const val = document.getElementById('adminTokenInput').value;
-      if (!val) {
-        showToast('请输入有效的 Token', 'error');
-        return;
-      }
-      localStorage.setItem('admin_token', val);
-      verifyHealthAndLoad();
+    function toggleMobileSidebar() {
+      document.getElementById('appSidebar').classList.toggle('active');
     }
 
-    function clearToken(showToastMessage = true, toastType = 'success', toastText = '连接已断开') {
-      localStorage.removeItem('admin_token');
-      const modal = document.getElementById('authModal');
-      const wasActive = modal.classList.contains('active');
-      modal.classList.add('active');
-
-      if (showToastMessage && !wasActive) {
-        showToast(toastText, toastType);
-      }
-      if (statsTimer) {
-        clearInterval(statsTimer);
-        statsTimer = null;
-      }
-      document.getElementById('healthDot').className = 'status-dot';
-      document.getElementById('healthText').textContent = '未连接';
-    }
-
-    // Verify authentication and load initial data
+    // Verify token & boot application
     function verifyHealthAndLoad() {
       const token = localStorage.getItem('admin_token');
       if (!token) return;
 
-      // Verify token by trying to load overview data which requires authentication
       fetch('/api/v1/admin/overview', {
         headers: { 
           'X-Admin-Token': token,
@@ -978,7 +2300,7 @@
       })
       .then(res => {
         if (res.status === 401) {
-          clearToken(true, 'error', 'Token 验证失败，请重新输入');
+          clearToken(true, 'error', i18n[state.lang].login_error);
           return null;
         }
         if (res.status === 403) {
@@ -986,88 +2308,108 @@
           return null;
         }
         if (!res.ok) {
-          throw new Error('Server error');
+          throw new Error('Server connectivity issues');
         }
         return res.json();
       })
       .then(data => {
         if (!data) return;
 
-        // Hide authentication modal on successful verification
+        // Hide authentication overlay
         document.getElementById('authModal').classList.remove('active');
 
-        document.getElementById('healthDot').className = 'status-dot online';
-        document.getElementById('healthText').textContent = '已连接到平台';
-        showToast('节点连接成功', 'success');
-        
-        // Render the overview data we just fetched
+        const healthDot = document.getElementById('healthDot');
+        healthDot.className = 'status-dot online';
+        document.getElementById('healthText').textContent = i18n[state.lang].connected;
+        showToast(state.lang === 'zh' ? '管理后台授权成功' : 'Admin Console Authenticated', 'success');
+
+        // Render Dashboard
         renderOverview(data);
-        
-        // Load other initial data
+
+        // Warmup sparklines with mock randomized historical trends
+        initMockSparkHistory(data);
+
+        // Load all data
         refreshRegistry();
         refreshMQ();
+        refreshPeers();
+        refreshLogs();
         refreshConfig();
 
-        // Setup 5s auto refresh for dashboard metrics
+        // Setup background synchronization tasks
         if (statsTimer) clearInterval(statsTimer);
         statsTimer = setInterval(refreshOverview, 5000);
+        
+        toggleLogAutoRefresh();
       })
       .catch(err => {
-        document.getElementById('healthDot').className = 'status-dot';
-        document.getElementById('healthText').textContent = '连接失败, 正在重试...';
-        showToast('无法连接至云平台 API', 'error');
+        const healthDot = document.getElementById('healthDot');
+        healthDot.className = 'status-dot';
+        document.getElementById('healthText').textContent = i18n[state.lang].disconnected;
+        showToast(err.message, 'error');
       });
+    }
+
+    function saveToken() {
+      const val = document.getElementById('adminTokenInput').value.trim();
+      if (!val) {
+        showToast(i18n[state.lang].login_empty, 'error');
+        return;
+      }
+      localStorage.setItem('admin_token', val);
+      verifyHealthAndLoad();
+    }
+
+    function clearToken(showToastMessage = true, toastType = 'success', toastText = 'Connection closed') {
+      localStorage.removeItem('admin_token');
+      
+      const modal = document.getElementById('authModal');
+      const wasActive = modal.classList.contains('active');
+      modal.classList.add('active');
+      document.getElementById('adminTokenInput').value = '';
+
+      if (showToastMessage && !wasActive) {
+        showToast(toastText, toastType);
+      }
+      if (statsTimer) {
+        clearInterval(statsTimer);
+        statsTimer = null;
+      }
+      if (logsTimer) {
+        clearInterval(logsTimer);
+        logsTimer = null;
+      }
+      document.getElementById('healthDot').className = 'status-dot';
+      document.getElementById('healthText').textContent = i18n[state.lang].disconnected;
+    }
+
+    // Refresh active view
+    function refreshActiveView() {
+      if (state.activeView === 'dashboard') refreshOverview(true);
+      else if (state.activeView === 'registry') refreshRegistry();
+      else if (state.activeView === 'relay') refreshPeers();
+      else if (state.activeView === 'mq') refreshMQ();
+      else if (state.activeView === 'logs') refreshLogs();
+      else if (state.activeView === 'config') refreshConfig();
     }
 
     // Tab switcher
     function switchView(viewName, element) {
+      state.activeView = viewName;
       document.querySelectorAll('.view-pane').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
       
       document.getElementById(`pane-${viewName}`).classList.add('active');
       element.classList.add('active');
+
+      // Close mobile sidebar drawer on toggle
+      document.getElementById('appSidebar').classList.remove('active');
+
+      // Immediate refresh for the newly selected pane
+      refreshActiveView();
     }
 
-    // Formatter helpers
-    function formatTime(unixSeconds) {
-      if (!unixSeconds) return '-';
-      const d = new Date(unixSeconds * 1000);
-      return d.toLocaleString();
-    }
-
-    function formatUptime(sec) {
-      const d = Math.floor(sec / (3600*24));
-      const h = Math.floor((sec % (3600*24)) / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      const s = Math.floor(sec % 60);
-      let res = '';
-      if (d > 0) res += `${d}天 `;
-      if (h > 0 || d > 0) res += `${h}时 `;
-      if (m > 0 || h > 0 || d > 0) res += `${m}分 `;
-      res += `${s}秒`;
-      return res;
-    }
-
-    function formatBytes(b) {
-      if (b < 1024) return b + ' B';
-      if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
-      return (b/(1024*1024)).toFixed(1) + ' MB';
-    }
-
-    // Toast Generator
-    function showToast(text, type = 'success') {
-      const container = document.getElementById('toastContainer');
-      const t = document.createElement('div');
-      t.className = `toast toast-${type}`;
-      t.textContent = text;
-      container.appendChild(t);
-      setTimeout(() => {
-        t.style.animation = 'fadeOut 0.3s ease forwards';
-        setTimeout(() => t.remove(), 300);
-      }, 3000);
-    }
-
-    // API Invocation wrappers
+    // API calls wrapper
     function apiCall(endpoint, method = 'GET', queryParams = {}) {
       const token = localStorage.getItem('admin_token');
       let url = endpoint;
@@ -1083,182 +2425,1108 @@
         }
       }).then(res => {
         if (res.status === 401 || res.status === 403) {
-          clearToken(true, 'error', res.status === 401 ? '登录已过期，请重新登录' : '管理后台已禁用 (未配置 admin_token)');
-          throw new Error(res.status === 401 ? 'Unauthorized' : 'Forbidden');
+          clearToken(true, 'error', res.status === 401 ? i18n[state.lang].login_error : 'Forbidden access');
+          throw new Error('Unauthorized');
         }
         if (!res.ok) {
-          return res.json().then(e => { throw new Error(e.error || 'Server error') });
+          return res.json().then(e => { throw new Error(e.error || 'Server Internal Error') });
         }
         return res.json();
       });
     }
 
-    // Render functions
+    // Formatting utilities
+    function formatTime(unixSeconds) {
+      if (!unixSeconds) return '-';
+      const d = new Date(unixSeconds * 1000);
+      return d.toLocaleString(state.lang === 'zh' ? 'zh-CN' : 'en-US');
+    }
+
+    function formatTimeRelative(unixSeconds) {
+      if (!unixSeconds) return '-';
+      const diff = Math.floor(Date.now() / 1000 - unixSeconds);
+      if (diff < 5) return state.lang === 'zh' ? '刚刚' : 'just now';
+      if (diff < 60) return `${diff} ${state.lang === 'zh' ? '秒前' : 's ago'}`;
+      if (diff < 3600) return `${Math.floor(diff/60)} ${state.lang === 'zh' ? '分钟前' : 'm ago'}`;
+      if (diff < 86400) return `${Math.floor(diff/3600)} ${state.lang === 'zh' ? '小时前' : 'h ago'}`;
+      return `${Math.floor(diff/86400)} ${state.lang === 'zh' ? '天前' : 'd ago'}`;
+    }
+
+    function formatUptime(sec) {
+      const d = Math.floor(sec / (3600*24));
+      const h = Math.floor((sec % (3600*24)) / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      let res = '';
+      if (d > 0) res += `${d}${state.lang === 'zh' ? '天' : 'd'} `;
+      if (h > 0 || d > 0) res += `${h}${state.lang === 'zh' ? '时' : 'h'} `;
+      if (m > 0 || h > 0 || d > 0) res += `${m}${state.lang === 'zh' ? '分' : 'm'} `;
+      res += `${s}${state.lang === 'zh' ? '秒' : 's'}`;
+      return res;
+    }
+
+    function formatBytes(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+      return (b/(1024*1024)).toFixed(1) + ' MB';
+    }
+
+    // Inline Toast notifications
+    function showToast(text, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      
+      const successIcon = `<svg style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+      const errorIcon = `<svg style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+      
+      t.innerHTML = `${type === 'success' ? successIcon : errorIcon} <span>${text}</span>`;
+      container.appendChild(t);
+      
+      setTimeout(() => {
+        t.style.animation = 'fadeOut 0.25s ease forwards';
+        setTimeout(() => t.remove(), 250);
+      }, 3500);
+    }
+
+    // Custom confirm dialog handlers
+    let confirmProceedCallback = null;
+    
+    function showConfirmModal(title, text, proceedCallback) {
+      document.getElementById('confirmModalTitle').textContent = title;
+      document.getElementById('confirmModalText').textContent = text;
+      document.getElementById('confirmModal').classList.add('active');
+      confirmProceedCallback = proceedCallback;
+    }
+
+    function closeConfirmModal() {
+      document.getElementById('confirmModal').classList.remove('active');
+      confirmProceedCallback = null;
+    }
+
+    document.getElementById('btnConfirmProceed').addEventListener('click', () => {
+      if (confirmProceedCallback) {
+        confirmProceedCallback();
+      }
+      closeConfirmModal();
+    });
+
+    // CountUp animation helper
+    function countUp(elementId, targetVal, duration = 800) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      const startVal = parseInt(el.textContent.replace(/[^\d]/g, '')) || 0;
+      if (startVal === targetVal) {
+        el.textContent = targetVal;
+        return;
+      }
+      const startTime = performance.now();
+
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // easeOutQuad
+        const easeVal = progress * (2 - progress);
+        const currentVal = Math.floor(startVal + (targetVal - startVal) * easeVal);
+        el.textContent = currentVal;
+        
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        } else {
+          el.textContent = targetVal;
+        }
+      }
+      requestAnimationFrame(update);
+    }
+
+    // Sparklines history initializer
+    function initMockSparkHistory(data) {
+      const lists = ['peers', 'registry', 'mq', 'uptime'];
+      const vals = {
+        peers: data.connected_peers,
+        registry: data.registry_count,
+        mq: data.mq_messages_count,
+        uptime: 10
+      };
+      
+      lists.forEach(key => {
+        state.sparkHistory[key] = [];
+        const base = vals[key];
+        // Populate 20 values with small fluctuations
+        for (let i = 0; i < 20; i++) {
+          const fluc = (Math.random() - 0.5) * (base * 0.15 + 1);
+          state.sparkHistory[key].push(Math.max(0, Math.floor(base + fluc)));
+        }
+        drawSparkline(`canvasSpark${key.charAt(0).toUpperCase() + key.slice(1)}`, state.sparkHistory[key], getSparkColor(key));
+      });
+    }
+
+    function getSparkColor(key) {
+      if (key === 'peers') return '#6366f1';
+      if (key === 'registry') return '#06b6d4';
+      if (key === 'mq') return '#f59e0b';
+      return '#10b981';
+    }
+
+    function updateSparkHistory(key, newVal) {
+      const history = state.sparkHistory[key];
+      history.push(newVal);
+      if (history.length > 30) {
+        history.shift();
+      }
+      drawSparkline(`canvasSpark${key.charAt(0).toUpperCase() + key.slice(1)}`, history, getSparkColor(key));
+    }
+
+    function drawSparkline(canvasId, data, color) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      
+      // Handle high DPI screens
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+
+      const width = rect.width;
+      const height = rect.height;
+
+      ctx.clearRect(0, 0, width, height);
+      if (data.length < 2) return;
+
+      const max = Math.max(...data) || 1;
+      const min = Math.min(...data);
+      const range = (max - min) === 0 ? max : (max - min);
+
+      // Coordinates mapping
+      const points = data.map((val, idx) => {
+        const x = (idx / (data.length - 1)) * width;
+        const y = height - 4 - ((val - min) / range) * (height - 8);
+        return { x, y };
+      });
+
+      // Gradient background path
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, color + '33'); // 20% opacity
+      grad.addColorStop(1, color + '00'); // transparent
+
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, height);
+      points.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(points[points.length - 1].x, height);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Stroke Line
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        // Curve control point interpolation
+        const xc = (points[i].x + points[i-1].x) / 2;
+        const yc = (points[i].y + points[i-1].y) / 2;
+        ctx.quadraticCurveTo(points[i-1].x, points[i-1].y, xc, yc);
+      }
+      ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      // Draw active glow node on latest data point
+      const last = points[points.length - 1];
+      ctx.beginPath();
+      ctx.arc(last.x, last.y, 3.5, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+
+    // Circular gauges updater
+    function updateGauges(memAllocMB, goroutines) {
+      // Memory: benchmark against 128MB as standard peak, calculate relative percentage
+      const memPct = Math.min(100, Math.floor((memAllocMB / 128) * 100));
+      const goroVal = goroutines;
+      
+      // Calculate SVG stroke dashes (circumference = 2 * PI * r = 2 * 3.14159 * 34 = 213.6)
+      const maxOffset = 213.6;
+      
+      const memOffset = maxOffset - (memPct / 100) * maxOffset;
+      const memGauge = document.getElementById('gaugeMem');
+      if (memGauge) {
+        memGauge.style.strokeDashoffset = memOffset;
+        document.getElementById('gaugeMemText').textContent = `${memPct}%`;
+      }
+
+      // Goroutines: benchmark against 200 as warning threshold
+      const goroPct = Math.min(100, Math.floor((goroVal / 200) * 100));
+      const goroOffset = maxOffset - (goroPct / 100) * maxOffset;
+      const goroGauge = document.getElementById('gaugeGoro');
+      if (goroGauge) {
+        goroGauge.style.strokeDashoffset = goroOffset;
+        document.getElementById('gaugeGoroText').textContent = goroVal;
+      }
+    }
+
+    // Refresh Overview stats
+    function refreshOverview(forceShowToast = false) {
+      apiCall('/api/v1/admin/overview')
+      .then(data => {
+        renderOverview(data);
+        if (forceShowToast) {
+          showToast(state.lang === 'zh' ? '控制面板指标已同步' : 'Dashboard statistics synchronized', 'success');
+        }
+      })
+      .catch(err => {
+        console.error('Overview refresh failed', err);
+      });
+    }
+
     function renderOverview(data) {
-      document.getElementById('statPeers').textContent = data.connected_peers;
-      document.getElementById('statRegistry').textContent = data.registry_count;
-      document.getElementById('statMQMessages').textContent = data.mq_messages_count;
+      countUp('statPeers', data.connected_peers);
+      countUp('statRegistry', data.registry_count);
+      countUp('statMQMessages', data.mq_messages_count);
+      
       document.getElementById('statUptime').textContent = formatUptime(data.uptime_seconds);
 
-      // Host details
+      // Host details URN/PeerID/Mode
       document.getElementById('peerIDVal').textContent = data.peer_id;
-      document.getElementById('platformModeTitle').textContent = `P2P 平台 [${data.platform_mode === 'privacy' ? '原生隐私模式' : '监管合规模式'}]`;
-      document.getElementById('platformModeVal').textContent = data.platform_mode === 'privacy' ? 'Privacy (隐私盲存)' : 'Compliance (合规代理)';
       
-      // Multiaddrs
+      const modeIndicator = document.getElementById('platformModeIndicator');
+      if (data.platform_mode === 'privacy') {
+        modeIndicator.className = 'mode-indicator privacy';
+        modeIndicator.textContent = i18n[state.lang].platform_mode_privacy;
+      } else {
+        modeIndicator.className = 'mode-indicator compliance';
+        modeIndicator.textContent = i18n[state.lang].platform_mode_compliance;
+      }
+
+      // Multiaddresses listing
       const addrsList = document.getElementById('multiAddrsList');
       addrsList.innerHTML = '';
       if (data.listen_addrs && data.listen_addrs.length > 0) {
         data.listen_addrs.forEach(addr => {
           const div = document.createElement('div');
           div.className = 'addr-item';
-          div.textContent = addr;
+          div.innerHTML = `
+            <span>${addr}</span>
+            <button class="copy-btn-inline" onclick="copyText('${addr}')" title="Copy address">
+              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            </button>
+          `;
           addrsList.appendChild(div);
         });
       } else {
-        addrsList.innerHTML = '<div class="addr-item">无监听地址</div>';
+        addrsList.innerHTML = `<div class="addr-item">${state.lang === 'zh' ? '暂无监听中继/物理地址' : 'No listen addresses'}</div>`;
       }
 
-      // OS
-      document.getElementById('memAllocVal').textContent = data.memory_alloc_mb.toFixed(2) + ' MB';
+      // OS & Go Details
       document.getElementById('memSysVal').textContent = data.memory_sys_mb.toFixed(2) + ' MB';
-      document.getElementById('goroutineVal').textContent = data.goroutines;
       document.getElementById('goVersionVal').textContent = data.go_version;
+
+      // Update gauges
+      updateGauges(data.memory_alloc_mb, data.goroutines);
+
+      // Record chart history
+      updateSparkHistory('peers', data.connected_peers);
+      updateSparkHistory('registry', data.registry_count);
+      updateSparkHistory('mq', data.mq_messages_count);
+      updateSparkHistory('uptime', Math.floor(data.uptime_seconds / 60));
     }
 
-    // Refresh operations
-    function refreshOverview() {
+    // Export raw platform JSON metrics report
+    function exportOverviewReport() {
+      const token = localStorage.getItem('admin_token');
       apiCall('/api/v1/admin/overview')
-      .then(renderOverview)
-      .catch(err => {
-        console.error('Failed to load overview stats', err);
-      });
+      .then(data => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `agent-comm-metrics-${Math.floor(Date.now()/1000)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(state.lang === 'zh' ? '指标报告已下载' : 'JSON metrics report downloaded', 'success');
+      })
+      .catch(err => showToast(err.message, 'error'));
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // REGISTRY OPERATIONS
+    // ─────────────────────────────────────────────────────────────────────────
 
     function refreshRegistry() {
       apiCall('/api/v1/admin/registry')
       .then(data => {
-        registryData = data.entries || [];
-        filterRegistryTable();
+        state.registryData = data.entries || [];
+        state.selectedRegistryURNs.clear();
+        document.getElementById('selectAllReg').checked = false;
+        updateRegBatchBar();
+        renderRegistryTable();
       })
-      .catch(err => {
-        showToast('加载名册失败: ' + err.message, 'error');
-      });
+      .catch(err => showToast('Registry load error: ' + err.message, 'error'));
     }
 
-    function filterRegistryTable() {
+    const debouncedFilterRegistry = debounce(() => {
+      renderRegistryTable();
+    }, 250);
+
+    function renderRegistryTable() {
       const q = document.getElementById('registrySearch').value.toLowerCase();
       const body = document.getElementById('registryTableBody');
       body.innerHTML = '';
-      
-      const filtered = registryData.filter(e => 
+
+      let filtered = state.registryData.filter(e => 
         e.URN.toLowerCase().includes(q) || 
         e.PeerID.toLowerCase().includes(q)
       );
 
+      // Sort
+      const config = state.sortConfig.registry;
+      filtered.sort((a, b) => {
+        let valA = a[config.key];
+        let valB = b[config.key];
+        
+        if (typeof valA === 'string') {
+          return config.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
+        }
+        return config.desc ? valB - valA : valA - valB;
+      });
+
       document.getElementById('registryCountVal').textContent = filtered.length;
 
       if (filtered.length === 0) {
-        body.innerHTML = '<tr><td colspan="5" class="table-empty">没有匹配的注册记录</td></tr>';
+        body.innerHTML = `
+          <tr>
+            <td colspan="6" class="table-empty">
+              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div>${i18n[state.lang].no_reg}</div>
+            </td>
+          </tr>`;
         return;
       }
 
       filtered.forEach(e => {
         const tr = document.createElement('tr');
         
-        // addresses formatting
-        const addrsHTML = (e.Addrs || []).map(a => `<div style="font-family: monospace; font-size:0.8rem; margin-bottom:4px;">${a}</div>`).join('') +
-                           (e.RelayAddrs || []).map(a => `<div style="font-family: monospace; font-size:0.8rem; margin-bottom:4px; color:#c084fc;">[Relay] ${a}</div>`).join('');
+        // TTL computation
+        const remains = e.ExpiresAt - Math.floor(Date.now() / 1000);
+        const totalTTL = 24 * 3600; // default 24 hours
+        const pct = Math.max(0, Math.min(100, Math.floor((remains / totalTTL) * 100)));
+        let colorClass = '';
+        if (pct < 15) colorClass = 'danger';
+        else if (pct < 45) colorClass = 'warning';
+        
+        const ttlHTML = `
+          <div style="font-size:0.8rem; font-weight:600;">${formatTime(e.ExpiresAt)}</div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill ${colorClass}" style="width: ${pct}%;"></div>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">remains ${formatTimeRelative(e.ExpiresAt).replace(/ ago/, '')}</div>
+        `;
+
+        // Check if selected
+        const checked = state.selectedRegistryURNs.has(e.URN) ? 'checked' : '';
+
+        // Address tags format
+        const addrs = e.Addrs || [];
+        const relayAddrs = e.RelayAddrs || [];
+        let addrsHTML = addrs.slice(0, 2).map(a => `<div style="font-family: monospace; font-size:0.8rem; color:var(--text-muted);">${a}</div>`).join('');
+        if (addrs.length > 2) addrsHTML += `<div style="font-size:0.75rem; color:var(--text-dim);">+ ${addrs.length - 2} more addresses</div>`;
+        if (relayAddrs.length > 0) addrsHTML += `<div style="font-family: monospace; font-size:0.8rem; color:var(--accent-cyan); font-weight:500;">[Relayed via ${relayAddrs.length} paths]</div>`;
 
         tr.innerHTML = `
-          <td style="font-weight:600; color:var(--primary);">${e.URN}</td>
-          <td style="font-family: monospace; font-size:0.85rem; color:var(--text-muted);">${e.PeerID}</td>
-          <td>${addrsHTML || '<span style="color:var(--text-muted);">[无发布地址]</span>'}</td>
-          <td style="font-size:0.85rem;">${formatTime(e.ExpiresAt)}</td>
-          <td style="text-align: center;">
-            <button class="btn btn-danger-outline btn-sm" onclick="evictNode('${e.URN}')">驱逐</button>
+          <td class="checkbox-cell" onclick="event.stopPropagation()">
+            <input type="checkbox" class="reg-select-box" value="${e.URN}" ${checked} onchange="toggleSelectReg('${e.URN}', this)">
+          </td>
+          <td style="font-weight:700; color:var(--primary);" onclick="showNodeDetails('${e.URN}')">${e.URN}</td>
+          <td style="font-family: monospace; font-size:0.85rem;" onclick="showNodeDetails('${e.URN}')">${e.PeerID}</td>
+          <td onclick="showNodeDetails('${e.URN}')">${addrsHTML || `<span style="color:var(--text-dim);">[Native Loopback / Indirect]</span>`}</td>
+          <td onclick="showNodeDetails('${e.URN}')">${ttlHTML}</td>
+          <td style="text-align: center;" onclick="event.stopPropagation()">
+            <button class="btn btn-danger-outline btn-sm" onclick="evictNode('${e.URN}')">${i18n[state.lang].evict}</button>
           </td>
         `;
         body.appendChild(tr);
       });
     }
 
-    function evictNode(urn) {
-      if (!confirm(`确认要将节点 ${urn} 从注册名册中移除？这将导致其无法被其他节点解析！`)) return;
-      apiCall('/api/v1/admin/registry', 'DELETE', { urn: urn })
-      .then(() => {
-        showToast(`成功将 ${urn} 移出名册`, 'success');
-        refreshRegistry();
-      })
-      .catch(err => {
-        showToast('驱逐失败: ' + err.message, 'error');
-      });
+    function toggleSelectReg(urn, checkbox) {
+      if (checkbox.checked) {
+        state.selectedRegistryURNs.add(urn);
+      } else {
+        state.selectedRegistryURNs.delete(urn);
+      }
+      updateRegBatchBar();
     }
 
-    function refreshMQ() {
-      apiCall('/api/v1/admin/mq')
-      .then(data => {
-        mqData = data.queues || [];
-        filterMQTable();
-      })
-      .catch(err => {
-        showToast('加载 MQ 失败: ' + err.message, 'error');
+    function toggleSelectAllReg(headerCheckbox) {
+      const boxes = document.querySelectorAll('.reg-select-box');
+      boxes.forEach(box => {
+        box.checked = headerCheckbox.checked;
+        if (headerCheckbox.checked) {
+          state.selectedRegistryURNs.add(box.value);
+        } else {
+          state.selectedRegistryURNs.delete(box.value);
+        }
       });
+      updateRegBatchBar();
     }
 
-    function filterMQTable() {
-      const q = document.getElementById('mqSearch').value.toLowerCase();
-      const body = document.getElementById('mqTableBody');
-      body.innerHTML = '';
+    function updateRegBatchBar() {
+      const bar = document.getElementById('regBatchBar');
+      const countEl = document.getElementById('regSelectCount');
+      const selectCount = state.selectedRegistryURNs.size;
       
-      const filtered = mqData.filter(e => 
-        e.recipient.toLowerCase().includes(q)
+      if (selectCount > 0) {
+        countEl.textContent = selectCount;
+        bar.style.display = 'flex';
+      } else {
+        bar.style.display = 'none';
+      }
+    }
+
+    function evictNode(urn) {
+      const warnMsg = i18n[state.lang].confirm_evict + `\nURN: ${urn}`;
+      showConfirmModal(i18n[state.lang].confirm_title, warnMsg, () => {
+        apiCall('/api/v1/admin/registry', 'DELETE', { urn: urn })
+        .then(() => {
+          showToast(`Evicted identity: ${urn}`, 'success');
+          refreshRegistry();
+        })
+        .catch(err => showToast('Eviction failure: ' + err.message, 'error'));
+      });
+    }
+
+    function batchEvictNodes() {
+      const urns = Array.from(state.selectedRegistryURNs);
+      if (urns.length === 0) return;
+
+      const warnMsg = i18n[state.lang].confirm_batch_evict.replace('{count}', urns.length);
+      showConfirmModal(i18n[state.lang].confirm_title, warnMsg, () => {
+        // Execute deletions sequentially/concurrently via Promise.all
+        const promises = urns.map(urn => apiCall('/api/v1/admin/registry', 'DELETE', { urn: urn }));
+        Promise.all(promises)
+        .then(() => {
+          showToast(state.lang === 'zh' ? `批量驱逐成功 (${urns.length} 节点)` : `Batch evicted ${urns.length} nodes`, 'success');
+          refreshRegistry();
+        })
+        .catch(err => {
+          showToast('Batch eviction failed: ' + err.message, 'error');
+          refreshRegistry();
+        });
+      });
+    }
+
+    function showNodeDetails(urn) {
+      const entry = state.registryData.find(e => e.URN === urn);
+      if (!entry) return;
+
+      const title = state.lang === 'zh' ? '身份路由明细' : 'Agent URN Identity Specs';
+      const remains = entry.ExpiresAt - Math.floor(Date.now() / 1000);
+      
+      const addresses = (entry.Addrs || []).map(a => `
+        <div class="addr-item">
+          <span>${a}</span>
+          <button class="copy-btn-inline" onclick="copyText('${a}')" title="Copy URN address">
+            <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          </button>
+        </div>
+      `).join('');
+
+      const relayAddresses = (entry.RelayAddrs || []).map(a => `
+        <div class="addr-item" style="border-left-color: var(--accent-cyan);">
+          <span>${a}</span>
+          <button class="copy-btn-inline" onclick="copyText('${a}')" title="Copy relay path">
+            <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          </button>
+        </div>
+      `).join('');
+
+      let contentHTML = `
+        <div class="drawer-section">
+          <div class="drawer-section-title">URN Identity</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom:4px;">${entry.URN}</div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-title">Associated Peer ID</div>
+          <div style="font-family: monospace; font-size: 0.85rem; background: rgba(0,0,0,0.2); padding: 8px; border-radius:6px; word-break:break-all; display:flex; justify-content:space-between; align-items:center;">
+            <span>${entry.PeerID}</span>
+            <button class="copy-btn-inline" style="opacity:1;" onclick="copyText('${entry.PeerID}')">
+              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-title">Physical Multiaddresses (${entry.Addrs?.length || 0})</div>
+          <div class="multi-addrs-list">
+            ${addresses || `<div class="addr-item">${state.lang === 'zh' ? '暂无直连物理地址' : 'No direct physical addresses'}</div>`}
+          </div>
+        </div>
+      `;
+
+      if (entry.RelayAddrs?.length > 0) {
+        contentHTML += `
+          <div class="drawer-section">
+            <div class="drawer-section-title">Relay Paths Reservation (${entry.RelayAddrs.length})</div>
+            <div class="multi-addrs-list">
+              ${relayAddresses}
+            </div>
+          </div>
+        `;
+      }
+
+      contentHTML += `
+        <div class="drawer-section">
+          <div class="drawer-section-title">Lifespan & Expiry</div>
+          <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
+            <div class="info-item">
+              <span class="info-label">Expires At</span>
+              <span class="info-value">${formatTime(entry.ExpiresAt)}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Remaining Duration</span>
+              <span class="info-value" style="color: var(--accent-amber);">${formatTimeRelative(entry.ExpiresAt).replace(/ ago/, '')}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      openDrawer(title, contentHTML);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PEERS / RELAY OPERATIONS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function refreshPeers() {
+      apiCall('/api/v1/admin/peers')
+      .then(data => {
+        state.peersData = data.peers || [];
+        renderPeersTable();
+      })
+      .catch(err => showToast('Failed to load peers: ' + err.message, 'error'));
+    }
+
+    function renderPeersTable() {
+      const q = document.getElementById('peersSearch').value.toLowerCase();
+      const body = document.getElementById('peersTableBody');
+      body.innerHTML = '';
+
+      let filtered = state.peersData.filter(e => 
+        e.peer_id.toLowerCase().includes(q)
       );
 
-      document.getElementById('mqCountVal').textContent = filtered.length;
+      // Topo counts
+      let inbound = 0, outbound = 0;
+      filtered.forEach(p => {
+        if (p.direction === 'inbound') inbound++;
+        else if (p.direction === 'outbound') outbound++;
+        else if (p.direction === 'both') {
+          inbound++;
+          outbound++;
+        }
+      });
+      document.getElementById('topoTotalPeers').textContent = filtered.length;
+      document.getElementById('topoInbound').textContent = inbound;
+      document.getElementById('topoOutbound').textContent = outbound;
 
       if (filtered.length === 0) {
-        body.innerHTML = '<tr><td colspan="6" class="table-empty">目前没有信箱数据</td></tr>';
+        body.innerHTML = `
+          <tr>
+            <td colspan="5" class="table-empty">
+              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+              <div>${i18n[state.lang].no_peers}</div>
+            </td>
+          </tr>`;
         return;
       }
 
       filtered.forEach(e => {
         const tr = document.createElement('tr');
+        
+        let dirHTML = '';
+        if (e.direction === 'inbound') dirHTML = `<span style="color:var(--accent-cyan); font-weight:700;">◀ Inbound</span>`;
+        else if (e.direction === 'outbound') dirHTML = `<span style="color:var(--primary); font-weight:700;">▶ Outbound</span>`;
+        else dirHTML = `<span style="color:var(--success); font-weight:700;">↔ Bidirectional</span>`;
+
+        const addrs = e.addrs || [];
+        let addrsHTML = addrs.slice(0, 1).map(a => `<div style="font-family: monospace; font-size:0.8rem;">${a}</div>`).join('');
+        if (addrs.length > 1) addrsHTML += `<div style="font-size:0.75rem; color:var(--text-dim);">+ ${addrs.length - 1} more physical multiaddresses</div>`;
+
+        const protos = e.protocols || [];
+        let protosHTML = protos.slice(0, 3).map(p => `<span style="display:inline-block; font-size:0.75rem; background:rgba(255,255,255,0.05); padding: 2px 6px; border-radius:4px; margin-right:4px; margin-bottom:4px; font-family:monospace;">${p}</span>`).join('');
+        if (protos.length > 3) protosHTML += `<span style="font-size:0.75rem; color:var(--text-dim);">+${protos.length - 3}</span>`;
+
         tr.innerHTML = `
-          <td style="font-weight:600; color:var(--primary);">${e.recipient}</td>
-          <td style="font-weight:700;">${e.count} 个信封</td>
-          <td>${formatBytes(e.total_size)}</td>
-          <td style="font-size:0.85rem; color:var(--text-muted);">${formatTime(e.oldest_at)}</td>
-          <td style="font-size:0.85rem; color:var(--text-muted);">${formatTime(e.newest_at)}</td>
-          <td style="text-align: center;">
-            <button class="btn btn-danger-outline btn-sm" onclick="clearQueue('${e.recipient}')">清空</button>
+          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails('${e.peer_id}')">${e.peer_id}</td>
+          <td onclick="showPeerDetails('${e.peer_id}')">${dirHTML}</td>
+          <td style="font-weight:700;" onclick="showPeerDetails('${e.peer_id}')">${e.conn_count}</td>
+          <td onclick="showPeerDetails('${e.peer_id}')">${addrsHTML || `<span style="color:var(--text-dim);">[Internal Node Loopback]</span>`}</td>
+          <td onclick="showPeerDetails('${e.peer_id}')">${protosHTML || `<span style="color:var(--text-dim);">--</span>`}</td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+
+    function showPeerDetails(peerID) {
+      const peer = state.peersData.find(p => p.peer_id === peerID);
+      if (!peer) return;
+
+      const title = state.lang === 'zh' ? '物理节点连接属性' : 'P2P Peer Link Profiles';
+      
+      const addresses = (peer.addrs || []).map(a => `
+        <div class="addr-item">
+          <span>${a}</span>
+          <button class="copy-btn-inline" onclick="copyText('${a}')" title="Copy Multiaddress">
+            <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          </button>
+        </div>
+      `).join('');
+
+      const protocols = (peer.protocols || []).map(p => `
+        <div style="font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--accent-cyan); word-break:break-all;">
+          ${p}
+        </div>
+      `).join('');
+
+      let contentHTML = `
+        <div class="drawer-section">
+          <div class="drawer-section-title">Peer Connection ID</div>
+          <div style="font-family: monospace; font-size: 0.9rem; font-weight: 700; color: var(--primary); word-break:break-all; display:flex; justify-content:space-between; align-items:center;">
+            <span>${peer.peer_id}</span>
+            <button class="copy-btn-inline" style="opacity:1;" onclick="copyText('${peer.peer_id}')">
+              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-title">P2P Channel Statistics</div>
+          <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
+            <div class="info-item">
+              <span class="info-label">Direction</span>
+              <span class="info-value" style="text-transform: capitalize;">${peer.direction}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Active Connection Count</span>
+              <span class="info-value">${peer.conn_count}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-title">Physical Link Addresses (${peer.addrs?.length || 0})</div>
+          <div class="multi-addrs-list">
+            ${addresses || `<div class="addr-item">Loopback / Internal</div>`}
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-title">Supported Wire Protocols (${peer.protocols?.length || 0})</div>
+          <div style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; padding-right:4px;">
+            ${protocols || `<div class="addr-item">--</div>`}
+          </div>
+        </div>
+      `;
+
+      openDrawer(title, contentHTML);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // OFFLINE MAILBOX OPERATIONS (MQ)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function refreshMQ() {
+      apiCall('/api/v1/admin/mq')
+      .then(data => {
+        state.mqData = data.queues || [];
+        state.selectedMQURNs.clear();
+        document.getElementById('selectAllMQ').checked = false;
+        updateMQBatchBar();
+        renderMQTable();
+      })
+      .catch(err => showToast('MQ fetch failed: ' + err.message, 'error'));
+    }
+
+    const debouncedFilterMQ = debounce(() => {
+      renderMQTable();
+    }, 250);
+
+    function renderMQTable() {
+      const q = document.getElementById('mqSearch').value.toLowerCase();
+      const body = document.getElementById('mqTableBody');
+      body.innerHTML = '';
+
+      let filtered = state.mqData.filter(e => 
+        e.recipient.toLowerCase().includes(q)
+      );
+
+      // Sort
+      const config = state.sortConfig.mq;
+      filtered.sort((a, b) => {
+        let valA = a[config.key];
+        let valB = b[config.key];
+        
+        if (typeof valA === 'string') {
+          return config.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
+        }
+        return config.desc ? valB - valA : valA - valB;
+      });
+
+      document.getElementById('mqCountVal').textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        body.innerHTML = `
+          <tr>
+            <td colspan="7" class="table-empty">
+              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              <div>${i18n[state.lang].no_mq}</div>
+            </td>
+          </tr>`;
+        return;
+      }
+
+      filtered.forEach(e => {
+        const tr = document.createElement('tr');
+        
+        // Quota percentage bar (benchmark against 1000 max envelopes per URN as standard config)
+        const maxEnvelopes = 1000;
+        const pct = Math.min(100, Math.floor((e.count / maxEnvelopes) * 100));
+        let colorClass = '';
+        if (pct > 80) colorClass = 'danger';
+        else if (pct > 50) colorClass = 'warning';
+
+        const quotaHTML = `
+          <div style="font-weight:700;">${e.count} Envelopes</div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill ${colorClass}" style="width: ${pct}%;"></div>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">quota ${pct}% used</div>
+        `;
+
+        const checked = state.selectedMQURNs.has(e.recipient) ? 'checked' : '';
+
+        tr.innerHTML = `
+          <td class="checkbox-cell" onclick="event.stopPropagation()">
+            <input type="checkbox" class="mq-select-box" value="${e.recipient}" ${checked} onchange="toggleSelectMQ('${e.recipient}', this)">
+          </td>
+          <td style="font-weight:700; color:var(--primary);" onclick="showMQDetails('${e.recipient}')">${e.recipient}</td>
+          <td onclick="showMQDetails('${e.recipient}')">${quotaHTML}</td>
+          <td onclick="showMQDetails('${e.recipient}')">${formatBytes(e.total_size)}</td>
+          <td style="font-size:0.85rem;" onclick="showMQDetails('${e.recipient}')">${formatTime(e.oldest_at)}</td>
+          <td style="font-size:0.85rem;" onclick="showMQDetails('${e.recipient}')">${formatTime(e.newest_at)}</td>
+          <td style="text-align: center;" onclick="event.stopPropagation()">
+            <button class="btn btn-danger-outline btn-sm" onclick="clearQueue('${e.recipient}')">${i18n[state.lang].clear}</button>
           </td>
         `;
         body.appendChild(tr);
       });
     }
 
+    function toggleSelectMQ(urn, checkbox) {
+      if (checkbox.checked) {
+        state.selectedMQURNs.add(urn);
+      } else {
+        state.selectedMQURNs.delete(urn);
+      }
+      updateMQBatchBar();
+    }
+
+    function toggleSelectAllMQ(headerCheckbox) {
+      const boxes = document.querySelectorAll('.mq-select-box');
+      boxes.forEach(box => {
+        box.checked = headerCheckbox.checked;
+        if (headerCheckbox.checked) {
+          state.selectedMQURNs.add(box.value);
+        } else {
+          state.selectedMQURNs.delete(box.value);
+        }
+      });
+      updateMQBatchBar();
+    }
+
+    function updateMQBatchBar() {
+      const bar = document.getElementById('mqBatchBar');
+      const countEl = document.getElementById('mqSelectCount');
+      const selectCount = state.selectedMQURNs.size;
+      
+      if (selectCount > 0) {
+        countEl.textContent = selectCount;
+        bar.style.display = 'flex';
+      } else {
+        bar.style.display = 'none';
+      }
+    }
+
     function clearQueue(urn) {
-      if (!confirm(`警告：确认要清空发送给 ${urn} 的全部 ${mqData.find(d=>d.recipient===urn)?.count || ''} 个离线信封吗？删除后将无法恢复！`)) return;
-      apiCall('/api/v1/admin/mq/clear', 'DELETE', { urn: urn })
-      .then(res => {
-        showToast(`成功清空信箱，删除了 ${res.deleted} 条记录`, 'success');
-        refreshMQ();
-      })
-      .catch(err => {
-        showToast('清理失败: ' + err.message, 'error');
+      const warnMsg = i18n[state.lang].confirm_clear + `\nRecipient: ${urn}`;
+      showConfirmModal(i18n[state.lang].confirm_title, warnMsg, () => {
+        apiCall('/api/v1/admin/mq/clear', 'DELETE', { urn: urn })
+        .then(res => {
+          showToast(`Cleared MQ mailbox for ${urn}, deleted ${res.deleted} envelopes`, 'success');
+          refreshMQ();
+        })
+        .catch(err => showToast('Clearing failed: ' + err.message, 'error'));
       });
     }
+
+    function batchClearQueues() {
+      const urns = Array.from(state.selectedMQURNs);
+      if (urns.length === 0) return;
+
+      const warnMsg = i18n[state.lang].confirm_batch_clear.replace('{count}', urns.length);
+      showConfirmModal(i18n[state.lang].confirm_title, warnMsg, () => {
+        const promises = urns.map(urn => apiCall('/api/v1/admin/mq/clear', 'DELETE', { urn: urn }));
+        Promise.all(promises)
+        .then(results => {
+          const totalDeleted = results.reduce((acc, r) => acc + (r.deleted || 0), 0);
+          showToast(state.lang === 'zh' ? `批量清理完毕 (清空 ${urns.length} 个邮箱, 删除 ${totalDeleted} 封邮件)` : `Batch cleared ${urns.length} mailboxes, deleted ${totalDeleted} envelopes`, 'success');
+          refreshMQ();
+        })
+        .catch(err => {
+          showToast('Batch clear failed: ' + err.message, 'error');
+          refreshMQ();
+        });
+      });
+    }
+
+    function showMQDetails(urn) {
+      const q = state.mqData.find(item => item.recipient === urn);
+      if (!q) return;
+
+      const title = state.lang === 'zh' ? '信箱堆积明细' : 'Offline Storage Quotas';
+
+      let contentHTML = `
+        <div class="drawer-section">
+          <div class="drawer-section-title">Recipient URN</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary); word-break:break-all; margin-bottom:4px;">${q.recipient}</div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-title">Quota Usage (Storage Limit: 1000)</div>
+          <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
+            <div class="info-item">
+              <span class="info-label">Pending Envelopes</span>
+              <span class="info-value" style="font-size: 1rem; color:var(--accent-amber);">${q.count}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Total Byte Size</span>
+              <span class="info-value">${formatBytes(q.total_size)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-title">Timeline Auditing</div>
+          <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
+            <div class="info-item">
+              <span class="info-label">Oldest Envelope Buffered</span>
+              <span class="info-value" style="font-size:0.85rem;">${formatTime(q.oldest_at)}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Last Inbound Envelope</span>
+              <span class="info-value" style="font-size:0.85rem;">${formatTime(q.newest_at)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      openDrawer(title, contentHTML);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTIVITY LOGS STREAM (LOGS)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function refreshLogs() {
+      const level = document.getElementById('logFilterLevel').value;
+      const source = document.getElementById('logFilterSource').value;
+      const search = document.getElementById('logSearch').value.trim();
+
+      apiCall('/api/v1/admin/logs', 'GET', {
+        limit: state.logLimit,
+        offset: state.logPage * state.logLimit,
+        level: level,
+        source: source,
+        search: search
+      })
+      .then(data => {
+        state.logsData = data.entries || [];
+        state.logTotal = data.total || 0;
+        
+        renderLogsStream();
+        updateLogPagination();
+      })
+      .catch(err => showToast('Failed to pull audit logs: ' + err.message, 'error'));
+    }
+
+    const debouncedFilterLogs = debounce(() => {
+      state.logPage = 0;
+      refreshLogs();
+    }, 300);
+
+    function renderLogsStream() {
+      const container = document.getElementById('logStreamContainer');
+      container.innerHTML = '';
+
+      if (state.logsData.length === 0) {
+        container.innerHTML = `<div style="color:var(--text-dim); text-align:center; padding: 40px;" data-i18n="no_logs">${i18n[state.lang].no_logs}</div>`;
+        return;
+      }
+
+      state.logsData.forEach(l => {
+        const row = document.createElement('div');
+        row.className = 'log-row';
+
+        const absoluteTime = formatTime(l.timestamp);
+        const relativeTime = formatTimeRelative(l.timestamp);
+        
+        row.innerHTML = `
+          <span class="log-ts" title="${absoluteTime}">${relativeTime}</span>
+          <span class="log-level ${l.level.toLowerCase()}">${l.level}</span>
+          <span class="log-src">[${l.source}]</span>
+          <span class="log-msg">${l.message}</span>
+          <span class="log-details" title="${l.details}">${l.details}</span>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function toggleLogAutoRefresh() {
+      const checked = document.getElementById('logAutoRefresh').checked;
+      if (logsTimer) {
+        clearInterval(logsTimer);
+        logsTimer = null;
+      }
+      
+      if (checked) {
+        logsTimer = setInterval(() => {
+          // Only pull page 0 automatically
+          if (state.logPage === 0) {
+            const level = document.getElementById('logFilterLevel').value;
+            const source = document.getElementById('logFilterSource').value;
+            const search = document.getElementById('logSearch').value.trim();
+
+            apiCall('/api/v1/admin/logs', 'GET', {
+              limit: state.logLimit,
+              offset: 0,
+              level: level,
+              source: source,
+              search: search
+            })
+            .then(data => {
+              state.logsData = data.entries || [];
+              state.logTotal = data.total || 0;
+              renderLogsStream();
+              updateLogPagination();
+            })
+            .catch(err => console.error('logs sync error', err));
+          }
+        }, 3000);
+      }
+    }
+
+    function updateLogPagination() {
+      const totalPages = Math.ceil(state.logTotal / state.logLimit) || 1;
+      const currentPage = state.logPage + 1;
+      
+      document.getElementById('logPageIndicator').textContent = `${i18n[state.lang].confirm_title === '高危安全确认' ? '第' : 'Page'} ${currentPage}/${totalPages} ${i18n[state.lang].confirm_title === '高危安全确认' ? '页' : ''}`;
+      
+      document.getElementById('btnPrevLogPage').disabled = state.logPage <= 0;
+      document.getElementById('btnNextLogPage').disabled = currentPage >= totalPages;
+    }
+
+    function changeLogPage(dir) {
+      state.logPage += dir;
+      if (state.logPage < 0) state.logPage = 0;
+      refreshLogs();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONFIGURATION VIEW
+    // ─────────────────────────────────────────────────────────────────────────
 
     function refreshConfig() {
       apiCall('/api/v1/admin/config')
       .then(data => {
+        state.configData = data;
         const block = document.getElementById('configContent');
-        block.textContent = JSON.stringify(data, null, 2);
+        block.innerHTML = highlightJSON(data);
       })
       .catch(err => {
-        console.error('Failed to load configurations', err);
+        console.error('Config fetch failed', err);
       });
+    }
+
+    function copyConfigToClipboard() {
+      const text = JSON.stringify(state.configData, null, 2);
+      navigator.clipboard.writeText(text)
+      .then(() => showToast(i18n[state.lang].copy_success, 'success'))
+      .catch(err => showToast('Copy failure: ' + err.message, 'error'));
+    }
+
+    // Lightweight native JSON Syntax Highlighter
+    function highlightJSON(jsonObj) {
+      let json = JSON.stringify(jsonObj, null, 2);
+      
+      // Escape HTML entities to prevent injection
+      json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      
+      const regex = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g;
+      
+      return json.replace(regex, function (match) {
+        let cls = 'config-number';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'config-key';
+          } else {
+            cls = 'config-string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'config-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'config-null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+      });
+    }
+
+    // Table Sorting utility
+    function sortTable(type, key) {
+      const current = state.sortConfig[type];
+      if (current.key === key) {
+        current.desc = !current.desc;
+      } else {
+        current.key = key;
+        current.desc = false;
+      }
+      
+      if (type === 'registry') renderRegistryTable();
+      else if (type === 'mq') renderMQTable();
+    }
+
+    // Detail Drawer handlers
+    function openDrawer(title, contentHTML) {
+      document.getElementById('drawerTitle').textContent = title;
+      document.getElementById('drawerContent').innerHTML = contentHTML;
+      document.getElementById('drawerOverlay').classList.add('active');
+      document.getElementById('detailDrawer').classList.add('active');
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawerOverlay').classList.remove('active');
+      document.getElementById('detailDrawer').classList.remove('active');
+    }
+
+    // Copy to clipboard utility
+    function copyText(str) {
+      navigator.clipboard.writeText(str)
+      .then(() => showToast(state.lang === 'zh' ? '复制成功' : 'Copied to clipboard', 'success'))
+      .catch(err => showToast('Failed: ' + err.message, 'error'));
     }
   </script>
 </body>

@@ -11,20 +11,23 @@ import (
 	mqpkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/mq"
 	registrypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/registry"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 )
 
 var startTime = time.Now()
 
 // AdminHandler returns an http.Handler serving all admin APIs, wrapped with token auth.
-func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host) http.Handler {
+func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/v1/admin/overview", handleOverview(cfg, regStore, mqStore, h))
 	mux.HandleFunc("GET /api/v1/admin/registry", handleAdminRegistryList(regStore))
-	mux.HandleFunc("DELETE /api/v1/admin/registry", handleAdminRegistryEvict(regStore))
+	mux.HandleFunc("DELETE /api/v1/admin/registry", handleAdminRegistryEvict(regStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/mq", handleAdminMQList(mqStore))
-	mux.HandleFunc("DELETE /api/v1/admin/mq/clear", handleAdminMQClear(mqStore))
+	mux.HandleFunc("DELETE /api/v1/admin/mq/clear", handleAdminMQClear(mqStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/config", handleAdminConfig(cfg))
+	mux.HandleFunc("GET /api/v1/admin/peers", handleAdminPeers(h))
+	mux.HandleFunc("GET /api/v1/admin/logs", handleAdminLogs(auditLog))
 
 	return adminAuth(cfg.API.AdminToken, mux)
 }
@@ -72,6 +75,20 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 			addrs = append(addrs, addr.String()+"/p2p/"+h.ID().String())
 		}
 
+		// Count inbound/outbound connections
+		inbound := 0
+		outbound := 0
+		for _, peer := range h.Network().Peers() {
+			for _, conn := range h.Network().ConnsToPeer(peer) {
+				switch conn.Stat().Direction {
+				case network.DirInbound:
+					inbound++
+				case network.DirOutbound:
+					outbound++
+				}
+			}
+		}
+
 		resp := map[string]interface{}{
 			"status":            "ok",
 			"uptime_seconds":    int64(time.Since(startTime).Seconds()),
@@ -83,6 +100,8 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 			"peer_id":           h.ID().String(),
 			"listen_addrs":      addrs,
 			"connected_peers":   len(h.Network().Peers()),
+			"inbound_conns":     inbound,
+			"outbound_conns":    outbound,
 			"registry_count":    len(urns),
 			"mq_queues_count":   len(mqStats),
 			"mq_messages_count": totalPendingMessages,
@@ -107,7 +126,7 @@ func handleAdminRegistryList(regStore *registrypkg.Store) http.HandlerFunc {
 	}
 }
 
-func handleAdminRegistryEvict(regStore *registrypkg.Store) http.HandlerFunc {
+func handleAdminRegistryEvict(regStore *registrypkg.Store, auditLog *AuditLog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urn := r.URL.Query().Get("urn")
 		if urn == "" {
@@ -122,6 +141,9 @@ func handleAdminRegistryEvict(regStore *registrypkg.Store) http.HandlerFunc {
 			return
 		}
 
+		if auditLog != nil {
+			auditLog.Record("warn", "registry", "Evicted node from registry: "+urn, "")
+		}
 		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 	}
 }
@@ -141,7 +163,7 @@ func handleAdminMQList(mqStore *mqpkg.Store) http.HandlerFunc {
 	}
 }
 
-func handleAdminMQClear(mqStore *mqpkg.Store) http.HandlerFunc {
+func handleAdminMQClear(mqStore *mqpkg.Store, auditLog *AuditLog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		urn := r.URL.Query().Get("urn")
 		if urn == "" {
@@ -160,6 +182,9 @@ func handleAdminMQClear(mqStore *mqpkg.Store) http.HandlerFunc {
 			return
 		}
 
+		if auditLog != nil {
+			auditLog.Record("warn", "mq", "Purged MQ queue for: "+urn, "deleted "+itoa(deleted)+" messages")
+		}
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"ok":      true,
 			"deleted": deleted,
@@ -173,5 +198,76 @@ func handleAdminConfig(cfg *config.Config) http.HandlerFunc {
 		redacted := *cfg
 		redacted.API.AdminToken = "******"
 		json.NewEncoder(w).Encode(redacted)
+	}
+}
+
+// PeerInfo represents information about a connected libp2p peer.
+type PeerInfo struct {
+	PeerID    string   `json:"peer_id"`
+	Addrs     []string `json:"addrs"`
+	Direction string   `json:"direction"` // "inbound", "outbound", "both"
+	ConnCount int      `json:"conn_count"`
+	Protocols []string `json:"protocols"`
+}
+
+func handleAdminPeers(h host.Host) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		peers := h.Network().Peers()
+		infos := make([]*PeerInfo, 0, len(peers))
+
+		for _, pid := range peers {
+			conns := h.Network().ConnsToPeer(pid)
+			if len(conns) == 0 {
+				continue
+			}
+
+			info := &PeerInfo{
+				PeerID:    pid.String(),
+				ConnCount: len(conns),
+			}
+
+			// Determine direction
+			hasIn, hasOut := false, false
+			addrsMap := map[string]bool{}
+			for _, c := range conns {
+				switch c.Stat().Direction {
+				case network.DirInbound:
+					hasIn = true
+				case network.DirOutbound:
+					hasOut = true
+				}
+				addr := c.RemoteMultiaddr().String()
+				addrsMap[addr] = true
+			}
+
+			if hasIn && hasOut {
+				info.Direction = "both"
+			} else if hasIn {
+				info.Direction = "inbound"
+			} else {
+				info.Direction = "outbound"
+			}
+
+			for addr := range addrsMap {
+				info.Addrs = append(info.Addrs, addr)
+			}
+
+			// Get protocols
+			protos, err := h.Peerstore().GetProtocols(pid)
+			if err == nil {
+				protoStrs := make([]string, len(protos))
+				for i, p := range protos {
+					protoStrs[i] = string(p)
+				}
+				info.Protocols = protoStrs
+			}
+
+			infos = append(infos, info)
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"peers": infos,
+			"count": len(infos),
+		})
 	}
 }
