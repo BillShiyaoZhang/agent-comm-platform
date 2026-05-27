@@ -944,14 +944,18 @@
         return;
       }
       localStorage.setItem('admin_token', val);
-      document.getElementById('authModal').classList.remove('active');
       verifyHealthAndLoad();
     }
 
-    function clearToken() {
+    function clearToken(showToastMessage = true, toastType = 'success', toastText = '连接已断开') {
       localStorage.removeItem('admin_token');
-      document.getElementById('authModal').classList.add('active');
-      showToast('连接已断开', 'success');
+      const modal = document.getElementById('authModal');
+      const wasActive = modal.classList.contains('active');
+      modal.classList.add('active');
+
+      if (showToastMessage && !wasActive) {
+        showToast(toastText, toastType);
+      }
       if (statsTimer) {
         clearInterval(statsTimer);
         statsTimer = null;
@@ -963,24 +967,43 @@
     // Verify authentication and load initial data
     function verifyHealthAndLoad() {
       const token = localStorage.getItem('admin_token');
-      fetch('/healthz', {
-        headers: { 'X-Admin-Token': token }
+      if (!token) return;
+
+      // Verify token by trying to load overview data which requires authentication
+      fetch('/api/v1/admin/overview', {
+        headers: { 
+          'X-Admin-Token': token,
+          'Content-Type': 'application/json'
+        }
       })
       .then(res => {
-        if (res.status === 401 || res.status === 403) {
-          clearToken();
-          return;
+        if (res.status === 401) {
+          clearToken(true, 'error', 'Token 验证失败，请重新输入');
+          return null;
+        }
+        if (res.status === 403) {
+          clearToken(true, 'error', '管理后台已禁用 (未配置 admin_token)');
+          return null;
+        }
+        if (!res.ok) {
+          throw new Error('Server error');
         }
         return res.json();
       })
       .then(data => {
         if (!data) return;
+
+        // Hide authentication modal on successful verification
+        document.getElementById('authModal').classList.remove('active');
+
         document.getElementById('healthDot').className = 'status-dot online';
         document.getElementById('healthText').textContent = '已连接到平台';
         showToast('节点连接成功', 'success');
         
-        // Load initial data
-        refreshOverview();
+        // Render the overview data we just fetched
+        renderOverview(data);
+        
+        // Load other initial data
         refreshRegistry();
         refreshMQ();
         refreshConfig();
@@ -1060,8 +1083,8 @@
         }
       }).then(res => {
         if (res.status === 401 || res.status === 403) {
-          clearToken();
-          throw new Error('Unauthorized');
+          clearToken(true, 'error', res.status === 401 ? '登录已过期，请重新登录' : '管理后台已禁用 (未配置 admin_token)');
+          throw new Error(res.status === 401 ? 'Unauthorized' : 'Forbidden');
         }
         if (!res.ok) {
           return res.json().then(e => { throw new Error(e.error || 'Server error') });
@@ -1070,40 +1093,43 @@
       });
     }
 
+    // Render functions
+    function renderOverview(data) {
+      document.getElementById('statPeers').textContent = data.connected_peers;
+      document.getElementById('statRegistry').textContent = data.registry_count;
+      document.getElementById('statMQMessages').textContent = data.mq_messages_count;
+      document.getElementById('statUptime').textContent = formatUptime(data.uptime_seconds);
+
+      // Host details
+      document.getElementById('peerIDVal').textContent = data.peer_id;
+      document.getElementById('platformModeTitle').textContent = `P2P 平台 [${data.platform_mode === 'privacy' ? '原生隐私模式' : '监管合规模式'}]`;
+      document.getElementById('platformModeVal').textContent = data.platform_mode === 'privacy' ? 'Privacy (隐私盲存)' : 'Compliance (合规代理)';
+      
+      // Multiaddrs
+      const addrsList = document.getElementById('multiAddrsList');
+      addrsList.innerHTML = '';
+      if (data.listen_addrs && data.listen_addrs.length > 0) {
+        data.listen_addrs.forEach(addr => {
+          const div = document.createElement('div');
+          div.className = 'addr-item';
+          div.textContent = addr;
+          addrsList.appendChild(div);
+        });
+      } else {
+        addrsList.innerHTML = '<div class="addr-item">无监听地址</div>';
+      }
+
+      // OS
+      document.getElementById('memAllocVal').textContent = data.memory_alloc_mb.toFixed(2) + ' MB';
+      document.getElementById('memSysVal').textContent = data.memory_sys_mb.toFixed(2) + ' MB';
+      document.getElementById('goroutineVal').textContent = data.goroutines;
+      document.getElementById('goVersionVal').textContent = data.go_version;
+    }
+
     // Refresh operations
     function refreshOverview() {
       apiCall('/api/v1/admin/overview')
-      .then(data => {
-        document.getElementById('statPeers').textContent = data.connected_peers;
-        document.getElementById('statRegistry').textContent = data.registry_count;
-        document.getElementById('statMQMessages').textContent = data.mq_messages_count;
-        document.getElementById('statUptime').textContent = formatUptime(data.uptime_seconds);
-
-        // Host details
-        document.getElementById('peerIDVal').textContent = data.peer_id;
-        document.getElementById('platformModeTitle').textContent = `P2P 平台 [${data.platform_mode === 'privacy' ? '原生隐私模式' : '监管合规模式'}]`;
-        document.getElementById('platformModeVal').textContent = data.platform_mode === 'privacy' ? 'Privacy (隐私盲存)' : 'Compliance (合规代理)';
-        
-        // Multiaddrs
-        const addrsList = document.getElementById('multiAddrsList');
-        addrsList.innerHTML = '';
-        if (data.listen_addrs && data.listen_addrs.length > 0) {
-          data.listen_addrs.forEach(addr => {
-            const div = document.createElement('div');
-            div.className = 'addr-item';
-            div.textContent = addr;
-            addrsList.appendChild(div);
-          });
-        } else {
-          addrsList.innerHTML = '<div class="addr-item">无监听地址</div>';
-        }
-
-        // OS
-        document.getElementById('memAllocVal').textContent = data.memory_alloc_mb.toFixed(2) + ' MB';
-        document.getElementById('memSysVal').textContent = data.memory_sys_mb.toFixed(2) + ' MB';
-        document.getElementById('goroutineVal').textContent = data.goroutines;
-        document.getElementById('goVersionVal').textContent = data.go_version;
-      })
+      .then(renderOverview)
       .catch(err => {
         console.error('Failed to load overview stats', err);
       });
