@@ -4,8 +4,10 @@ package mq
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,17 +23,20 @@ CREATE TABLE IF NOT EXISTS messages (
   recipient    TEXT NOT NULL,
   payload      BLOB NOT NULL,
   expiry       INTEGER NOT NULL,
-  stored_at    INTEGER NOT NULL
+  stored_at    INTEGER NOT NULL,
+  read_at      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_recipient ON messages(recipient);
 CREATE INDEX IF NOT EXISTS idx_expiry    ON messages(expiry);
+CREATE INDEX IF NOT EXISTS idx_read_at   ON messages(read_at);
 `
 
 // Store is the SQLite-backed MQ store.
 type Store struct {
-	db            *sql.DB
-	defaultTTL    time.Duration
-	maxPerURN     int
+	db                   *sql.DB
+	defaultTTL           time.Duration
+	maxPerURN            int
+	historyRetentionDays int32
 }
 
 var _ mq.Store = (*Store)(nil)
@@ -47,10 +52,15 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("create mq schema: %w", err)
 	}
+	// Migration: add read_at column if it doesn't exist
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN read_at INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_read_at ON messages(read_at)")
+
 	s := &Store{
-		db:         db,
-		defaultTTL: time.Duration(defaultTTLDays) * 24 * time.Hour,
-		maxPerURN:  maxPerURN,
+		db:                   db,
+		defaultTTL:           time.Duration(defaultTTLDays) * 24 * time.Hour,
+		maxPerURN:            maxPerURN,
+		historyRetentionDays: 30,
 	}
 	go s.cleanupLoop()
 	return s, nil
@@ -76,8 +86,8 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 	if s.maxPerURN > 0 {
 		if _, err := s.db.ExecContext(ctx, `
 			DELETE FROM messages WHERE id IN (
-			  SELECT id FROM messages WHERE recipient=? ORDER BY stored_at ASC
-			  LIMIT MAX(0, (SELECT COUNT(*) FROM messages WHERE recipient=?) - ?)
+			  SELECT id FROM messages WHERE recipient=? AND read_at=0 ORDER BY stored_at ASC
+			  LIMIT MAX(0, (SELECT COUNT(*) FROM messages WHERE recipient=? AND read_at=0) - ?)
 			)`, recipientURN, recipientURN, s.maxPerURN-1); err != nil {
 			log.Printf("[mq] quota eviction error: %v", err)
 		}
@@ -101,7 +111,7 @@ func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*proto.Enc
 // RetrieveEntry returns all pending envelopes and their database IDs for a recipient (oldest first).
 func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*proto.EncryptedEnvelope, []string, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, payload FROM messages WHERE recipient=? AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC",
+		"SELECT id, payload FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC",
 		recipientURN, time.Now().Unix())
 	if err != nil {
 		return nil, nil, err
@@ -126,19 +136,20 @@ func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*prot
 	return envs, ids, nil
 }
 
-// Ack deletes the given message IDs.
+// Ack updates read_at for the given message IDs, marking them as read history.
 func (s *Store) Ack(ctx context.Context, ids []string) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
 	placeholders := "?" 
-	args := make([]interface{}, len(ids))
-	args[0] = ids[0]
+	args := make([]interface{}, len(ids)+1)
+	args[0] = time.Now().Unix()
+	args[1] = ids[0]
 	for i := 1; i < len(ids); i++ {
 		placeholders += ",?"
-		args[i] = ids[i]
+		args[i+1] = ids[i]
 	}
-	res, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE id IN ("+placeholders+")", args...)
+	res, err := s.db.ExecContext(ctx, "UPDATE messages SET read_at = ? WHERE id IN ("+placeholders+")", args...)
 	if err != nil {
 		return 0, err
 	}
@@ -155,12 +166,12 @@ type QueueStat struct {
 	NewestAt  int64  `json:"newest_at"`
 }
 
-// ListQueueStats returns statistics about all active message queues in the system.
+// ListQueueStats returns statistics about active unread message queues in the system.
 func (s *Store) ListQueueStats(ctx context.Context) ([]*QueueStat, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT recipient, COUNT(*), SUM(LENGTH(payload)), MIN(stored_at), MAX(stored_at)
 		FROM messages
-		WHERE expiry = 0 OR expiry > ?
+		WHERE read_at = 0 AND (expiry = 0 OR expiry > ?)
 		GROUP BY recipient
 		ORDER BY COUNT(*) DESC`, time.Now().Unix())
 	if err != nil {
@@ -181,6 +192,71 @@ func (s *Store) ListQueueStats(ctx context.Context) ([]*QueueStat, error) {
 	return stats, nil
 }
 
+// MessageDetail represents details about a stored envelope.
+type MessageDetail struct {
+	ID        string `json:"id"`
+	Sender    string `json:"sender"`
+	Size      int    `json:"size"`
+	StoredAt  int64  `json:"stored_at"`
+	ReadAt    int64  `json:"read_at"`
+	Expiry    int64  `json:"expiry"`
+	Payload   string `json:"payload"` // hex encoded ciphertext
+}
+
+// ListMessagesDetail returns messages for a recipient, filtered by status ('pending' or 'history').
+func (s *Store) ListMessagesDetail(ctx context.Context, recipientURN string, status string) ([]*MessageDetail, error) {
+	var query string
+	if status == "history" {
+		query = "SELECT id, payload, expiry, stored_at, read_at FROM messages WHERE recipient=? AND read_at > 0 ORDER BY read_at DESC"
+	} else {
+		query = "SELECT id, payload, expiry, stored_at, read_at FROM messages WHERE recipient=? AND read_at = 0 AND (expiry = 0 OR expiry > ?) ORDER BY stored_at ASC"
+	}
+
+	var rows *sql.Rows
+	var err error
+	if status == "history" {
+		rows, err = s.db.QueryContext(ctx, query, recipientURN)
+	} else {
+		rows, err = s.db.QueryContext(ctx, query, recipientURN, time.Now().Unix())
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var details []*MessageDetail
+	for rows.Next() {
+		var id string
+		var payload []byte
+		var expiry, storedAt, readAt int64
+		if err := rows.Scan(&id, &payload, &expiry, &storedAt, &readAt); err != nil {
+			continue
+		}
+
+		var env proto.EncryptedEnvelope
+		var sender string
+		var payloadHex string
+		if err := goproto.Unmarshal(payload, &env); err == nil {
+			sender = env.GetSenderUrn()
+			payloadHex = hex.EncodeToString(env.GetCiphertext())
+		}
+
+		details = append(details, &MessageDetail{
+			ID:       id,
+			Sender:   sender,
+			Size:     len(payload),
+			StoredAt: storedAt,
+			ReadAt:   readAt,
+			Expiry:   expiry,
+			Payload:  payloadHex,
+		})
+	}
+	if details == nil {
+		details = []*MessageDetail{}
+	}
+	return details, nil
+}
+
 // PurgeQueue deletes all messages for a recipient.
 func (s *Store) PurgeQueue(ctx context.Context, recipient string) (int, error) {
 	res, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE recipient = ?", recipient)
@@ -194,12 +270,30 @@ func (s *Store) PurgeQueue(ctx context.Context, recipient string) (int, error) {
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
 
+func (s *Store) SetHistoryRetentionDays(days int) {
+	atomic.StoreInt32(&s.historyRetentionDays, int32(days))
+}
+
+func (s *Store) GetHistoryRetentionDays() int {
+	return int(atomic.LoadInt32(&s.historyRetentionDays))
+}
+
 func (s *Store) cleanupLoop() {
 	tick := time.NewTicker(5 * time.Minute)
 	defer tick.Stop()
 	for range tick.C {
-		if _, err := s.db.Exec("DELETE FROM messages WHERE expiry>0 AND expiry<?", time.Now().Unix()); err != nil {
+		now := time.Now().Unix()
+		// 1. Delete expired messages
+		if _, err := s.db.Exec("DELETE FROM messages WHERE expiry>0 AND expiry<?", now); err != nil {
 			log.Printf("[mq] cleanup error: %v", err)
+		}
+		// 2. Delete historical messages older than retention days
+		retentionDays := atomic.LoadInt32(&s.historyRetentionDays)
+		if retentionDays >= 0 {
+			retentionSeconds := int64(retentionDays) * 24 * 3600
+			if _, err := s.db.Exec("DELETE FROM messages WHERE read_at>0 AND read_at<?", now-retentionSeconds); err != nil {
+				log.Printf("[mq] history cleanup error: %v", err)
+			}
 		}
 	}
 }

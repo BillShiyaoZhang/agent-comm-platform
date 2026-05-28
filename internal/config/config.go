@@ -23,6 +23,7 @@ type PlatformConfig struct {
 	DataDir                   string `yaml:"data_dir"`
 	StoreUserData             bool   `yaml:"store_user_data"`
 	ForwardToStoragePlatforms bool   `yaml:"forward_to_storage_platforms"`
+	HistoryRetentionDays      int    `yaml:"history_retention_days"`
 }
 
 type IdentityConfig struct {
@@ -69,6 +70,7 @@ func DefaultConfig() *Config {
 			DataDir:                   "./data",
 			StoreUserData:             true,
 			ForwardToStoragePlatforms: true,
+			HistoryRetentionDays:      30,
 		},
 		Identity: IdentityConfig{KeysDir: "./data/keys"},
 		Libp2p: Libp2pConfig{
@@ -107,4 +109,15 @@ func Load(path string) (*Config, error) {
 		cfg.API.AdminToken = v
 	}
 	return cfg, nil
+}
+
+func Save(path string, cfg *Config) error {
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+	return nil
 }

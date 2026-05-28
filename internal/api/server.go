@@ -30,18 +30,22 @@ type SecurityPolicies struct {
 
 // Server is the HTTP API server.
 type Server struct {
-	srv      *http.Server
-	AuditLog *AuditLog
-	Policies *SecurityPolicies
+	srv        *http.Server
+	AuditLog   *AuditLog
+	Policies   *SecurityPolicies
+	ConfigPath string
 }
 
 // New creates and configures the HTTP server with all API routes mounted.
-func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, hostID string, h host.Host) *Server {
+func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, hostID string, h host.Host, cfgPath string) *Server {
 	mux := http.NewServeMux()
 
 	policies := &SecurityPolicies{}
 	policies.StoreUserData.Store(cfg.Platform.StoreUserData)
 	policies.ForwardToStoragePlatforms.Store(cfg.Platform.ForwardToStoragePlatforms)
+
+	// Set retention days on MQ Store
+	mqStore.SetHistoryRetentionDays(cfg.Platform.HistoryRetentionDays)
 
 	// Registry API
 	isForwardAllowedRegistry := func(urn string) bool {
@@ -82,7 +86,7 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 	}
 
 	// Admin API
-	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h, auditLog, policies))
+	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h, auditLog, policies, cfgPath))
 
 	// Bootstrap info API
 	mux.HandleFunc("/api/v1/bootstrap", func(w http.ResponseWriter, r *http.Request) {
@@ -141,8 +145,9 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 			WriteTimeout: 30 * time.Second,
 			IdleTimeout:  60 * time.Second,
 		},
-		AuditLog: auditLog,
-		Policies: policies,
+		AuditLog:   auditLog,
+		Policies:   policies,
+		ConfigPath: cfgPath,
 	}
 }
 

@@ -3,6 +3,7 @@ platform:
   data_dir: "./data"
   store_user_data: true             # Whether the platform itself stores user envelopes (e.g. offline messages in MQ)
   forward_to_storage_platforms: true # Whether the platform allows forwarding/connecting to other platforms that store user data
+  history_retention_days: 30        # How many days to keep delivered/read historical messages in the queue (0 to delete immediately)
 
 identity:
   keys_dir: "./data/keys"

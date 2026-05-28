@@ -98,6 +98,11 @@
       100% { transform: rotate(360deg) translate(-5%, -5%) scale(1); }
     }
 
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     /* Scrollbar Styling */
     ::-webkit-scrollbar {
       width: 6px;
@@ -1669,6 +1674,18 @@
                   </label>
                 </div>
               </div>
+
+              <!-- Policy 3: History Retention Days -->
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <span style="font-weight: 600; font-size: 0.95rem; color: #fff;" data-i18n="policy_retention_title">已读历史消息保留天数</span>
+                  <span style="font-size: 0.8rem; color: var(--text-muted);" id="policyRetentionDesc" data-i18n="policy_retention_desc">设置已读/历史信封在数据库中保存的天数</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <input type="number" id="policyRetentionInput" min="1" max="365" style="width: 70px; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color: #fff; text-align: center;" onchange="updateRetentionDays()">
+                  <span style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="days_label">天</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2051,6 +2068,22 @@
     </div>
   </div>
 
+  <!-- System Rebooting Overlay -->
+  <div class="modal-overlay" id="rebootingOverlay">
+    <div class="modal-card" style="text-align: center;">
+      <div class="modal-header" style="flex-direction: column; align-items: center;">
+        <div style="margin-bottom: 24px; display: inline-flex; width: 64px; height: 64px; background: rgba(99, 102, 241, 0.1); border-radius: 50%; align-items: center; justify-content: center;">
+          <svg style="width: 32px; height: 32px; stroke: var(--primary); animation: spin 2s linear infinite;" viewBox="0 0 24 24" fill="none" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.233 8H16" />
+          </svg>
+        </div>
+        <h2 class="modal-title" id="rebootingOverlayTitle" data-i18n="rebooting_system" style="margin-bottom: 12px;">系统重启中</h2>
+        <p class="modal-subtitle" id="rebootingOverlayText" data-i18n="rebooting_desc" style="max-width: 380px; text-align: center; margin-bottom: 24px;">正在切换数据存储声明并重启服务，正在清空路由名册。请等待服务重新上线...</p>
+        <div style="font-family: var(--font-display); font-size: 3rem; font-weight: 800; color: var(--primary);" id="rebootCountdown">4</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Admin Login Auth Overlay -->
   <div class="modal-overlay" id="authModal">
     <div class="modal-card">
@@ -2202,6 +2235,21 @@
         confirm_clear: "警告：您确认要清空以下节点的所有暂存离线信封吗？删除后数据无法恢复！",
         confirm_batch_evict: "您确认要批量驱逐选中的 {count} 个节点吗？",
         confirm_batch_clear: "警告：您确认要批量清空选中的 {count} 个信箱队列吗？此操作无法恢复！",
+        confirm_toggle_storage_warning: "警告：切换数据存储声明是高影响性操作。切换后平台将清除全局已注册的所有路由节点信息并自动重启，所有 Agent 需要重新对齐并重新注册。您确定要继续吗？",
+        rebooting_system: "系统重启中",
+        rebooting_desc: "正在切换数据存储声明并重启服务，正在清空路由表。请等待服务重新上线...",
+        policy_retention_title: "已读历史消息保留天数",
+        policy_retention_desc: "设置已读/历史信封在数据库中保存的天数",
+        days_label: "天",
+        tab_pending: "未读队列 (Pending)",
+        tab_history: "已读历史 (History)",
+        msg_id: "消息 ID",
+        sender: "发送方",
+        size: "大小",
+        stored_at: "存入时间",
+        read_at: "读取时间",
+        expiry: "失效时间",
+        payload: "加密载荷 (Payload Hex)",
       },
       en: {
         title: "Agent Comm Platform Console",
@@ -2303,6 +2351,21 @@
         confirm_clear: "Warning: Are you sure you want to clear this URN mailbox? All envelopes will be deleted forever!",
         confirm_batch_evict: "Are you sure you want to evict {count} selected nodes from registry?",
         confirm_batch_clear: "Warning: Are you sure you want to clear {count} selected queues? This action is irreversible!",
+        confirm_toggle_storage_warning: "WARNING: Toggling the data storage policy is a high-impact operation. The platform will purge all registered routing nodes and automatically reboot, requiring all agents to align policies and re-register. Do you want to proceed?",
+        rebooting_system: "System Rebooting",
+        rebooting_desc: "Toggling storage policy and rebooting service, clearing registry. Please wait for the service to come back online...",
+        policy_retention_title: "Read Message Retention",
+        policy_retention_desc: "Define maximum days to keep read history envelopes in local database",
+        days_label: "days",
+        tab_pending: "Pending Queue",
+        tab_history: "Read History",
+        msg_id: "Message ID",
+        sender: "Sender",
+        size: "Size",
+        stored_at: "Stored At",
+        read_at: "Read At",
+        expiry: "Expiry",
+        payload: "Encrypted Payload (Hex)",
       }
     };
 
@@ -2845,6 +2908,10 @@
       if (forwardToggle) {
         forwardToggle.checked = !!data.forward_to_storage_platforms;
       }
+      const retentionInput = document.getElementById('policyRetentionInput');
+      if (retentionInput) {
+        retentionInput.value = data.history_retention_days;
+      }
 
       // Record chart history
       updateSparkHistory('peers', data.connected_peers);
@@ -2854,16 +2921,55 @@
     }
 
     function toggleStorePolicy() {
-      apiCall('/api/v1/admin/config/toggle-storage', 'POST')
+      const storeToggle = document.getElementById('policyStoreToggle');
+      const nextCheckedState = storeToggle.checked;
+      
+      // Revert visual change temporarily until confirmed
+      storeToggle.checked = !nextCheckedState;
+      
+      const warnMsg = i18n[state.lang].confirm_toggle_storage_warning;
+      
+      showConfirmModal(i18n[state.lang].confirm_title, warnMsg, () => {
+        // Confirmed! Set visual state to the intended check state
+        storeToggle.checked = nextCheckedState;
+        
+        apiCall('/api/v1/admin/config/toggle-storage', 'POST')
+        .then(res => {
+          document.getElementById('rebootingOverlay').classList.add('active');
+          let count = 4;
+          document.getElementById('rebootCountdown').textContent = count;
+          const interval = setInterval(() => {
+            count--;
+            document.getElementById('rebootCountdown').textContent = count;
+            if (count <= 0) {
+              clearInterval(interval);
+              location.reload();
+            }
+          }, 1000);
+        })
+        .catch(err => {
+          showToast(err.message || 'Failed to toggle storage policy', 'error');
+          // Revert checkbox state on error
+          storeToggle.checked = !nextCheckedState;
+        });
+      });
+    }
+
+    function updateRetentionDays() {
+      const input = document.getElementById('policyRetentionInput');
+      const val = parseInt(input.value, 10);
+      if (isNaN(val) || val < 1) {
+        showToast(state.lang === 'zh' ? '请输入有效的保留天数' : 'Please enter a valid retention day value', 'error');
+        refreshOverview();
+        return;
+      }
+      apiCall('/api/v1/admin/config/set-retention', 'POST', { days: val })
       .then(res => {
-        const msg = state.lang === 'zh'
-          ? `平台数据存储已${res.store_user_data ? '开启' : '关闭'}`
-          : `Self data storage is now ${res.store_user_data ? 'ENABLED' : 'DISABLED'}`;
-        showToast(msg, 'success');
+        showToast(state.lang === 'zh' ? '历史消息保留天数修改成功' : 'Read message retention days updated successfully', 'success');
         refreshOverview();
       })
       .catch(err => {
-        showToast(err.message || 'Failed to toggle storage policy', 'error');
+        showToast(err.message || 'Failed to update retention days', 'error');
         refreshOverview();
       });
     }
@@ -3518,48 +3624,127 @@
       });
     }
 
+    let currentDetailURN = '';
+    let currentDetailTab = 'pending';
+
     function showMQDetails(urn) {
-      const q = state.mqData.find(item => item.recipient === urn);
-      if (!q) return;
+      currentDetailURN = urn;
+      currentDetailTab = 'pending';
+      
+      const title = state.lang === 'zh' ? '信箱详情' : 'Mailbox Details';
 
-      const title = state.lang === 'zh' ? '信箱堆积明细' : 'Offline Storage Quotas';
-
-      let contentHTML = `
+      const contentHTML = `
         <div class="drawer-section">
-          <div class="drawer-section-title">Recipient URN</div>
-          <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary); word-break:break-all; margin-bottom:4px;">${q.recipient}</div>
+          <div class="drawer-section-title" data-i18n="recipient">接收方 URN</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary); word-break:break-all; margin-bottom:16px;">${urn}</div>
         </div>
 
-        <div class="drawer-section">
-          <div class="drawer-section-title">Quota Usage (Storage Limit: 1000)</div>
-          <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
-            <div class="info-item">
-              <span class="info-label">Pending Envelopes</span>
-              <span class="info-value" style="font-size: 1rem; color:var(--accent-amber);">${q.count}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Total Byte Size</span>
-              <span class="info-value">${formatBytes(q.total_size)}</span>
-            </div>
-          </div>
+        <!-- Tab controllers -->
+        <div style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
+          <button id="tabDetailPending" onclick="switchDetailTab('pending')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid var(--primary); color: #fff; font-weight: 600; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_pending">未读队列 (Pending)</button>
+          <button id="tabDetailHistory" onclick="switchDetailTab('history')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 500; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_history">已读历史 (History)</button>
         </div>
 
-        <div class="drawer-section">
-          <div class="drawer-section-title">Timeline Auditing</div>
-          <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
-            <div class="info-item">
-              <span class="info-label">Oldest Envelope Buffered</span>
-              <span class="info-value" style="font-size:0.85rem;">${formatTime(q.oldest_at)}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Last Inbound Envelope</span>
-              <span class="info-value" style="font-size:0.85rem;">${formatTime(q.newest_at)}</span>
-            </div>
-          </div>
+        <div id="drawerMQMessagesList" style="min-height: 150px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading...</div>
         </div>
       `;
 
       openDrawer(title, contentHTML);
+      updateUILanguage();
+      loadDetailMessages();
+    }
+
+    function switchDetailTab(tab) {
+      currentDetailTab = tab;
+      const btnPending = document.getElementById('tabDetailPending');
+      const btnHistory = document.getElementById('tabDetailHistory');
+      
+      if (tab === 'pending') {
+        btnPending.style.borderBottomColor = 'var(--primary)';
+        btnPending.style.color = '#fff';
+        btnPending.style.fontWeight = '600';
+        btnHistory.style.borderBottomColor = 'transparent';
+        btnHistory.style.color = 'var(--text-muted)';
+        btnHistory.style.fontWeight = '500';
+      } else {
+        btnHistory.style.borderBottomColor = 'var(--primary)';
+        btnHistory.style.color = '#fff';
+        btnHistory.style.fontWeight = '600';
+        btnPending.style.borderBottomColor = 'transparent';
+        btnPending.style.color = 'var(--text-muted)';
+        btnPending.style.fontWeight = '500';
+      }
+      loadDetailMessages();
+    }
+
+    function loadDetailMessages() {
+      const container = document.getElementById('drawerMQMessagesList');
+      container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading...</div>';
+      
+      apiCall('/api/v1/admin/mq/messages', 'GET', { urn: currentDetailURN, status: currentDetailTab })
+      .then(messages => {
+        if (!messages || messages.length === 0) {
+          const noMsgText = state.lang === 'zh' ? '暂无此类消息' : 'No messages of this category';
+          container.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 40px;">${noMsgText}</div>`;
+          return;
+        }
+
+        container.innerHTML = '';
+        messages.forEach(msg => {
+          const card = document.createElement('div');
+          card.style.background = 'rgba(255,255,255,0.02)';
+          card.style.border = '1px solid var(--border-color)';
+          card.style.borderRadius = '10px';
+          card.style.padding = '14px';
+          card.style.display = 'flex';
+          card.style.flexDirection = 'column';
+          card.style.gap = '8px';
+
+          const readAtItem = currentDetailTab === 'history' ? `
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+              <span style="color:var(--text-muted);" data-i18n="read_at">读取时间</span>
+              <span style="color:#fff; font-weight:500;">${formatTime(msg.read_at)}</span>
+            </div>
+          ` : '';
+
+          card.innerHTML = `
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+              <span style="color:var(--text-muted);" data-i18n="msg_id">消息 ID</span>
+              <span style="font-family:monospace; color:#fff; word-break:break-all;">${msg.id}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+              <span style="color:var(--text-muted);" data-i18n="sender">发送方</span>
+              <span style="font-family:monospace; color:#fff; word-break:break-all;">${msg.sender || '--'}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+              <span style="color:var(--text-muted);" data-i18n="size">大小</span>
+              <span style="color:#fff;">${formatBytes(msg.size)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+              <span style="color:var(--text-muted);" data-i18n="stored_at">存入时间</span>
+              <span style="color:#fff;">${formatTime(msg.stored_at)}</span>
+            </div>
+            ${readAtItem}
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+              <span style="color:var(--text-muted);" data-i18n="expiry">失效时间</span>
+              <span style="color:#fff;">${msg.expiry > 0 ? formatTime(msg.expiry) : 'Never'}</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; margin-top:4px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:var(--text-muted);" data-i18n="payload">加密载荷 (Payload Hex)</span>
+                <button onclick="copyText('${msg.payload}')" style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-size:0.75rem;">Copy</button>
+              </div>
+              <textarea readonly style="width:100%; height:60px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:6px; color:var(--text-muted); font-family:monospace; font-size:0.75rem; padding:6px; resize:none; outline:none; word-break:break-all;">${msg.payload}</textarea>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+        updateUILanguage();
+      })
+      .catch(err => {
+        container.innerHTML = `<div style="text-align: center; color: var(--accent-rose); padding: 20px;">Error: ${err.message}</div>`;
+      });
     }
 
     // ─────────────────────────────────────────────────────────────────────────

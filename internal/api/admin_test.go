@@ -59,7 +59,12 @@ func TestAdminAPIs(t *testing.T) {
 	policies.StoreUserData.Store(true)
 	policies.ForwardToStoragePlatforms.Store(true)
 
-	adminHandler := AdminHandler(cfg, regStore, mqStore, h, auditLog, policies)
+	cfgPath := filepath.Join(tempDir, "config.yaml")
+	if err := config.Save(cfgPath, cfg); err != nil {
+		t.Fatalf("save initial config: %v", err)
+	}
+
+	adminHandler := AdminHandler(cfg, regStore, mqStore, h, auditLog, policies, cfgPath)
 
 	t.Run("Unauthorized - No Token", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/admin/overview", nil)
@@ -345,6 +350,117 @@ func TestAdminAPIs(t *testing.T) {
 		json.NewDecoder(w4.Body).Decode(&resp4)
 		if resp4["store_user_data"] != true {
 			t.Errorf("expected store_user_data toggle back to return true, got %v", resp4)
+		}
+	})
+
+	t.Run("Authorized - Set Retention Days", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/admin/config/set-retention?days=45", nil)
+		req.Header.Set("X-Admin-Token", "test-secret-token")
+		w := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w.Code)
+		}
+
+		var resp map[string]interface{}
+		json.NewDecoder(w.Body).Decode(&resp)
+		if resp["ok"] != true || int(resp["history_retention_days"].(float64)) != 45 {
+			t.Errorf("unexpected response: %v", resp)
+		}
+
+		// Verify on mqStore
+		if mqStore.GetHistoryRetentionDays() != 45 {
+			t.Errorf("expected retention days on mqStore to be 45, got %d", mqStore.GetHistoryRetentionDays())
+		}
+
+		// Verify configuration was persisted by reloading config
+		reloaded, err := config.Load(cfgPath)
+		if err != nil {
+			t.Fatalf("load reloaded config: %v", err)
+		}
+		if reloaded.Platform.HistoryRetentionDays != 45 {
+			t.Errorf("expected platform history_retention_days to be 45, got %d", reloaded.Platform.HistoryRetentionDays)
+		}
+	})
+
+	t.Run("Authorized - MQ Messages Detail", func(t *testing.T) {
+		recipient := "urn:hermes:agent:detail-recipient"
+		env1 := &pb.EncryptedEnvelope{
+			MessageId:  "msg-detail-pending",
+			Ciphertext: []byte("pending-payload"),
+		}
+		env2 := &pb.EncryptedEnvelope{
+			MessageId:  "msg-detail-history",
+			Ciphertext: []byte("history-payload"),
+		}
+
+		// Store pending
+		_, err := mqStore.StoreEnvelope(context.Background(), recipient, env1, time.Now().Add(1*time.Hour).Unix())
+		if err != nil {
+			t.Fatalf("store pending error: %v", err)
+		}
+
+		// Store history (by storing and then ACK-ing it)
+		id2, err := mqStore.StoreEnvelope(context.Background(), recipient, env2, time.Now().Add(1*time.Hour).Unix())
+		if err != nil {
+			t.Fatalf("store history msg error: %v", err)
+		}
+		_, err = mqStore.Ack(context.Background(), []string{id2})
+		if err != nil {
+			t.Fatalf("ack msg error: %v", err)
+		}
+
+		// 1. Query pending messages details
+		req1 := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/admin/mq/messages?urn=%s&status=pending", url.QueryEscape(recipient)), nil)
+		req1.Header.Set("X-Admin-Token", "test-secret-token")
+		w1 := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w1, req1)
+
+		if w1.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w1.Code)
+		}
+
+		var pendingMsgs []mqpkg.MessageDetail
+		json.NewDecoder(w1.Body).Decode(&pendingMsgs)
+		if len(pendingMsgs) != 1 {
+			t.Errorf("expected 1 pending msg detail, got %d", len(pendingMsgs))
+		} else {
+			if pendingMsgs[0].ID != "msg-detail-pending" {
+				t.Errorf("expected message ID 'msg-detail-pending', got %s", pendingMsgs[0].ID)
+			}
+			if pendingMsgs[0].Payload != "70656e64696e672d7061796c6f6164" { // "pending-payload" in hex
+				t.Errorf("expected hex payload, got %s", pendingMsgs[0].Payload)
+			}
+			if pendingMsgs[0].ReadAt != 0 {
+				t.Errorf("expected read_at to be 0 for pending message, got %d", pendingMsgs[0].ReadAt)
+			}
+		}
+
+		// 2. Query history messages details
+		req2 := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/admin/mq/messages?urn=%s&status=history", url.QueryEscape(recipient)), nil)
+		req2.Header.Set("X-Admin-Token", "test-secret-token")
+		w2 := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w2, req2)
+
+		if w2.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w2.Code)
+		}
+
+		var historyMsgs []mqpkg.MessageDetail
+		json.NewDecoder(w2.Body).Decode(&historyMsgs)
+		if len(historyMsgs) != 1 {
+			t.Errorf("expected 1 history msg detail, got %d", len(historyMsgs))
+		} else {
+			if historyMsgs[0].ID != "msg-detail-history" {
+				t.Errorf("expected message ID 'msg-detail-history', got %s", historyMsgs[0].ID)
+			}
+			if historyMsgs[0].Payload != "686973746f72792d7061796c6f6164" { // "history-payload" in hex
+				t.Errorf("expected hex payload, got %s", historyMsgs[0].Payload)
+			}
+			if historyMsgs[0].ReadAt == 0 {
+				t.Error("expected read_at > 0 for history message")
+			}
 		}
 	})
 }

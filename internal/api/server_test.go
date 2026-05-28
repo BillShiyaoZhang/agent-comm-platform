@@ -28,7 +28,7 @@ func TestRateLimiter(t *testing.T) {
 	mqStore, _ := mqpkg.NewStore(":memory:", 7, 100)
 
 	// Initialize server (ignoring host ID and p2p Host since we won't hit endpoints requiring them)
-	server := New(cfg, regStore, mqStore, "dummy-host", nil)
+	server := New(cfg, regStore, mqStore, "dummy-host", nil, "")
 	handler := server.srv.Handler
 
 	t.Run("Under rate limit", func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestRateLimiter(t *testing.T) {
 				RateLimitBurst: 0,
 			},
 		}
-		serverDisabled := New(cfgDisabled, regStore, mqStore, "dummy-host", nil)
+		serverDisabled := New(cfgDisabled, regStore, mqStore, "dummy-host", nil, "")
 		handlerDisabled := serverDisabled.srv.Handler
 
 		// Make 10 quick requests, all should succeed
@@ -298,7 +298,7 @@ func TestBootstrapAndStatusEndpoints(t *testing.T) {
 	}
 	regStore, _ := registrypkg.NewStore(":memory:", 24)
 	mqStore, _ := mqpkg.NewStore(":memory:", 7, 100)
-	server := New(cfg, regStore, mqStore, "test-peer-id", nil)
+	server := New(cfg, regStore, mqStore, "test-peer-id", nil, "")
 	handler := server.srv.Handler
 
 	t.Run("/api/v1/bootstrap", func(t *testing.T) {
@@ -365,7 +365,7 @@ func TestServerStartShutdown(t *testing.T) {
 	}
 	regStore, _ := registrypkg.NewStore(":memory:", 24)
 	mqStore, _ := mqpkg.NewStore(":memory:", 7, 100)
-	server := New(cfg, regStore, mqStore, "test-peer-id", nil)
+	server := New(cfg, regStore, mqStore, "test-peer-id", nil, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

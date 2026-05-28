@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/BillShiyaoZhang/agent-comm-platform/internal/config"
@@ -18,7 +21,7 @@ import (
 var startTime = time.Now()
 
 // AdminHandler returns an http.Handler serving all admin APIs, wrapped with token auth.
-func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog, policies *SecurityPolicies) http.Handler {
+func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog, policies *SecurityPolicies, cfgPath string) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/v1/admin/overview", handleOverview(cfg, regStore, mqStore, h, policies))
@@ -26,9 +29,11 @@ func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpk
 	mux.HandleFunc("DELETE /api/v1/admin/registry", handleAdminRegistryEvict(regStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/mq", handleAdminMQList(mqStore))
 	mux.HandleFunc("DELETE /api/v1/admin/mq/clear", handleAdminMQClear(mqStore, auditLog))
+	mux.HandleFunc("GET /api/v1/admin/mq/messages", handleAdminMQMessages(mqStore))
 	mux.HandleFunc("GET /api/v1/admin/config", handleAdminConfig(cfg))
-	mux.HandleFunc("POST /api/v1/admin/config/toggle-storage", handleToggleStorage(policies, auditLog))
+	mux.HandleFunc("POST /api/v1/admin/config/toggle-storage", handleToggleStorage(cfg, regStore, policies, auditLog, cfgPath))
 	mux.HandleFunc("POST /api/v1/admin/config/toggle-forwarding", handleToggleForwarding(policies, auditLog))
+	mux.HandleFunc("POST /api/v1/admin/config/set-retention", handleSetRetention(cfg, mqStore, auditLog, cfgPath))
 	mux.HandleFunc("GET /api/v1/admin/peers", handleAdminPeers(h, regStore))
 	mux.HandleFunc("GET /api/v1/admin/logs", handleAdminLogs(auditLog))
 
@@ -102,6 +107,7 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 			"platform_mode":                cfg.Platform.Mode,
 			"stores_user_data":             policies.StoreUserData.Load(),
 			"forward_to_storage_platforms": policies.ForwardToStoragePlatforms.Load(),
+			"history_retention_days":       cfg.Platform.HistoryRetentionDays,
 			"peer_id":                      h.ID().String(),
 			"listen_addrs":                 addrs,
 			"connected_peers":              len(h.Network().Peers()),
@@ -206,16 +212,34 @@ func handleAdminConfig(cfg *config.Config) http.HandlerFunc {
 	}
 }
 
-func handleToggleStorage(policies *SecurityPolicies, auditLog *AuditLog) http.HandlerFunc {
+func handleToggleStorage(cfg *config.Config, regStore *registrypkg.Store, policies *SecurityPolicies, auditLog *AuditLog, cfgPath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		current := policies.StoreUserData.Load()
 		next := !current
 		policies.StoreUserData.Store(next)
+		cfg.Platform.StoreUserData = next
 
-		msg := fmt.Sprintf("Changed platform store user data policy to: %t", next)
+		// Save configuration
+		if err := config.Save(cfgPath, cfg); err != nil {
+			log.Printf("[api] failed to save config on toggle-storage: %v", err)
+		}
+
+		// Clear all registry entries to force re-registration
+		if err := regStore.ClearAllEntries(); err != nil {
+			log.Printf("[api] failed to clear registry entries on toggle-storage: %v", err)
+		}
+
+		msg := fmt.Sprintf("Changed platform store user data policy to: %t, triggering registry purge and reboot", next)
 		if auditLog != nil {
 			auditLog.Record("warn", "admin", msg, "")
 		}
+
+		// Gracefully restart the platform in 500ms (Docker compose unless-stopped will pull it back up)
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			log.Printf("[api] rebooting platform for security policy change...")
+			os.Exit(0)
+		}()
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -326,3 +350,77 @@ func handleAdminPeers(h host.Host, regStore *registrypkg.Store) http.HandlerFunc
 		})
 	}
 }
+
+func handleSetRetention(cfg *config.Config, mqStore *mqpkg.Store, auditLog *AuditLog, cfgPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"Method Not Allowed"}`))
+			return
+		}
+
+		daysStr := r.URL.Query().Get("days")
+		if daysStr == "" {
+			daysStr = r.FormValue("days")
+		}
+		if daysStr == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"days parameter required"}`))
+			return
+		}
+
+		days, err := strconv.Atoi(daysStr)
+		if err != nil || days < 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid days value: must be a positive integer"}`))
+			return
+		}
+
+		cfg.Platform.HistoryRetentionDays = days
+		mqStore.SetHistoryRetentionDays(days)
+
+		if err := config.Save(cfgPath, cfg); err != nil {
+			log.Printf("[api] failed to save config on set-retention: %v", err)
+		}
+
+		if auditLog != nil {
+			auditLog.Record("info", "admin", "Set MQ history retention days to: "+strconv.Itoa(days), "")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":                     true,
+			"history_retention_days": days,
+		})
+	}
+}
+
+func handleAdminMQMessages(mqStore *mqpkg.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		urn := r.URL.Query().Get("urn")
+		if urn == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"urn query parameter required"}`))
+			return
+		}
+
+		status := r.URL.Query().Get("status")
+		if status != "pending" && status != "history" {
+			status = "pending"
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		details, err := mqStore.ListMessagesDetail(ctx, urn, status)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(details)
+	}
+}
+

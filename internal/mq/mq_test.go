@@ -539,3 +539,75 @@ func TestMQStoragePolicy(t *testing.T) {
 	}
 }
 
+func TestMQHistoryAndRetention(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "mq-history-test")
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "mq.db")
+	store, err := NewStore(dbPath, 1, 10)
+	if err != nil {
+		t.Fatalf("NewStore error: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	urn := "urn:hermes:agent:tester"
+
+	env1 := &pb.EncryptedEnvelope{MessageId: "msg-h1", Ciphertext: []byte("h1")}
+	env2 := &pb.EncryptedEnvelope{MessageId: "msg-h2", Ciphertext: []byte("h2")}
+
+	_, _ = store.StoreEnvelope(ctx, urn, env1, 0)
+	_, _ = store.StoreEnvelope(ctx, urn, env2, 0)
+
+	// 1. Check pending messages
+	pendings, err := store.ListMessagesDetail(ctx, urn, "pending")
+	if err != nil {
+		t.Fatalf("ListMessagesDetail pending: %v", err)
+	}
+	if len(pendings) != 2 {
+		t.Errorf("expected 2 pending messages, got %d", len(pendings))
+	}
+
+	// 2. Ack one message
+	_, err = store.Ack(ctx, []string{"msg-h1"})
+	if err != nil {
+		t.Fatalf("Ack error: %v", err)
+	}
+
+	// 3. Verify pending has 1, history has 1
+	pendings, _ = store.ListMessagesDetail(ctx, urn, "pending")
+	if len(pendings) != 1 || pendings[0].ID != "msg-h2" {
+		t.Errorf("expected msg-h2 pending, got %+v", pendings)
+	}
+
+	history, _ := store.ListMessagesDetail(ctx, urn, "history")
+	if len(history) != 1 || history[0].ID != "msg-h1" {
+		t.Errorf("expected msg-h1 in history, got %+v", history)
+	}
+	if history[0].ReadAt == 0 {
+		t.Error("expected ReadAt to be set")
+	}
+
+	// 4. Test Retention Cleanup Query Simulation (retention = 0 days, deletes immediately)
+	store.SetHistoryRetentionDays(0)
+	if store.GetHistoryRetentionDays() != 0 {
+		t.Errorf("expected retention days to be 0, got %d", store.GetHistoryRetentionDays())
+	}
+
+	now := time.Now().Unix()
+	retentionSeconds := int64(store.GetHistoryRetentionDays()) * 24 * 3600
+	_, err = store.db.Exec("DELETE FROM messages WHERE read_at>0 AND read_at<?", now-retentionSeconds+10) // +10 to ensure it falls within range in test
+	if err != nil {
+		t.Fatalf("cleanup query execution failed: %v", err)
+	}
+
+	history, _ = store.ListMessagesDetail(ctx, urn, "history")
+	if len(history) != 0 {
+		t.Errorf("expected history message to be deleted by retention cleanup query, got %d", len(history))
+	}
+}
+
+

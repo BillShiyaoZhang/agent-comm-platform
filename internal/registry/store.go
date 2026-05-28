@@ -217,6 +217,13 @@ func (s *Store) EvictEntry(urn string) error {
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
 
+func (s *Store) ClearAllEntries() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec("DELETE FROM registry")
+	return err
+}
+
 func (s *Store) cleanupLoop() {
 	tick := time.NewTicker(10 * time.Minute)
 	defer tick.Stop()
