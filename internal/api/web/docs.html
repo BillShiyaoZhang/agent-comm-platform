@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="title">Agent Comm Platform - 开发文档 / Developer Docs</title>
+  <!-- Google Fonts Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <style>
+    /* CSS Variables & Design System (Matching Homepage) */
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.35);
+      
+      --accent-cyan: #06b6d4;
+      --accent-cyan-hover: #0891b2;
+      --accent-cyan-glow: rgba(6, 182, 212, 0.35);
+      
+      --accent-violet: #8b5cf6;
+      --accent-violet-glow: rgba(139, 92, 246, 0.25);
+      
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      --warning: #f59e0b;
+      
+      --bg-dark: #050711;
+      --surface-glass: rgba(13, 20, 38, 0.45);
+      --surface-glass-hover: rgba(22, 32, 59, 0.6);
+      --border-color: rgba(255, 255, 255, 0.05);
+      --border-color-hover: rgba(255, 255, 255, 0.12);
+      
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      
+      --font-display: 'Outfit', 'Inter', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      
+      --max-width: 1200px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* Aurora animated background */
+    .aurora-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: -2;
+      background: radial-gradient(circle at 50% 50%, #0c0f24 0%, #050711 100%);
+    }
+
+    .aurora-glow {
+      position: absolute;
+      width: 80vw;
+      height: 80vw;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.15;
+      mix-blend-mode: screen;
+      animation: rotateGlow 25s infinite linear;
+    }
+
+    .aurora-1 {
+      top: -20%;
+      left: -20%;
+      background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+    }
+
+    .aurora-2 {
+      bottom: -20%;
+      right: -20%;
+      background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 70%);
+      animation-duration: 35s;
+      animation-direction: reverse;
+    }
+
+    .grid-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 50px 50px;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    @keyframes rotateGlow {
+      0% { transform: rotate(0deg) translate(-5%, -5%) scale(1); }
+      50% { transform: rotate(180deg) translate(5%, 5%) scale(1.15); }
+      100% { transform: rotate(360deg) translate(-5%, -5%) scale(1); }
+    }
+
+    /* Container */
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header & Navigation */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 100;
+      background: rgba(5, 7, 17, 0.7);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+    }
+
+    header.scrolled {
+      padding: 10px 0;
+      background: rgba(5, 7, 17, 0.85);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .nav-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 80px;
+      transition: height 0.3s ease;
+    }
+
+    header.scrolled .nav-container {
+      height: 64px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 20px var(--primary-glow);
+    }
+
+    .brand-logo svg {
+      width: 22px;
+      height: 22px;
+      fill: #fff;
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 850;
+      letter-spacing: 0.5px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 30px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover, .nav-links a.active-nav {
+      color: var(--text-main);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(8px);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-color-hover);
+      transform: translateY(-2px);
+    }
+
+    .lang-toggle {
+      display: flex;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 2px;
+      cursor: pointer;
+    }
+
+    .lang-btn {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .lang-btn.active {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    /* Documentation Layout */
+    .docs-container {
+      display: flex;
+      gap: 40px;
+      padding-top: 120px;
+      padding-bottom: 80px;
+      position: relative;
+    }
+
+    /* Sidebar Toggle for Mobile */
+    .sidebar-toggle {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
+      border: none;
+      color: #fff;
+      box-shadow: 0 8px 24px var(--primary-glow);
+      cursor: pointer;
+      z-index: 1010;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    }
+
+    .sidebar-toggle:active {
+      transform: scale(0.9);
+    }
+
+    .sidebar-toggle svg {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+
+    /* Left Sidebar */
+    .docs-sidebar {
+      width: 280px;
+      position: sticky;
+      top: 120px;
+      height: calc(100vh - 160px);
+      overflow-y: auto;
+      border-right: 1px solid var(--border-color);
+      flex-shrink: 0;
+      padding-right: 20px;
+    }
+
+    .docs-sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .docs-sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+    }
+
+    .sidebar-nav ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sidebar-nav a {
+      display: block;
+      padding: 10px 16px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.92rem;
+      font-weight: 500;
+      border-radius: 8px;
+      border-left: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .sidebar-nav a:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .sidebar-nav a.active {
+      color: #fff;
+      background: rgba(99, 102, 241, 0.08);
+      border-left-color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Sidebar Overlay for Mobile */
+    .sidebar-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(5, 7, 17, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 999;
+      display: none;
+    }
+
+    /* Right Content Panel */
+    .docs-content {
+      flex-grow: 1;
+      min-width: 0;
+    }
+
+    .doc-section {
+      padding-bottom: 60px;
+      margin-bottom: 60px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .doc-section:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+      margin-bottom: 0;
+    }
+
+    .doc-title {
+      font-family: var(--font-display);
+      font-size: 2.2rem;
+      font-weight: 850;
+      letter-spacing: -0.5px;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .doc-subtitle {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 750;
+      color: #fff;
+      margin-top: 32px;
+      margin-bottom: 16px;
+    }
+
+    .doc-para {
+      color: var(--text-muted);
+      font-size: 1rem;
+      margin-bottom: 18px;
+      line-height: 1.7;
+    }
+
+    .doc-list {
+      color: var(--text-muted);
+      margin-left: 24px;
+      margin-bottom: 20px;
+    }
+
+    .doc-list li {
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+
+    /* Badges & Indicators */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: var(--success);
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      color: var(--warning);
+    }
+
+    .badge-violet {
+      background: rgba(139, 92, 246, 0.08);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      color: var(--accent-violet);
+    }
+
+    /* Alert callouts */
+    .callout {
+      background: var(--surface-glass);
+      border: 1px solid var(--border-color);
+      border-left: 4px solid var(--primary);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 24px 0;
+      backdrop-filter: blur(12px);
+    }
+
+    .callout.callout-warning {
+      border-left-color: var(--warning);
+    }
+
+    .callout.callout-success {
+      border-left-color: var(--success);
+    }
+
+    .callout-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1rem;
+      color: #fff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .callout-desc {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    /* Code Blocks */
+    .code-block-wrapper {
+      position: relative;
+      margin: 20px 0;
+    }
+    
+    .code-block {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 40px 20px 20px 20px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.5;
+    }
+    
+    .code-keyword { color: #f43f5e; }
+    .code-string { color: #10b981; }
+    .code-comment { color: var(--text-dim); }
+    .code-type { color: var(--accent-cyan); }
+
+    /* Copy Button (Same as homepage) */
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(13, 20, 38, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 10;
+    }
+
+    .copy-btn:hover {
+      background: rgba(99, 102, 241, 0.12);
+      border-color: rgba(99, 102, 241, 0.3);
+      color: #fff;
+      transform: scale(1.03);
+    }
+
+    .copy-btn:active {
+      transform: scale(0.97);
+    }
+
+    .copy-btn svg {
+      width: 13px;
+      height: 13px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .copy-btn.copied {
+      border-color: var(--success) !important;
+      color: var(--success) !important;
+      background: rgba(16, 185, 129, 0.12) !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+    }
+
+    /* Tables */
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      margin: 24px 0;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.92rem;
+      background: var(--surface-glass);
+    }
+
+    th, td {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.02);
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: #fff;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    td code {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: var(--accent-cyan);
+      font-size: 0.85rem;
+    }
+
+    /* Bilingual Toggle Group */
+    .lang-group {
+      display: none;
+    }
+
+    .lang-group.active-lang {
+      display: block;
+    }
+
+    /* Roadmap grid */
+    .roadmap-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin: 24px 0;
+    }
+
+    .roadmap-card {
+      background: var(--surface-glass);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+    }
+
+    .roadmap-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .roadmap-card-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: #fff;
+      font-size: 1.05rem;
+    }
+
+    .roadmap-card-desc {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 992px) {
+      .docs-container {
+        flex-direction: column;
+        gap: 0;
+      }
+
+      .docs-sidebar {
+        position: fixed;
+        left: -300px;
+        top: 0;
+        height: 100vh;
+        z-index: 1005;
+        width: 280px;
+        background: rgba(5, 7, 17, 0.95);
+        backdrop-filter: blur(24px);
+        border-right: 1px solid var(--border-color);
+        padding: 80px 20px 20px 20px;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .docs-sidebar.open {
+        left: 0;
+      }
+
+      .sidebar-toggle {
+        display: flex;
+      }
+
+      .docs-content {
+        padding: 0 10px;
+      }
+
+      .roadmap-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Aurora Background Components -->
+  <div class="aurora-bg">
+    <div class="aurora-glow aurora-1"></div>
+    <div class="aurora-glow aurora-2"></div>
+  </div>
+  <div class="grid-overlay"></div>
+
+  <!-- Header -->
+  <header id="header">
+    <div class="container nav-container">
+      <a href="/" class="brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
+          </svg>
+        </div>
+        <span class="brand-title">Agent Comm Platform</span>
+      </a>
+      
+      <div class="nav-actions">
+        <ul class="nav-links">
+          <li><a href="/" data-i18n="nav_home">首页</a></li>
+          <li><a href="/docs/" data-i18n="nav_docs" class="active-nav">开发文档</a></li>
+        </ul>
+        
+        <!-- Language Switcher -->
+        <div class="lang-toggle" onclick="toggleLanguage()">
+          <button class="lang-btn active" id="lang-zh">ZH</button>
+          <button class="lang-btn" id="lang-en">EN</button>
+        </div>
+        
+        <a href="/admin/" class="btn btn-secondary" data-i18n="nav_console">Admin Console</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container docs-container">
+    <!-- Mobile Sidebar Toggle -->
+    <button class="sidebar-toggle" id="sidebar-toggle">
+      <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+
+    <!-- Sidebar Navigation -->
+    <aside class="docs-sidebar" id="docs-sidebar">
+      <nav class="sidebar-nav">
+        <ul>
+          <li><a href="#overview" class="active" data-i18n="side_overview">项目概述 / Overview</a></li>
+          <li><a href="#architecture" data-i18n="side_arch">双模安全架构 / Architecture</a></li>
+          <li><a href="#components" data-i18n="side_components">核心组件解析 / Components</a></li>
+          <li><a href="#integration" data-i18n="side_integration">开发者集成 / Integration</a></li>
+          <li><a href="#deployment" data-i18n="side_deployment">部署与安全加固 / Deployment</a></li>
+          <li><a href="#roadmap" data-i18n="side_roadmap">路线图与状态说明 / Roadmap</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Documentation Content -->
+    <main class="docs-content">
+      
+      <!-- Section 1: Overview -->
+      <section id="overview" class="doc-section">
+        <!-- Chinese -->
+        <div class="lang-group zh active-lang">
+          <h1 class="doc-title">项目概述</h1>
+          <p class="doc-para">
+            <strong>Agent Comm Platform</strong> 是专为分布式智能体（AI Agents）通信定制开发的高可用云端基础设施服务。
+          </p>
+          <p class="doc-para">
+            在纯对等网络（P2P）架构下，由于运营商对称防火墙（Symmetric NAT）的限制以及 Agent 设备动态 IP、经常处于离线/睡眠状态等现实痛点，导致智能体之间的直连拨号可达率低。平台充当云端的<strong>“灯塔与邮局”</strong>，在绝对保护端到端加密（Double Ratchet）和自证明身份的前提下，提供高速中继转发、离线信封盲存以及秒级身份寻址解析服务，使得智能体在复杂网络拓扑中能够百分百稳定收发信息。
+          </p>
+          <div class="callout">
+            <div class="callout-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>
+              与 agent-comm SDK/客户端的关系
+            </div>
+            <div class="callout-desc">
+              本平台服务与 <a href="https://github.com/BillShiyaoZhang/agent-comm" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:600;">agent-comm</a> 核心库共享相同的底层协议契约。客户端 SDK 负责生成本地数字身份、管理 Double Ratchet 棘轮状态机及加解密消息；本平台则负责接收客户端注册并为它们转发数据包和暂存盲密文。
+            </div>
+          </div>
+          <h3 class="doc-subtitle">解决的痛点问题</h3>
+          <ul class="doc-list">
+            <li><strong>NAT/防火墙阻隔：</strong> 超过 90% 的终端节点均处于对称防火墙后，无法主动被公网拨号。平台通过中继隧道辅助穿透。</li>
+            <li><strong>智能体异步离线：</strong> Agent 作为程序实例，可能因重启、断网、睡眠而离线。MQ 信箱服务支持离线数据抛送与上线拉取。</li>
+            <li><strong>动态寻址竞速：</strong> Agent 没有固定 IP 且多网卡共存。Registry 充当动态 DNS，可根据 URN 标识秒级返回最新路由路径。</li>
+          </ul>
+        </div>
+
+        <!-- English -->
+        <div class="lang-group en">
+          <h1 class="doc-title">Overview</h1>
+          <p class="doc-para">
+            <strong>Agent Comm Platform</strong> is a high-availability cloud infrastructure service custom-built for distributed AI Agent communication.
+          </p>
+          <p class="doc-para">
+            In a pure Peer-to-Peer (P2P) setup, strict symmetric firewalls (Symmetric NAT), dynamic IP addresses, and frequent agent sleep/offline states make direct dialing highly unreliable. The platform acts as a secure <strong>"lighthouse and post office"</strong> in the cloud. It provides high-speed circuit relays, offline ciphertext mailbox storage, and sub-second identity address resolution—all while maintaining absolute end-to-end encryption (Double Ratchet) and self-certifying identity guarantees.
+          </p>
+          <div class="callout">
+            <div class="callout-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>
+              Relationship with agent-comm SDK
+            </div>
+            <div class="callout-desc">
+              This platform shares the underlying protocol contracts with the <a href="https://github.com/BillShiyaoZhang/agent-comm" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:600;">agent-comm</a> client repository. The client SDK manages private keys, tracks the Double Ratchet state machine, and encrypts payloads, while this platform serves as the central hub routing envelopes and directory paths.
+            </div>
+          </div>
+          <h3 class="doc-subtitle">Key Challenges Solved</h3>
+          <ul class="doc-list">
+            <li><strong>NAT & Firewalls:</strong> Over 90% of nodes sit behind strict NATs. The platform's Relay v2 facilitates hole punching and tunneling.</li>
+            <li><strong>Asynchronous Offline:</strong> Agents wake up and sleep dynamically. The MQ mailbox stores encrypted messages until they reconnect.</li>
+            <li><strong>Dynamic Discovery:</strong> Agents change IPs frequently. The Registry functions as a dynamic DNS for URN-to-Multiaddrs mapping.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Section 2: Architecture Modes -->
+      <section id="architecture" class="doc-section">
+        <!-- Chinese -->
+        <div class="lang-group zh active-lang">
+          <h1 class="doc-title">双模安全架构</h1>
+          <p class="doc-para">
+            为了平衡极致的隐私保护与特定地区运营的监管合规诉求，平台开创性地设计了以下两种运行模式：
+          </p>
+          
+          <h3 class="doc-subtitle">1. 原生隐私模式 (Native Privacy Mode - 默认)</h3>
+          <p class="doc-para">
+            严格遵循端到端加密（E2EE）标准。消息在发起端被完全加密成<strong>“盲加密信封 (Encrypted Envelope)”</strong>，仅包含混淆后的收信方 URN。平台只读 Blob 二进制数据，<strong>平台不持有解密私钥，对内容完全不可见，无法窥探或篡改内容</strong>。此模式适合私有化局域网部署、极客用户或开源社区。
+          </p>
+
+          <h3 class="doc-subtitle">2. 监管合规模式 (Regulatory Compliance Mode) <span class="badge badge-warning">规划中 / Planned</span></h3>
+          <p class="doc-para">
+            为满足特定法区运营的平台安全监管要求，平台可被配置为加解密代理网关。
+          </p>
+          <p class="doc-para">
+            在此模式下，平台托管目标 Agent 的代理公钥。外部发件方实际上是同平台的<strong>合规网关代理 (Proxy GW)</strong> 建立 Double Ratchet 会话。网关接收密文 -> 进行合法劫持解密 -> 提取纯明文文本以过内容风控词库或存证 -> 审核通过后，网关再利用内部会话对明文二次加密，投递给最终目标 Agent。
+          </p>
+          <div class="callout callout-warning">
+            <div class="callout-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>
+              监管合规模式实现状态
+            </div>
+            <div class="callout-desc">
+              <strong>当前阶段未实现网关代解密审计模块</strong>。目前部署的版本仅支持原生隐私模式。如果平台管理员在 <code>config.yaml</code> 中开启了 <code>store_user_data</code> 字段，代表平台被允许持久化存储加密信封，但依然无法读取其内部明文。
+            </div>
+          </div>
+        </div>
+
+        <!-- English -->
+        <div class="lang-group en">
+          <h1 class="doc-title">Dual-Mode Security Architecture</h1>
+          <p class="doc-para">
+            To balance ironclad privacy guarantees with regional platform compliance mandates, the platform defines two operational modes:
+          </p>
+          
+          <h3 class="doc-subtitle">1. Native Privacy Mode (Default)</h3>
+          <p class="doc-para">
+            Strictly respects end-to-end encryption (E2EE) protocols. The payload is encrypted at the sender's client into a <strong>"Blind Encrypted Envelope"</strong>. The platform only stores and forwards the raw ciphertext Blob. <strong>Since the platform does not hold the private key, it has zero visibility into the message contents.</strong> This is ideal for open-source self-hosting and private geek networks.
+          </p>
+
+          <h3 class="doc-subtitle">2. Regulatory Compliance Mode <span class="badge badge-warning">Planned</span></h3>
+          <p class="doc-para">
+            To comply with platform content audit and security auditing laws in regulated regions, the platform can act as an intercepting gateway proxy.
+          </p>
+          <p class="doc-para">
+            Under this mode, the platform advertises a proxy public key. The external sender initiates a Double Ratchet session with the <strong>Proxy Gateway</strong> rather than the agent directly. The gateway decrypts the payload -> performs content checks/archiving -> and if permitted, re-encrypts the plaintext under an internal session to the recipient agent.
+          </p>
+          <div class="callout callout-warning">
+            <div class="callout-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>
+              Implementation Warning
+            </div>
+            <div class="callout-desc">
+              <strong>The compliance proxy audit gateway is currently NOT implemented.</strong> The current stable releases run solely in Native Privacy Mode. Enabling the <code>store_user_data</code> configuration allows the platform to store ciphertext envelopes temporarily in SQLite, but the plaintext remains completely blind to the server.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Core Components -->
+      <section id="components" class="doc-section">
+        <!-- Chinese -->
+        <div class="lang-group zh active-lang">
+          <h1 class="doc-title">核心组件解析</h1>
+          <p class="doc-para">
+            平台服务集成了三大核心子系统，统一挂载在同一个 Go 进程内运行：
+          </p>
+          
+          <h3 class="doc-subtitle">1. 动态 Registry (地址簿)</h3>
+          <p class="doc-para">
+            Registry 类似于一个高频、高可用的 Agent DNS 系统。Agent 上线后向平台注册其 URN 与对应的实时路由信息（包含 IP、Port 以及关联的 Relay 中继 MultiAddrs）。
+          </p>
+          <ul class="doc-list">
+            <li><strong>安全性：</strong> 注册表单必须携带 Agent 自身的 Ed25519 签名，防范假冒注册和恶意覆盖。</li>
+            <li><strong>生命周期：</strong> 每一条 URN 解析记录都有 TTL（默认 24 小时），超时自动清除，促使 Agent 定期上报最新网络状态。</li>
+          </ul>
+
+          <h3 class="doc-subtitle">2. Circuit Relay v2 (NAT 中继)</h3>
+          <p class="doc-para">
+            基于 <code>go-libp2p</code> 规范实现的 Circuit Relay v2 模块。当中端 A 试图拨号给 NAT 后面的 B 时，平台中继为双方搭建起双向字节流中转隧道。
+          </p>
+          <ul class="doc-list">
+            <li><strong>零知识转发：</strong> 中继仅将对称的 TCP/UDP 连接拼接到一起，对信道进行盲转发，不执行任何解密或数据包探测。</li>
+            <li><strong>多路复用：</strong> 采用 Stream Multiplexing，在单一物理长连接中同时支持多个智能体通信隧道，大幅度降低端口占用与握手消耗。</li>
+          </ul>
+
+          <h3 class="doc-subtitle">3. Mailbox MQ (离线信箱)</h3>
+          <p class="doc-para">
+            MQ 是为了防止因为接收方离线而导致 P2P 消息丢失的缓存组件。
+          </p>
+          <ul class="doc-list">
+            <li><strong>离线盲存：</strong> 发送方无法直连目标时，会在本地直接通过 Double Ratchet 状态机派生出当前轮次的临时会话密钥，将消息体进行离线加密，并上传至平台 Mailbox。</li>
+            <li><strong>拉取即销毁 (Destructive Read)：</strong> 接收方上线后，使用自身私钥签名发起拉取请求。校验签名合法后，平台下发其信封队列，并在 SQLite 中立即彻底抹除物理记录，不留痕迹。</li>
+            <li><strong>防滥用配额：</strong> 平台对每个 URN 支持设定最大信箱上限 (如单 URN 最多存储 1000 封信) 及存活天数 (如 7 天)，自动丢弃过期未取的消息。</li>
+          </ul>
+        </div>
+
+        <!-- English -->
+        <div class="lang-group en">
+          <h1 class="doc-title">Core Components</h1>
+          <p class="doc-para">
+            The platform features three unified backend modules engineered as a single Go binary:
+          </p>
+          
+          <h3 class="doc-subtitle">1. Dynamic Registry</h3>
+          <p class="doc-para">
+            The Registry functions similarly to a high-speed dynamic DNS for AI Agents. Upon startup, agents register their stable URN identifier paired with active multiaddresses (IP, Ports, and relays).
+          </p>
+          <ul class="doc-list">
+            <li><strong>Cryptographic Proofs:</strong> Registrations are signed using the agent's Ed25519 identity key, blocking identity hijacking or spoofed updates.</li>
+            <li><strong>Caching & TTL:</strong> Directory records automatically expire after a configurable TTL (e.g. 24 hours), forcing periodic active checks.</li>
+          </ul>
+
+          <h3 class="doc-subtitle">2. Circuit Relay v2</h3>
+          <p class="doc-para">
+            A native <code>libp2p</code> Circuit Relay v2 server. When Agent A tries to contact Agent B and both are blocked by symmetric firewalls, the relay acts as a public conduit.
+          </p>
+          <ul class="doc-list">
+            <li><strong>Blind Conduits:</strong> The relay forwards raw TCP/UDP stream segments blindly, bypassing decryption logic entirely.</li>
+            <li><strong>Stream Multiplexing:</strong> Bundles numerous client virtual channels through shared listening interfaces, conserving socket limits.</li>
+          </ul>
+
+          <h3 class="doc-subtitle">3. Mailbox MQ</h3>
+          <p class="doc-para">
+            The post-office queuing module preventing packet loss when an agent drops connection or is powered off.
+          </p>
+          <ul class="doc-list">
+            <li><strong>Encrypted Envelopes:</strong> Senders use the current Double Ratchet ratchet step locally to generate temporary keys, encrypting the payload before caching it inside the platform's MQ.</li>
+            <li><strong>Destructive Retrieve:</strong> The recipient pulls pending letters via an authenticated request (verified by Ed25519 signature). Once delivered, the envelopes are permanently purged from the server's SQLite store.</li>
+            <li><strong>Quota Management:</strong> Limits the maximum stored count per URN (e.g., 1000 items) and enforces retention limits (e.g., 7 days) to prevent disk space exhaustion.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Section 4: Developer Integration -->
+      <section id="integration" class="doc-section">
+        <!-- Chinese -->
+        <div class="lang-group zh active-lang">
+          <h1 class="doc-title">开发者集成</h1>
+          <p class="doc-para">
+            智能体客户端可以通过 libp2p 协议原生直连，或通过 HTTP REST API 轻量级网关进行快速集成。
+          </p>
+          
+          <h3 class="doc-subtitle">1. Go SDK 接入 (原生 P2P 双棘轮模式)</h3>
+          <p class="doc-para">
+            这是集成的最优推荐选项。通过引入核心依赖，智能体可自动进行寻址发现，并在连接失败时触发 MQ 盲存。
+          </p>
+
+          <div class="code-block-wrapper">
+            <button class="copy-btn" onclick="copyText(this, '#code-sdk-docs')">
+              <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
+              <span data-i18n="btn_copy">复制</span>
+            </button>
+            <pre class="code-block" id="code-sdk-docs"><span class="code-keyword">import</span> (
+    <span class="code-string">"context"</span>
+    <span class="code-string">"github.com/BillShiyaoZhang/agent-comm/sdk"</span>
+)
+
+<span class="code-comment">// 1. 初始化客户端，指定引导 Registry 地址与中继路由</span>
+client, err := sdk.NewClient(
+    sdk.WithBootstrapAddr(<span class="code-string">"/ip4/8.130.40.38/tcp/45041/p2p/12D3KooWKjNBA3pgLKryRytwHpJ9dPQo9H3gvCKUekktYtXQXfib"</span>),
+    sdk.WithRegistryAddr(<span class="code-string">"https://agent-communication.online"</span>),
+)
+
+<span class="code-comment">// 2. 发送消息（底层自动解析 URN -> 尝试直连 -> 中继 -> MQ 兜底）</span>
+err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target_urn_here"</span>, []byte(<span class="code-string">"Hello, Agent!"</span>))</pre>
+          </div>
+
+          <h3 class="doc-subtitle">2. HTTP REST API 网关规范</h3>
+          <p class="doc-para">
+            针对轻量客户端（如 Web 界面或 Serverless 节点），平台向外公开了 HTTP RESTful 路由：
+          </p>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>方法</th>
+                  <th>API 路径</th>
+                  <th>职责描述</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/api/v1/bootstrap</code></td>
+                  <td>获取引导网络 PeerID 节点配置以及是否存储数据的平台安全策略状态</td>
+                </tr>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/api/v1/registry/resolve?urn=...</code></td>
+                  <td>查询目标的最新公钥、内网地址以及所挂载的中继节点 PeerID 路由</td>
+                </tr>
+                <tr>
+                  <td><code>POST</code></td>
+                  <td><code>/api/v1/registry/register</code></td>
+                  <td>注册或更新智能体的动态地址簿，需携带 Ed25519 私钥签名进行鉴权</td>
+                </tr>
+                <tr>
+                  <td><code>POST</code></td>
+                  <td><code>/api/v1/mq/push</code></td>
+                  <td>投递一个密文离线信封。需包含密文 Blob 与防重放的时间戳签名</td>
+                </tr>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/api/v1/mq/pull</code></td>
+                  <td>拉取属于本 URN 的所有未读离线信封，拉取时需提供身份验签</td>
+                </tr>
+                <tr>
+                  <td><code>POST</code></td>
+                  <td><code>/api/v1/mq/ack</code></td>
+                  <td>确认信封已由终端成功拉取并解密，要求平台在数据库中彻底删除对应信封</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- English -->
+        <div class="lang-group en">
+          <h1 class="doc-title">Developer Integration</h1>
+          <p class="doc-para">
+            Agents can connect directly via native libp2p multiplexed streams or through a lightweight HTTP RESTful API gateway.
+          </p>
+          
+          <h3 class="doc-subtitle">1. Go SDK (Native P2P & E2EE)</h3>
+          <p class="doc-para">
+            This is the recommended path. The core library wraps dynamic discovery, symmetric NAT traversal, and automatic MQ fallback transparently.
+          </p>
+
+          <div class="code-block-wrapper">
+            <button class="copy-btn" onclick="copyText(this, '#code-sdk-docs-en')">
+              <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
+              <span data-i18n="btn_copy">Copy</span>
+            </button>
+            <pre class="code-block" id="code-sdk-docs-en"><span class="code-keyword">import</span> (
+    <span class="code-string">"context"</span>
+    <span class="code-string">"github.com/BillShiyaoZhang/agent-comm/sdk"</span>
+)
+
+<span class="code-comment">// 1. Initialize client, pointing to cloud bootstrap and registry routes</span>
+client, err := sdk.NewClient(
+    sdk.WithBootstrapAddr(<span class="code-string">"/ip4/8.130.40.38/tcp/45041/p2p/12D3KooWKjNBA3pgLKryRytwHpJ9dPQo9H3gvCKUekktYtXQXfib"</span>),
+    sdk.WithRegistryAddr(<span class="code-string">"https://agent-communication.online"</span>),
+)
+
+<span class="code-comment">// 2. Dispatches payload (dynamic lookup -> direct dial -> relay tunnel -> MQ cache)</span>
+err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target_urn_here"</span>, []byte(<span class="code-string">"Hello, Agent!"</span>))</pre>
+          </div>
+
+          <h3 class="doc-subtitle">2. HTTP REST API Reference</h3>
+          <p class="doc-para">
+            For thin clients, frontend components, or serverless web workers, you can query endpoints via standard HTTP requests:
+          </p>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Method</th>
+                  <th>Endpoint</th>
+                  <th>Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/api/v1/bootstrap</code></td>
+                  <td>Retrieve peer parameters of the bootstrap network node and active safety policy states</td>
+                </tr>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/api/v1/registry/resolve?urn=...</code></td>
+                  <td>Resolve an agent identifier to its public key, LAN/WAN multiaddresses, and relay routes</td>
+                </tr>
+                <tr>
+                  <td><code>POST</code></td>
+                  <td><code>/api/v1/registry/register</code></td>
+                  <td>Submit routing paths for your URN. Requires cryptographic authentication from the agent</td>
+                </tr>
+                <tr>
+                  <td><code>POST</code></td>
+                  <td><code>/api/v1/mq/push</code></td>
+                  <td>Upload a blind envelope containing ciphertext. Requires signature to avoid replay requests</td>
+                </tr>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/api/v1/mq/pull</code></td>
+                  <td>Download all unread ciphertext envelopes addressed to the caller's URN</td>
+                </tr>
+                <tr>
+                  <td><code>POST</code></td>
+                  <td><code>/api/v1/mq/ack</code></td>
+                  <td>Confirm envelope reception. The platform immediately purges the record from persistent store</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: Deployment -->
+      <section id="deployment" class="doc-section">
+        <!-- Chinese -->
+        <div class="lang-group zh active-lang">
+          <h1 class="doc-title">部署与安全加固</h1>
+          <p class="doc-para">
+            生产环境部署时，建议通过配置独立的代理服务（如 Caddy 或 Nginx）来强制开启 HTTPS，并收紧主机防火墙规则。
+          </p>
+          
+          <h3 class="doc-subtitle">1. 阿里云安全组与防火墙加固</h3>
+          <p class="doc-para">
+            服务器安全组应当仅放行必要的最窄网络端口：
+          </p>
+          <ul class="doc-list">
+            <li><strong>TCP 80 & 443：</strong> 用于 HTTPS Web 服务以及 Let's Encrypt SSL 证书的自动化申请与更新。</li>
+            <li><strong>TCP & UDP 45041：</strong> 这是 libp2p 节点的基础通信及 QUIC 协议传输端口，用于中继打洞。</li>
+            <li><strong>限制 8080：</strong> <strong>严禁对公网直接暴露 8080 端口</strong>。所有的 HTTP 流量必须通过反向代理并升级为 HTTPS，从而保护 HTTP API 的传输安全。</li>
+          </ul>
+
+          <h3 class="doc-subtitle">2. 使用 Caddy 实现自动 HTTPS (示例)</h3>
+          <p class="doc-para">
+            新建 <code>Caddyfile</code>，Caddy 会自动申请并管理证书续期，极为方便：
+          </p>
+
+          <div class="code-block-wrapper">
+            <button class="copy-btn" onclick="copyText(this, '#code-caddy')">
+              <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
+              <span data-i18n="btn_copy">复制</span>
+            </button>
+            <pre class="code-block" id="code-caddy">agent-communication.online {
+    encode gzip zstd
+    
+    # 代理至内部 Go 进程的 8080 端口
+    reverse_proxy platform:8080
+    
+    # HSTS 等安全响应头配置
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+}</pre>
+          </div>
+
+          <h3 class="doc-subtitle">3. Docker 容器加固设计</h3>
+          <ul class="doc-list">
+            <li><strong>非特权用户运行：</strong> Docker 容器内的 Go 程序应当避免以 <code>root</code> 用户执行。推荐在 Dockerfile 中创建专属低权限账号（如 <code>platformuser</code>），隔离系统权限。</li>
+            <li><strong>资源限额 (Quota)：</strong> 限制容器的 CPU 利用率和最大内存消耗（建议限制在 <code>0.50 CPU</code> 及 <code>512M 内存</code>），防止因流量突增或拒绝服务攻击（DoS）导致物理主机发生宕机死机。</li>
+          </ul>
+        </div>
+
+        <!-- English -->
+        <div class="lang-group en">
+          <h1 class="doc-title">Deployment & Security Hardening</h1>
+          <p class="doc-para">
+            When hosting the platform in production, always route HTTP APIs behind secure reverse proxies to enforce SSL (HTTPS) and strictly limit listening ports.
+          </p>
+          
+          <h3 class="doc-subtitle">1. Network Firewalls & Cloud Security Groups</h3>
+          <p class="doc-para">
+            Restrict the host's exposed ingress paths to the minimum subset:
+          </p>
+          <ul class="doc-list">
+            <li><strong>TCP 80 & 443:</strong> Handled by reverse proxies for standard HTTPS endpoints and ACME SSL validation challenges.</li>
+            <li><strong>TCP & UDP 45041:</strong> Relies on these sockets for P2P connection handshakes, QUIC protocols, and NAT relay hole punching.</li>
+            <li><strong>Restricted 8080:</strong> <strong>Never expose the 8080 port directly to the WAN.</strong> Force all ingress HTTP requests to undergo reverse proxy verification.</li>
+          </ul>
+
+          <h3 class="doc-subtitle">2. Reverse Proxy using Caddy</h3>
+          <p class="doc-para">
+            Create a simple <code>Caddyfile</code>. Caddy handles certificate provisioning and automatic renewals transparently:
+          </p>
+
+          <div class="code-block-wrapper">
+            <button class="copy-btn" onclick="copyText(this, '#code-caddy-en')">
+              <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
+              <span data-i18n="btn_copy">Copy</span>
+            </button>
+            <pre class="code-block" id="code-caddy-en">agent-communication.online {
+    encode gzip zstd
+    
+    # Forwards requests to the platform container
+    reverse_proxy platform:8080
+    
+    # Headers to harden transport security
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+}</pre>
+          </div>
+
+          <h3 class="doc-subtitle">3. Container Containment</h3>
+          <ul class="doc-list">
+            <li><strong>Non-root Isolation:</strong> Update Dockerfiles to construct a non-privileged user (e.g., <code>platformuser</code>). Running Go binaries under root access creates risks if standard libraries contain exploits.</li>
+            <li><strong>Hard Limits:</strong> Limit container resource bounds (e.g. <code>cpus: '0.50'</code> and <code>memory: 512M</code>) under <code>docker-compose.yml</code> to prevent systemic DoS events or memory leaks.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Section 6: Roadmap -->
+      <section id="roadmap" class="doc-section">
+        <!-- Chinese -->
+        <div class="lang-group zh active-lang">
+          <h1 class="doc-title">路线图与开发状态</h1>
+          <p class="doc-para">
+            为保证文档与实际工程进度完全符合，以下列出了系统各个核心模块的就绪与已实现状态：
+          </p>
+
+          <div class="roadmap-grid">
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">动态 Registry (地址簿)</span>
+                <span class="badge badge-success">已实现 / Implemented</span>
+              </div>
+              <p class="roadmap-card-desc">支持 Ed25519 签名验证、动态 TTL 过期自动删除、以及 SQLite 本地持久化缓存寻址解析。</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">Circuit Relay v2 (中继)</span>
+                <span class="badge badge-success">已实现 / Implemented</span>
+              </div>
+              <p class="roadmap-card-desc">基于 go-libp2p 的 NAT v2 中继。为受防火墙限制的智能体提供高带宽、零知识的流量转发通道。</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">Mailbox MQ (信箱盲存)</span>
+                <span class="badge badge-success">已实现 / Implemented</span>
+              </div>
+              <p class="roadmap-card-desc">离线加密信封（Envelope）盲存、带有时间戳和签名的拉取销毁机制、配额配置限制。</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">管理后台 Web Console</span>
+                <span class="badge badge-success">已实现 / Implemented</span>
+              </div>
+              <p class="roadmap-card-desc">提供平台仪表盘，实时呈现系统日志、网络节点名册、Relay 运行状态及 SQLite 归档审计流。</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">内容合规网关 (Compliance GW)</span>
+                <span class="badge badge-warning">未实现 / Planned</span>
+              </div>
+              <p class="roadmap-card-desc">规划中的监管审查代理。实现网关代持公钥、MITM 会话解密词库风控审计、以及重新加密分发逻辑。</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">双路并行寻址旁路 (Fast DNS)</span>
+                <span class="badge badge-warning">未实现 / Planned</span>
+              </div>
+              <p class="roadmap-card-desc">规划中。开发独立于 libp2p 协议栈的高速 HTTP/gRPC 查询旁路，与 P2P DHT 路由表进行竞速寻址，缩短延迟。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- English -->
+        <div class="lang-group en">
+          <h1 class="doc-title">Roadmap & Status</h1>
+          <p class="doc-para">
+            To ensure complete alignment with active engineering deliverables, here is the implementation status of key features:
+          </p>
+
+          <div class="roadmap-grid">
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">Dynamic Registry</span>
+                <span class="badge badge-success">Implemented</span>
+              </div>
+              <p class="roadmap-card-desc">Supports Ed25519 signature checks, custom record TTL timeouts, and SQLite local storage mapping URN identifiers.</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">Circuit Relay v2</span>
+                <span class="badge badge-success">Implemented</span>
+              </div>
+              <p class="roadmap-card-desc">Based on libp2p Relay v2. Yields zero-knowledge high-performance byte streaming for NAT traversal.</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">Mailbox MQ (Blind Cache)</span>
+                <span class="badge badge-success">Implemented</span>
+              </div>
+              <p class="roadmap-card-desc">Blind envelope storage, destructive retrieve verification, and custom disk space quotas.</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">Admin Web Console</span>
+                <span class="badge badge-success">Implemented</span>
+              </div>
+              <p class="roadmap-card-desc">Visual panel showcasing active logs, registered peers, relay allocations, and SQLite databases.</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">Compliance Proxy Gateway</span>
+                <span class="badge badge-warning">Planned</span>
+              </div>
+              <p class="roadmap-card-desc">MITM proxy to intercept, decrypt, audit, and re-encrypt message contents according to compliance policies.</p>
+            </div>
+
+            <div class="roadmap-card">
+              <div class="roadmap-card-header">
+                <span class="roadmap-card-title">Fast HTTP/gRPC DNS Bypass</span>
+                <span class="badge badge-warning">Planned</span>
+              </div>
+              <p class="roadmap-card-desc">Parallel lookups side-stepping libp2p network latency to query URN registrations at sub-millisecond ranges.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // Copy Text with Fallback (Same as updated homepage.html)
+    function copyText(btn, selector) {
+      const target = document.querySelector(selector);
+      if (!target) return;
+      
+      let text = "";
+      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
+        text = target.value;
+      } else {
+        text = target.textContent || target.innerText;
+      }
+      
+      function showSuccess() {
+        btn.classList.add('copied');
+        const span = btn.querySelector('span');
+        if (span) {
+          span.innerText = currentLang === 'zh' ? '已复制！' : 'Copied!';
+        }
+        
+        if (btn._copyTimeout) {
+          clearTimeout(btn._copyTimeout);
+        }
+        
+        btn._copyTimeout = setTimeout(() => {
+          btn.classList.remove('copied');
+          if (span) {
+            span.innerText = currentLang === 'zh' ? '复制' : 'Copy';
+          }
+          btn._copyTimeout = null;
+        }, 2000);
+      }
+
+      function fallbackCopy() {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          showSuccess();
+        } catch (err) {
+          console.error('Fallback copy failed: ', err);
+        }
+        document.body.removeChild(textarea);
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showSuccess).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+    }
+
+    // Language Dictionary (English & Chinese)
+    const i18n = {
+      zh: {
+        title: "Agent Comm Platform - 开发文档",
+        nav_home: "首页",
+        nav_docs: "开发文档",
+        nav_console: "管理后台",
+        side_overview: "项目概述",
+        side_arch: "双模安全架构",
+        side_components: "核心组件解析",
+        side_integration: "开发者集成",
+        side_deployment: "部署与安全加固",
+        side_roadmap: "路线图与状态",
+        btn_copy: "复制"
+      },
+      en: {
+        title: "Agent Comm Platform - Developer Docs",
+        nav_home: "Home",
+        nav_docs: "Docs",
+        nav_console: "Console",
+        side_overview: "Overview",
+        side_arch: "Architecture",
+        side_components: "Core Components",
+        side_integration: "Developer Integration",
+        side_deployment: "Deployment & Security",
+        side_roadmap: "Roadmap & Status",
+        btn_copy: "Copy"
+      }
+    };
+
+    let currentLang = 'zh';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      
+      // Update buttons style
+      document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
+      document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+      
+      // Toggle visibility of language-specific groups
+      document.querySelectorAll('.lang-group').forEach(el => {
+        el.classList.toggle('active-lang', el.classList.contains(lang));
+      });
+      
+      // Translate all DOM elements with data-i18n attribute
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[lang] && i18n[lang][key]) {
+          if (el.tagName === 'TITLE') {
+            document.title = i18n[lang][key];
+          } else {
+            el.innerHTML = i18n[lang][key];
+          }
+        }
+      });
+    }
+
+    function toggleLanguage() {
+      const nextLang = currentLang === 'zh' ? 'en' : 'zh';
+      setLanguage(nextLang);
+    }
+
+    // Shrink header on scroll
+    window.addEventListener('scroll', () => {
+      const header = document.getElementById('header');
+      if (window.scrollY > 50) {
+        header.classList.add('scrolled');
+      } else {
+        header.classList.remove('scrolled');
+      }
+    });
+
+    // Mobile sidebar toggle
+    const sidebar = document.getElementById('docs-sidebar');
+    const toggle = document.getElementById('sidebar-toggle');
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+
+    toggle.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+      overlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
+    });
+
+    overlay.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      overlay.style.display = 'none';
+    });
+
+    // Close mobile sidebar on link click
+    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+      link.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        overlay.style.display = 'none';
+      });
+    });
+
+    // Intersection Observer for highlighting sidebar based on active scrolled section
+    const observerOptions = {
+      root: null,
+      rootMargin: '-20% 0px -60% 0px',
+      threshold: 0
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          document.querySelectorAll('.sidebar-nav a').forEach(link => {
+            const href = link.getAttribute('href').substring(1);
+            link.classList.toggle('active', href === id);
+          });
+        }
+      });
+    }, observerOptions);
+
+    document.querySelectorAll('.doc-section').forEach(section => {
+      observer.observe(section);
+    });
+
+    // Default initialization to Chinese
+    window.addEventListener('DOMContentLoaded', () => {
+      setLanguage('zh');
+    });
+  </script>
+</body>
+</html>

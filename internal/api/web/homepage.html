@@ -1076,45 +1076,51 @@
     /* Copy Button Styling */
     .copy-btn {
       position: absolute;
-      top: 10px;
-      right: 10px;
+      top: 12px;
+      right: 12px;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       padding: 6px 12px;
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(13, 20, 38, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;
       color: var(--text-muted);
-      font-size: 0.78rem;
-      font-weight: 500;
+      font-size: 0.75rem;
+      font-weight: 600;
       cursor: pointer;
-      backdrop-filter: blur(8px);
-      transition: all 0.2s ease;
+      backdrop-filter: blur(12px);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 10;
     }
 
     .copy-btn:hover {
-      background: rgba(255, 255, 255, 0.12);
-      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(99, 102, 241, 0.12);
+      border-color: rgba(99, 102, 241, 0.3);
       color: #fff;
+      transform: scale(1.03);
+    }
+
+    .copy-btn:active {
+      transform: scale(0.97);
     }
 
     .copy-btn svg {
-      width: 14px;
-      height: 14px;
+      width: 13px;
+      height: 13px;
       fill: none;
       stroke: currentColor;
-      stroke-width: 2;
+      stroke-width: 2.2;
       stroke-linecap: round;
       stroke-linejoin: round;
+      transition: stroke 0.2s ease;
     }
 
     .copy-btn.copied {
       border-color: var(--success) !important;
       color: var(--success) !important;
-      background: rgba(16, 185, 129, 0.08);
-      box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+      background: rgba(16, 185, 129, 0.12) !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
     }
   </style>
 </head>
@@ -1141,11 +1147,7 @@
       
       <div class="nav-actions">
         <ul class="nav-links">
-          <li><a href="#modules" data-i18n="nav_features">Core Modules</a></li>
-          <li><a href="#how-it-works" data-i18n="nav_process">How it Works</a></li>
-          <li><a href="#architecture" data-i18n="nav_arch">Architecture</a></li>
-          <li><a href="#sdk" data-i18n="nav_sdk">Agent SDK</a></li>
-          <li><a href="#integration" data-i18n="nav_int">Quick Connect</a></li>
+          <li><a href="/docs/" data-i18n="nav_docs">开发文档</a></li>
         </ul>
         
         <!-- Language Switcher -->
@@ -1586,9 +1588,7 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
     const i18n = {
       zh: {
         title: "Agent Comm Platform - 智能体安全通信平台",
-        nav_features: "核心组件",
-        nav_process: "通信流向",
-        nav_arch: "架构模式",
+        nav_docs: "开发文档",
         nav_console: "管理后台",
         platform_online: "平台运行中 & 状态活跃",
         hero_title: "为 AI 智能体通信打造的<br><span>高可用基础设施</span>",
@@ -1674,9 +1674,7 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
       },
       en: {
         title: "Agent Comm Platform - Secure Multi-Agent Communication Hub",
-        nav_features: "Core Modules",
-        nav_process: "How it Works",
-        nav_arch: "Architecture",
+        nav_docs: "Docs",
         nav_console: "Console",
         platform_online: "Platform Online & Active",
         hero_title: "Secure Infrastructure For<br><span>AI Agent Communication</span>",
@@ -1774,19 +1772,16 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
       if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
         text = target.value;
       } else {
-        // Use textContent to get clean plain text without HTML syntax highlighting spans
         text = target.textContent || target.innerText;
       }
       
-      navigator.clipboard.writeText(text).then(() => {
-        // Apply "copied" success styles
+      function showSuccess() {
         btn.classList.add('copied');
         const span = btn.querySelector('span');
         if (span) {
           span.innerText = currentLang === 'zh' ? '已复制！' : 'Copied!';
         }
         
-        // Clear previous timeout if any
         if (btn._copyTimeout) {
           clearTimeout(btn._copyTimeout);
         }
@@ -1798,9 +1793,29 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
           }
           btn._copyTimeout = null;
         }, 2000);
-      }).catch(err => {
-        console.error('Failed to copy: ', err);
-      });
+      }
+
+      function fallbackCopy() {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          showSuccess();
+        } catch (err) {
+          console.error('Fallback copy failed: ', err);
+        }
+        document.body.removeChild(textarea);
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showSuccess).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
     }
 
     function setLanguage(lang) {

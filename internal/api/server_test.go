@@ -330,6 +330,33 @@ func TestBootstrapAndStatusEndpoints(t *testing.T) {
 			t.Errorf("expected registry_urns to be 0, got %v", resp["registry_urns"])
 		}
 	})
+
+	t.Run("/docs redirect", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/docs", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusMovedPermanently {
+			t.Fatalf("expected 301, got %d", w.Code)
+		}
+		if w.Header().Get("Location") != "/docs/" {
+			t.Errorf("expected redirect to '/docs/', got %q", w.Header().Get("Location"))
+		}
+	})
+
+	t.Run("/docs/ content", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/docs/", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+		contentType := w.Header().Get("Content-Type")
+		if contentType != "text/html; charset=utf-8" {
+			t.Errorf("expected Content-Type 'text/html; charset=utf-8', got %q", contentType)
+		}
+	})
 }
 
 // TestItoaHelper exercises the itoa helper function directly, covering all branches.
