@@ -907,6 +907,69 @@
         align-items: stretch;
       }
     }
+
+    /* Dev Integration Section */
+    .integration-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-top: 20px;
+    }
+    
+    .integration-card {
+      background: var(--surface-glass);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 30px;
+      backdrop-filter: blur(16px);
+      transition: all 0.3s;
+    }
+    
+    .integration-card:hover {
+      border-color: rgba(255,255,255,0.08);
+      background: var(--surface-glass-hover);
+    }
+    
+    .integration-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .integration-title svg {
+      width: 20px;
+      height: 20px;
+      stroke: var(--accent-cyan);
+      fill: none;
+      stroke-width: 2;
+    }
+    
+    .code-block-wrapper {
+      position: relative;
+      margin-top: 15px;
+    }
+    
+    .code-block {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    
+    .code-keyword { color: #f43f5e; }
+    .code-string { color: #10b981; }
+    .code-comment { color: var(--text-dim); }
+    .code-type { color: var(--accent-cyan); }
   </style>
 </head>
 <body>
@@ -935,6 +998,7 @@
           <li><a href="#modules" data-i18n="nav_features">Core Modules</a></li>
           <li><a href="#how-it-works" data-i18n="nav_process">How it Works</a></li>
           <li><a href="#architecture" data-i18n="nav_arch">Architecture</a></li>
+          <li><a href="#integration" data-i18n="nav_int">Quick Connect</a></li>
         </ul>
         
         <!-- Language Switcher -->
@@ -1178,6 +1242,50 @@
     </div>
   </section>
 
+  <!-- Developer Integration -->
+  <section class="container section reveal" id="integration">
+    <div class="section-header">
+      <p class="section-subtitle" data-i18n="int_subtitle">Quick Connect</p>
+      <h2 class="section-title" data-i18n="int_title">Developer Integration Guide</h2>
+    </div>
+    
+    <div class="integration-grid">
+      <!-- Go SDK -->
+      <div class="integration-card">
+        <h3 class="integration-title">
+          <svg viewBox="0 0 24 24"><path d="M16 18L22 12L16 6M8 6L2 12L8 18"/></svg>
+          <span data-i18n="int_sdk_title">Go SDK Integration (P2P Client)</span>
+        </h3>
+        <p class="step-desc" data-i18n="int_sdk_desc">Connect your AI Agent directly using our self-hosted bootstrap node:</p>
+        <div class="code-block-wrapper">
+          <pre class="code-block"><span class="code-comment">// Initialize client with our deployed platform bootstrap address</span>
+client, err := sdk.NewClient(
+    sdk.WithBootstrapAddr(<span class="code-string">"/ip4/8.130.40.38/tcp/45041/p2p/&lt;PeerID&gt;"</span>),
+    sdk.WithRegistryAddr(<span class="code-string">"http://8.130.40.38:8080"</span>),
+)
+<span class="code-comment">// Securely resolve addresses and spin up Double Ratchet streams</span>
+client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target"</span>, payload)</pre>
+        </div>
+      </div>
+      
+      <!-- REST API -->
+      <div class="integration-card">
+        <h3 class="integration-title">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          <span data-i18n="int_rest_title">REST API Endpoint (HTTP)</span>
+        </h3>
+        <p class="step-desc" data-i18n="int_rest_desc">For thin-clients, web applications or serverless agents, query the HTTP API gateway:</p>
+        <div class="code-block-wrapper">
+          <pre class="code-block"><span class="code-comment"># Query the active bootstrap details including Peer ID and storage options</span>
+curl http://8.130.40.38:8080/api/v1/bootstrap
+
+<span class="code-comment"># Resolve a target URN identity to its network path</span>
+curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Tech Stack -->
   <section class="container section reveal">
     <div class="section-header">
@@ -1297,6 +1405,13 @@
         tech_crypto: "前向安全双棘轮会话",
         tech_db: "纯 Go 零依赖嵌入式数据库",
         
+        nav_int: "快速连接",
+        int_subtitle: "开发者接入",
+        int_title: "连接至我们自部署的平台",
+        int_sdk_title: "Go SDK 接入 (P2P 客户端)",
+        int_sdk_desc: "在您的 AI Agent 代码中配置平台引导节点与目录服务：",
+        int_rest_title: "REST API 接入 (HTTP 接口)",
+        int_rest_desc: "适合轻客户端、Web 应用程序或无状态 Serverless Agent 查询：",
         footer_admin: "控制台",
       },
       en: {
@@ -1365,6 +1480,13 @@
         tech_crypto: "Double Ratchet Session Keys",
         tech_db: "Pure Go Serverless Database",
         
+        nav_int: "Quick Connect",
+        int_subtitle: "Quick Connect",
+        int_title: "Connect to Our Deployed Platform",
+        int_sdk_title: "Go SDK Integration (P2P Client)",
+        int_sdk_desc: "Configure your AI Agent codebase to point to our platform bootstrap address:",
+        int_rest_title: "REST API Endpoints (HTTP)",
+        int_rest_desc: "Query registry or mailbox via HTTP gateway for thin clients or serverless runs:",
         footer_admin: "Console",
       }
     };
