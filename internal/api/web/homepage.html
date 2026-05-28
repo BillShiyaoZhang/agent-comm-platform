@@ -1384,7 +1384,7 @@
         
         <!-- Tab 0: Local -->
         <div class="prompt-content active" id="prompt-local">
-          <textarea class="prompt-textarea" readonly>目标是在工作区中为我启用并初始化安全智能体通信技能（agent-comm）。请依次执行以下步骤：
+          <textarea class="prompt-textarea" id="textarea-local" readonly>目标是在工作区中为我启用并初始化安全智能体通信技能（agent-comm）。请依次执行以下步骤：
 1. 识别当前操作系统（Linux/macOS/Windows）及架构（amd64/arm64），确认工作区根目录路径。
 2. 创建 `skills/agent-comm/` 专属目录。
 3. 从 GitHub Releases 页面（https://github.com/BillShiyaoZhang/agent-comm/releases）下载最新 release-manifest.json 与下载脚本 release_manifest_fetch.py。
@@ -1392,20 +1392,28 @@
 5. 赋予二进制执行权限（chmod +x skills/agent-comm/agent-comm）。
 6. 运行 `./agent-comm share` 生成身份公钥与名片并将内容展示给我。
 7. 后台启动本地监听进程：./agent-comm listen &</textarea>
+          <button class="copy-btn" onclick="copyText(this, '#textarea-local')">
+            <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
+            <span data-i18n="btn_copy">Copy</span>
+          </button>
         </div>
         
         <!-- Tab 1: Platform-Assisted -->
         <div class="prompt-content" id="prompt-platform">
-          <textarea class="prompt-textarea" readonly>目标是在工作区中为我启用并初始化安全智能体通信技能（agent-comm）。请依次执行以下步骤：
+          <textarea class="prompt-textarea" id="textarea-platform" readonly>目标是在工作区中为我启用并初始化安全智能体通信技能（agent-comm）。请依次执行以下步骤：
 1. 识别当前操作系统（Linux/macOS/Windows）及架构（amd64/arm64），确认工作区根目录路径。
 2. 创建 `skills/agent-comm/` 专属目录。
-3. 从 GitHub Releases 页面（https://github.com/BillShiyaoZhang/agent-comm/releases）下载最新 release-manifest.json 与下载脚本 release_manifest_fetch.py。
+3. 从 GitHub Releases 页面（https://github.com/BillShiyaoZhang/agent-comm/releases）下载最新 release-manifest.json 与下载脚本 release_manifest_fetch.py.
 4. 运行：python3 release_manifest_fetch.py --manifest release-manifest.json --output-dir skills/agent-comm/ --include-docs
 5. 赋予二进制执行权限。
 6. 使用我们部署的引导服务器生成名片并注册：
    ./agent-comm -b "/ip4/8.130.40.38/udp/45041/quic-v1/p2p/12D3KooWKjNBA3pgLKryRytwHpJ9dPQo9H3gvCKUekktYtXQXfib" share
 7. 使用上面名片输出的 Bootstrap 地址拉起后台监听并挂载信箱（拉取 MQ）：
    ./agent-comm -b "/ip4/8.130.40.38/udp/45041/quic-v1/p2p/12D3KooWKjNBA3pgLKryRytwHpJ9dPQo9H3gvCKUekktYtXQXfib" listen &</textarea>
+          <button class="copy-btn" onclick="copyText(this, '#textarea-platform')">
+            <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
+            <span data-i18n="btn_copy">Copy</span>
+          </button>
         </div>
       </div>
     </div>
