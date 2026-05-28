@@ -2112,6 +2112,7 @@
       registryData: [],
       mqData: [],
       peersData: [],
+      peerId: null,
       logsData: [],
       configData: {},
       selectedRegistryURNs: new Set(),
@@ -2860,6 +2861,7 @@
 
       // Host details URN/PeerID/Mode
       document.getElementById('peerIDVal').textContent = data.peer_id;
+      state.peerId = data.peer_id;
       
       state.storesUserData = data.stores_user_data;
       state.forwardToStoragePlatforms = data.forward_to_storage_platforms;
@@ -3317,6 +3319,11 @@
         let protosHTML = protos.slice(0, 3).map(p => `<span style="display:inline-block; font-size:0.75rem; background:rgba(255,255,255,0.05); padding: 2px 6px; border-radius:4px; margin-right:4px; margin-bottom:4px; font-family:monospace;">${p}</span>`).join('');
         if (protos.length > 3) protosHTML += `<span style="font-size:0.75rem; color:var(--text-dim);">+${protos.length - 3}</span>`;
 
+        let selfBadge = '';
+        if (state.peerId && e.peer_id === state.peerId) {
+          selfBadge = ` <span class="badge" style="margin-left: 8px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: var(--accent-cyan); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${state.lang === 'zh' ? '本地平台 (自身)' : 'Local Platform (Self)'}</span>`;
+        }
+
         let storageBadge = '';
         if (e.stores_user_data) {
           const isBlocked = (state.forwardToStoragePlatforms === false);
@@ -3330,7 +3337,7 @@
         }
 
         tr.innerHTML = `
-          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails('${e.peer_id}')">${e.peer_id}${storageBadge}</td>
+          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails('${e.peer_id}')">${e.peer_id}${selfBadge}${storageBadge}</td>
           <td onclick="showPeerDetails('${e.peer_id}')">${dirHTML}</td>
           <td style="font-weight:700;" onclick="showPeerDetails('${e.peer_id}')">${e.conn_count}</td>
           <td onclick="showPeerDetails('${e.peer_id}')">${addrsHTML || `<span style="color:var(--text-dim);">[Internal Node Loopback]</span>`}</td>
@@ -3361,11 +3368,15 @@
         </div>
       `).join('');
 
+      const selfLabel = (state.peerId && peer.peer_id === state.peerId)
+        ? ` <span class="badge" style="margin-left: 8px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: var(--accent-cyan); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${state.lang === 'zh' ? '本地平台 (自身)' : 'Local Platform (Self)'}</span>`
+        : '';
+
       let contentHTML = `
         <div class="drawer-section">
           <div class="drawer-section-title">Peer Connection ID</div>
           <div style="font-family: monospace; font-size: 0.9rem; font-weight: 700; color: var(--primary); word-break:break-all; display:flex; justify-content:space-between; align-items:center;">
-            <span>${peer.peer_id}</span>
+            <span>${peer.peer_id}${selfLabel}</span>
             <button class="copy-btn-inline" style="opacity:1;" onclick="copyText('${peer.peer_id}')">
               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             </button>
