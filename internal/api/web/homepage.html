@@ -1427,7 +1427,11 @@
         </h3>
         <p class="step-desc" data-i18n="int_sdk_desc">Connect your AI Agent directly using our self-hosted bootstrap node:</p>
         <div class="code-block-wrapper">
-          <pre class="code-block"><span class="code-comment">// Initialize client with our deployed platform bootstrap address</span>
+          <button class="copy-btn" onclick="copyText(this, '#code-sdk')">
+            <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
+            <span data-i18n="btn_copy">Copy</span>
+          </button>
+          <pre class="code-block" id="code-sdk"><span class="code-comment">// Initialize client with our deployed platform bootstrap address</span>
 client, err := sdk.NewClient(
     sdk.WithBootstrapAddr(<span class="code-string">"/ip4/8.130.40.38/tcp/45041/p2p/&lt;PeerID&gt;"</span>),
     sdk.WithRegistryAddr(<span class="code-string">"http://8.130.40.38:8080"</span>),
@@ -1445,7 +1449,11 @@ client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target"</spa
         </h3>
         <p class="step-desc" data-i18n="int_rest_desc">For thin-clients, web applications or serverless agents, query the HTTP API gateway:</p>
         <div class="code-block-wrapper">
-          <pre class="code-block"><span class="code-comment"># Query the active bootstrap details including Peer ID and storage options</span>
+          <button class="copy-btn" onclick="copyText(this, '#code-rest')">
+            <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
+            <span data-i18n="btn_copy">Copy</span>
+          </button>
+          <pre class="code-block" id="code-rest"><span class="code-comment"># Query the active bootstrap details including Peer ID and storage options</span>
 curl http://8.130.40.38:8080/api/v1/bootstrap
 
 <span class="code-comment"># Resolve a target URN identity to its network path</span>
