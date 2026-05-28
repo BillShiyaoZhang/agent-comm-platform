@@ -27,6 +27,8 @@ type Entry struct {
 	RelayAddrs     []string
 	X25519Pubkey   []byte
 	Ed25519Pubkey   []byte
+	Signature      []byte
+	Timestamp      int64
 	StoresUserData bool
 	ExpiresAt      int64 // Unix timestamp
 }
@@ -50,6 +52,8 @@ CREATE TABLE IF NOT EXISTS registry (
   x25519_pubkey    BLOB,
   ed25519_pubkey   BLOB,
   stores_user_data INTEGER NOT NULL DEFAULT 0,
+  signature        BLOB,
+  timestamp        INTEGER NOT NULL DEFAULT 0,
   expires_at       INTEGER NOT NULL,
   updated_at       INTEGER NOT NULL
 );
@@ -66,8 +70,10 @@ func NewStore(dbPath string, ttlHours int) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
-	// Migration: add stores_user_data column if it doesn't exist
+	// Migration: add stores_user_data, signature, and timestamp columns if they don't exist
 	_, _ = db.Exec("ALTER TABLE registry ADD COLUMN stores_user_data INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE registry ADD COLUMN signature BLOB")
+	_, _ = db.Exec("ALTER TABLE registry ADD COLUMN timestamp INTEGER NOT NULL DEFAULT 0")
 
 	s := &Store{db: db, ttl: time.Duration(ttlHours) * time.Hour}
 	go s.cleanupLoop()
@@ -95,6 +101,18 @@ func (s *Store) Resolve(urn string) (string, []string, []byte, bool) {
 	return entry.PeerID, entry.Addrs, entry.X25519Pubkey, true
 }
 
+// ResolveExtended satisfies the extended registry.Store interface from the core SDK.
+func (s *Store) ResolveExtended(urn string) (string, []string, []string, []byte, []byte, []byte, bool, int64, bool) {
+	entry, err := s.ResolveEntry(urn)
+	if err != nil || entry == nil {
+		return "", nil, nil, nil, nil, nil, false, 0, false
+	}
+	if _, err := peer.Decode(entry.PeerID); err != nil {
+		return "", nil, nil, nil, nil, nil, false, 0, false
+	}
+	return entry.PeerID, entry.Addrs, entry.RelayAddrs, entry.X25519Pubkey, entry.Ed25519Pubkey, entry.Signature, entry.StoresUserData, entry.Timestamp, true
+}
+
 // RegisterWithSignature upserts a URN entry. If ed25519Pubkey+signature are provided,
 // the signature is verified before storing. signature covers: urn||peer_id||stores_user_data||timestamp (big-endian int64).
 func (s *Store) RegisterWithSignature(urn, peerID string, addrs, relayAddrs []string,
@@ -108,7 +126,7 @@ func (s *Store) RegisterWithSignature(urn, peerID string, addrs, relayAddrs []st
 
 	// Verify signature if pubkey provided
 	if len(ed25519PK) == ed25519.PublicKeySize && len(signature) > 0 {
-		msg := buildSignedMsg(urn, peerID, storesUserData, timestamp)
+		msg := buildSignedMsg(urn, peerID, x25519PK, storesUserData, timestamp)
 		if !ed25519.Verify(ed25519.PublicKey(ed25519PK), msg, signature) {
 			return fmt.Errorf("invalid signature")
 		}
@@ -125,13 +143,14 @@ func (s *Store) RegisterWithSignature(urn, peerID string, addrs, relayAddrs []st
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, err := s.db.Exec(`
-		INSERT INTO registry (urn, peer_id, addrs, relay_addrs, x25519_pubkey, ed25519_pubkey, stores_user_data, expires_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO registry (urn, peer_id, addrs, relay_addrs, x25519_pubkey, ed25519_pubkey, stores_user_data, signature, timestamp, expires_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(urn) DO UPDATE SET
 		  peer_id=excluded.peer_id, addrs=excluded.addrs, relay_addrs=excluded.relay_addrs,
 		  x25519_pubkey=excluded.x25519_pubkey, ed25519_pubkey=excluded.ed25519_pubkey,
-		  stores_user_data=excluded.stores_user_data, expires_at=excluded.expires_at, updated_at=excluded.updated_at`,
-		urn, peerID, addrsJSON, relayJSON, x25519PK, ed25519PK, storesUserDataInt, expiresAt, now)
+		  stores_user_data=excluded.stores_user_data, signature=excluded.signature,
+		  timestamp=excluded.timestamp, expires_at=excluded.expires_at, updated_at=excluded.updated_at`,
+		urn, peerID, addrsJSON, relayJSON, x25519PK, ed25519PK, storesUserDataInt, signature, timestamp, expiresAt, now)
 	return err
 }
 
@@ -141,14 +160,14 @@ func (s *Store) ResolveEntry(urn string) (*Entry, error) {
 	defer s.mu.RUnlock()
 
 	row := s.db.QueryRow(`
-		SELECT urn, peer_id, addrs, relay_addrs, x25519_pubkey, ed25519_pubkey, stores_user_data, expires_at
+		SELECT urn, peer_id, addrs, relay_addrs, x25519_pubkey, ed25519_pubkey, stores_user_data, signature, timestamp, expires_at
 		FROM registry WHERE urn=? AND expires_at > ?`, urn, time.Now().Unix())
 
 	var e Entry
 	var addrsJSON, relayJSON string
 	var storesUserDataInt int
 	if err := row.Scan(&e.URN, &e.PeerID, &addrsJSON, &relayJSON,
-		&e.X25519Pubkey, &e.Ed25519Pubkey, &storesUserDataInt, &e.ExpiresAt); err != nil {
+		&e.X25519Pubkey, &e.Ed25519Pubkey, &storesUserDataInt, &e.Signature, &e.Timestamp, &e.ExpiresAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -235,14 +254,15 @@ func (s *Store) cleanupLoop() {
 }
 
 // buildSignedMsg constructs the canonical message that must be signed during registration.
-func buildSignedMsg(urn, peerID string, storesUserData bool, timestamp int64) []byte {
+func buildSignedMsg(urn, peerID string, x25519Pub []byte, storesUserData bool, timestamp int64) []byte {
 	ts := make([]byte, 8)
 	binary.BigEndian.PutUint64(ts, uint64(timestamp))
 	flag := "0"
 	if storesUserData {
 		flag = "1"
 	}
-	msg := []byte(urn + "|" + peerID + "|" + flag + "|")
+	xHex := hex.EncodeToString(x25519Pub)
+	msg := []byte(urn + "|" + peerID + "|" + xHex + "|" + flag + "|")
 	return append(msg, ts...)
 }
 

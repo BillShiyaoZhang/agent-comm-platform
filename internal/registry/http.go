@@ -93,6 +93,9 @@ func handleResolve(store *Store, isForwardAllowed func(urn string) bool) http.Ha
 			"addrs":            entry.Addrs,
 			"relay_addrs":      entry.RelayAddrs,
 			"x25519_pubkey":    entry.X25519Pubkey,
+			"ed25519_pubkey":   entry.Ed25519Pubkey,
+			"signature":        entry.Signature,
+			"timestamp":        entry.Timestamp,
 			"stores_user_data": entry.StoresUserData,
 			"expires_at":       strconv.FormatInt(entry.ExpiresAt, 10),
 		})

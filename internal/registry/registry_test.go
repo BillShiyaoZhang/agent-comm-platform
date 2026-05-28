@@ -25,14 +25,15 @@ import (
 )
 
 // Helper to create a signature
-func makeRegistrySig(t *testing.T, urn, peerID string, storesUserData bool, timestamp int64, privKey ed25519.PrivateKey) []byte {
+func makeRegistrySig(t *testing.T, urn, peerID string, xPK []byte, storesUserData bool, timestamp int64, privKey ed25519.PrivateKey) []byte {
 	ts := make([]byte, 8)
 	binary.BigEndian.PutUint64(ts, uint64(timestamp))
 	flag := "0"
 	if storesUserData {
 		flag = "1"
 	}
-	msg := []byte(urn + "|" + peerID + "|" + flag + "|")
+	xHex := hex.EncodeToString(xPK)
+	msg := []byte(urn + "|" + peerID + "|" + xHex + "|" + flag + "|")
 	msg = append(msg, ts...)
 	return ed25519.Sign(privKey, msg)
 }
@@ -101,7 +102,7 @@ func TestRegistryStore(t *testing.T) {
 	timestamp := time.Now().Unix()
 
 	// Valid signature
-	sig := makeRegistrySig(t, sigURN, sigPeerID, false, timestamp, privKey)
+	sig := makeRegistrySig(t, sigURN, sigPeerID, xPK, false, timestamp, privKey)
 	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, sig, false, timestamp)
 	if err != nil {
 		t.Errorf("expected valid signature to succeed, got: %v", err)
@@ -120,7 +121,7 @@ func TestRegistryStore(t *testing.T) {
 
 	// Expired/Out of window timestamp
 	oldTimestamp := time.Now().Unix() - 600
-	oldSig := makeRegistrySig(t, sigURN, sigPeerID, false, oldTimestamp, privKey)
+	oldSig := makeRegistrySig(t, sigURN, sigPeerID, xPK, false, oldTimestamp, privKey)
 	err = store.RegisterWithSignature(sigURN, sigPeerID, addrs, nil, xPK, pubKey, oldSig, false, oldTimestamp)
 	if err == nil || !strings.Contains(err.Error(), "timestamp out of window") {
 		t.Errorf("expected registration with expired timestamp to fail, got: %v", err)
@@ -297,7 +298,7 @@ func TestRegistryHTTPHandlers(t *testing.T) {
 
 	pubKey, privKey, _ := ed25519.GenerateKey(nil)
 	timestamp := time.Now().Unix()
-	sig := makeRegistrySig(t, urn, peerID, false, timestamp, privKey)
+	sig := makeRegistrySig(t, urn, peerID, xPK, false, timestamp, privKey)
 
 	regReq := registerReq{
 		URN:            urn,
