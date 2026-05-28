@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="title">Agent Comm Platform - Secure Multi-Agent Communication Hub</title>
+  <!-- Google Fonts Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <style>
+    /* CSS Variables & Design System */
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.35);
+      
+      --accent-cyan: #06b6d4;
+      --accent-cyan-hover: #0891b2;
+      --accent-cyan-glow: rgba(6, 182, 212, 0.35);
+      
+      --accent-violet: #8b5cf6;
+      --accent-violet-glow: rgba(139, 92, 246, 0.25);
+      
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      
+      --bg-dark: #050711;
+      --surface-glass: rgba(13, 20, 38, 0.45);
+      --surface-glass-hover: rgba(22, 32, 59, 0.6);
+      --border-color: rgba(255, 255, 255, 0.05);
+      --border-color-hover: rgba(255, 255, 255, 0.12);
+      
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      
+      --font-display: 'Outfit', 'Inter', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      
+      --max-width: 1200px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* Aurora animated background */
+    .aurora-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: -2;
+      background: radial-gradient(circle at 50% 50%, #0c0f24 0%, #050711 100%);
+    }
+
+    .aurora-glow {
+      position: absolute;
+      width: 80vw;
+      height: 80vw;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.15;
+      mix-blend-mode: screen;
+      animation: rotateGlow 25s infinite linear;
+    }
+
+    .aurora-1 {
+      top: -20%;
+      left: -20%;
+      background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+    }
+
+    .aurora-2 {
+      bottom: -20%;
+      right: -20%;
+      background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 70%);
+      animation-duration: 35s;
+      animation-direction: reverse;
+    }
+
+    .grid-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 50px 50px;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    @keyframes rotateGlow {
+      0% { transform: rotate(0deg) translate(-5%, -5%) scale(1); }
+      50% { transform: rotate(180deg) translate(5%, 5%) scale(1.15); }
+      100% { transform: rotate(360deg) translate(-5%, -5%) scale(1); }
+    }
+
+    /* Container */
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header & Navigation */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 100;
+      background: rgba(5, 7, 17, 0.7);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+    }
+
+    header.scrolled {
+      padding: 10px 0;
+      background: rgba(5, 7, 17, 0.85);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .nav-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 80px;
+      transition: height 0.3s ease;
+    }
+
+    header.scrolled .nav-container {
+      height: 64px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 20px var(--primary-glow);
+    }
+
+    .brand-logo svg {
+      width: 22px;
+      height: 22px;
+      fill: #fff;
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 850;
+      letter-spacing: 0.5px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 30px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-main);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
+      color: #ffffff;
+      border: none;
+      box-shadow: 0 4px 15px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 22px rgba(99, 102, 241, 0.45);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(8px);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-color-hover);
+      transform: translateY(-2px);
+    }
+
+    .lang-toggle {
+      display: flex;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 2px;
+      cursor: pointer;
+    }
+
+    .lang-btn {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .lang-btn.active {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    /* Hero Section */
+    .hero {
+      padding-top: 180px;
+      padding-bottom: 100px;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-tagline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 99px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #a5b4fc;
+      margin-bottom: 24px;
+      animation: fadeInUp 0.8s ease;
+    }
+
+    .hero-tagline .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--success);
+      animation: pulseGreen 2s infinite;
+    }
+
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: 4.2rem;
+      font-weight: 900;
+      line-height: 1.15;
+      margin-bottom: 24px;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: fadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .hero-title span {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      max-width: 680px;
+      margin: 0 auto 40px auto;
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      animation: fadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .hero-ctas {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      animation: fadeInUp 1.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Section styling */
+    .section {
+      padding: 100px 0;
+      position: relative;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .section-subtitle {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 2.25rem;
+      font-weight: 850;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Module Feature Cards */
+    .modules-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 30px;
+    }
+
+    .module-card {
+      background: var(--surface-glass);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 40px 32px;
+      backdrop-filter: blur(16px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .module-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(800px circle at var(--mouse-x, 0) var(--mouse-y, 0), rgba(255, 255, 255, 0.04), transparent 40%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .module-card:hover {
+      border-color: rgba(99, 102, 241, 0.25);
+      transform: translateY(-8px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(99, 102, 241, 0.1) inset;
+    }
+
+    .module-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 28px;
+    }
+
+    .icon-registry {
+      background: rgba(6, 182, 212, 0.08);
+      color: var(--accent-cyan);
+      box-shadow: 0 0 20px var(--accent-cyan-glow);
+    }
+
+    .icon-relay {
+      background: rgba(99, 102, 241, 0.08);
+      color: var(--primary);
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .icon-mq {
+      background: rgba(139, 92, 246, 0.08);
+      color: var(--accent-violet);
+      box-shadow: 0 0 20px var(--accent-violet-glow);
+    }
+
+    .module-card svg {
+      width: 28px;
+      height: 28px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .module-title {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 750;
+      margin-bottom: 16px;
+      color: #fff;
+    }
+
+    .module-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .module-features {
+      list-style: none;
+    }
+
+    .module-features li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .module-features li svg {
+      width: 16px;
+      height: 16px;
+      stroke: var(--success);
+      flex-shrink: 0;
+    }
+
+    /* How It Works Section */
+    .steps-container {
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+      position: relative;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .steps-line {
+      position: absolute;
+      left: 40px;
+      top: 40px;
+      bottom: 40px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent-cyan), var(--primary), var(--accent-violet));
+      opacity: 0.3;
+      z-index: 1;
+    }
+
+    .step-item {
+      display: flex;
+      gap: 30px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .step-number {
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      background: var(--bg-dark);
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      transition: all 0.3s;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+
+    .step-item:hover .step-number {
+      border-color: var(--primary);
+      color: #fff;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .step-content {
+      background: var(--surface-glass);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 30px;
+      backdrop-filter: blur(16px);
+      flex-grow: 1;
+      transition: all 0.3s;
+    }
+
+    .step-item:hover .step-content {
+      border-color: rgba(255,255,255,0.08);
+      background: var(--surface-glass-hover);
+    }
+
+    .step-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+
+    .step-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Architecture Modes Section */
+    .arch-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+    }
+
+    .arch-card {
+      background: var(--surface-glass);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 40px;
+      backdrop-filter: blur(16px);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .arch-card.privacy {
+      border-top: 4px solid var(--accent-cyan);
+    }
+
+    .arch-card.compliance {
+      border-top: 4px solid var(--primary);
+    }
+
+    .arch-badge {
+      align-self: flex-start;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 24px;
+    }
+
+    .arch-card.privacy .arch-badge {
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      color: var(--accent-cyan);
+    }
+
+    .arch-card.compliance .arch-badge {
+      background: rgba(99, 102, 241, 0.08);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      color: var(--primary);
+    }
+
+    .arch-title {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 14px;
+    }
+
+    .arch-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 30px;
+    }
+
+    /* Diagram Simulation inside Arch Card */
+    .arch-diagram {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .diag-nodes {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+    }
+
+    .diag-line {
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      top: 50%;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateY(-50%);
+      z-index: 1;
+    }
+
+    .diag-line-fill {
+      position: absolute;
+      left: 10%;
+      width: 80%;
+      top: 50%;
+      height: 2px;
+      transform: translateY(-50%);
+      z-index: 2;
+    }
+
+    .privacy .diag-line-fill {
+      background: linear-gradient(90deg, var(--accent-cyan) 0%, #8b5cf6 50%, var(--accent-cyan) 100%);
+      animation: flowLine 2.5s infinite linear;
+      background-size: 200% 100%;
+    }
+
+    .compliance .diag-line-fill {
+      background: linear-gradient(90deg, var(--primary) 0%, #10b981 50%, var(--primary) 100%);
+      animation: flowLine 2.5s infinite linear;
+      background-size: 200% 100%;
+    }
+
+    @keyframes flowLine {
+      0% { background-position: 100% 0; }
+      100% { background-position: 0 0; }
+    }
+
+    .diag-node {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(13, 20, 38, 0.9);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .diag-node.center-node {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border-color: var(--primary);
+    }
+
+    .privacy .diag-node.center-node {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+    }
+
+    .compliance .diag-node.center-node {
+      border-color: var(--primary);
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+    }
+
+    .diag-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-weight: 600;
+      padding: 0 4px;
+    }
+
+    .diag-info {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.02);
+      padding: 8px 12px;
+      border-radius: 8px;
+      border-left: 3px solid;
+    }
+
+    .privacy .diag-info {
+      border-left-color: var(--accent-cyan);
+    }
+
+    .compliance .diag-info {
+      border-left-color: var(--primary);
+    }
+
+    /* Tech Stack Section */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+    }
+
+    .tech-item {
+      background: var(--surface-glass);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px 16px;
+      text-align: center;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s;
+    }
+
+    .tech-item:hover {
+      border-color: rgba(255,255,255,0.08);
+      transform: translateY(-4px);
+      background: var(--surface-glass-hover);
+    }
+
+    .tech-logo {
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+    }
+
+    .tech-item.go .tech-logo {
+      background: linear-gradient(135deg, #00add8 0%, #0089a8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .tech-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .tech-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* Scroll Reveal Animations */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 50px 0;
+      background: rgba(3, 5, 12, 0.9);
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .footer-brand .brand-title {
+      font-size: 1.05rem;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-main);
+    }
+
+    /* Responsive */
+    @media (max-width: 968px) {
+      .modules-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .arch-container {
+        grid-template-columns: 1fr;
+      }
+      
+      .hero-title {
+        font-size: 3rem;
+      }
+      
+      .steps-line {
+        left: 20px;
+      }
+      
+      .step-number {
+        width: 44px;
+        height: 44px;
+        font-size: 1rem;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .nav-links {
+        display: none;
+      }
+      
+      .hero {
+        padding-top: 140px;
+        padding-bottom: 60px;
+      }
+      
+      .hero-title {
+        font-size: 2.2rem;
+      }
+      
+      .hero-desc {
+        font-size: 1rem;
+      }
+      
+      .hero-ctas {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Backgrounds -->
+  <div class="aurora-bg">
+    <div class="aurora-glow aurora-1"></div>
+    <div class="aurora-glow aurora-2"></div>
+  </div>
+  <div class="grid-overlay"></div>
+
+  <!-- Header -->
+  <header id="header">
+    <div class="container nav-container">
+      <a href="#" class="brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
+          </svg>
+        </div>
+        <span class="brand-title">Agent Comm Platform</span>
+      </a>
+      
+      <div class="nav-actions">
+        <ul class="nav-links">
+          <li><a href="#modules" data-i18n="nav_features">Core Modules</a></li>
+          <li><a href="#how-it-works" data-i18n="nav_process">How it Works</a></li>
+          <li><a href="#architecture" data-i18n="nav_arch">Architecture</a></li>
+        </ul>
+        
+        <!-- Language Switcher -->
+        <div class="lang-toggle" onclick="toggleLanguage()">
+          <button class="lang-btn active" id="lang-zh">ZH</button>
+          <button class="lang-btn" id="lang-en">EN</button>
+        </div>
+        
+        <a href="/admin/" class="btn btn-secondary" data-i18n="nav_console">Admin Console</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="container hero">
+    <div class="hero-tagline">
+      <div class="pulse-dot"></div>
+      <span id="platform-status" data-i18n="platform_online">Platform Online & Active</span>
+    </div>
+    
+    <h1 class="hero-title" data-i18n="hero_title">Secure Infrastructure For<br><span>AI Agent Communication</span></h1>
+    
+    <p class="hero-desc" data-i18n="hero_desc">
+      A resilient, peer-to-peer and cloud-hybrid communication network. Providing identity discovery, NAT traversal, and offline persistent mailbox services for intelligent agents.
+    </p>
+    
+    <div class="hero-ctas">
+      <a href="/admin/" class="btn btn-primary" data-i18n="cta_console">Enter Admin Console</a>
+      <a href="#modules" class="btn btn-secondary" data-i18n="cta_learn">Explore Core Modules</a>
+    </div>
+  </section>
+
+  <!-- Core Modules Section -->
+  <section class="container section reveal" id="modules">
+    <div class="section-header">
+      <p class="section-subtitle" data-i18n="modules_subtitle">Platform Architecture</p>
+      <h2 class="section-title" data-i18n="modules_title">Three Core Pillars</h2>
+    </div>
+    
+    <div class="modules-grid">
+      <!-- Registry -->
+      <div class="module-card">
+        <div class="module-icon icon-registry">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" stroke="currentColor"/>
+          </svg>
+        </div>
+        <h3 class="module-title" data-i18n="reg_title">Registry (Address Book)</h3>
+        <p class="module-desc" data-i18n="reg_desc">
+          A dynamic directory service for agents. Maps agent identities (URN) to real-time network addresses with cryptographic validation.
+        </p>
+        <ul class="module-features">
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="reg_feat1">Cryptographic Signatures (Ed25519)</span>
+          </li>
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="reg_feat2">Automatic TTL Expiration</span>
+          </li>
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="reg_feat3">REST API & libp2p Dual Interface</span>
+          </li>
+        </ul>
+      </div>
+      
+      <!-- Relay -->
+      <div class="module-card">
+        <div class="module-icon icon-relay">
+          <svg viewBox="0 0 24 24">
+            <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor"/>
+          </svg>
+        </div>
+        <h3 class="module-title" data-i18n="relay_title">Circuit Relay v2 (NAT Tunnel)</h3>
+        <p class="module-desc" data-i18n="relay_desc">
+          Enables seamless connection between agents trapped behind firewalls or symmetric NATs, ensuring data packet delivery.
+        </p>
+        <ul class="module-features">
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="relay_feat1">Zero-knowledge Forwarding</span>
+          </li>
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="relay_feat2">High-performance Stream Relay</span>
+          </li>
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="relay_feat3">Automatic NAT Hole Punching</span>
+          </li>
+        </ul>
+      </div>
+      
+      <!-- MQ -->
+      <div class="module-card">
+        <div class="module-icon icon-mq">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke="currentColor"/>
+          </svg>
+        </div>
+        <h3 class="module-title" data-i18n="mq_title">Mailbox MQ (Async Storage)</h3>
+        <p class="module-desc" data-i18n="mq_desc">
+          A high-availability queue acting as a post office for offline agents. Stores encrypted envelopes securely until retrieved.
+        </p>
+        <ul class="module-features">
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="mq_feat1">Blind Ciphertext Storage</span>
+          </li>
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="mq_feat2">Cryptographic Auth Pulling</span>
+          </li>
+          <li>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span data-i18n="mq_feat3">Quota & Age Control Settings</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works Section -->
+  <section class="container section reveal" id="how-it-works">
+    <div class="section-header">
+      <p class="section-subtitle" data-i18n="how_subtitle">Lifecycle Flow</p>
+      <h2 class="section-title" data-i18n="how_title">How Agent Communication Works</h2>
+    </div>
+    
+    <div class="steps-container">
+      <div class="steps-line"></div>
+      
+      <!-- Step 1 -->
+      <div class="step-item">
+        <div class="step-number">01</div>
+        <div class="step-content">
+          <h4 class="step-title" data-i18n="step1_title">Bootstrapping & Registration</h4>
+          <p class="step-desc" data-i18n="step1_desc">
+            When Agent A comes online, it generates self-certifying identity keys and registers its current NAT status and network addresses to the cloud platform's Registry.
+          </p>
+        </div>
+      </div>
+      
+      <!-- Step 2 -->
+      <div class="step-item">
+        <div class="step-number">02</div>
+        <div class="step-content">
+          <h4 class="step-title" data-i18n="step2_title">Discovery & Addressing</h4>
+          <p class="step-desc" data-i18n="step2_desc">
+            Agent A wants to contact Agent B. It queries the Registry with Agent B's URN. The Registry returns B's cryptographic public keys and active network routing paths.
+          </p>
+        </div>
+      </div>
+      
+      <!-- Step 3 -->
+      <div class="step-item">
+        <div class="step-number">03</div>
+        <div class="step-content">
+          <h4 class="step-title" data-i18n="step3_title">Direct Connection / Relay Tunnel</h4>
+          <p class="step-desc" data-i18n="step3_desc">
+            Agent A tries to establish an E2E Double Ratchet session directly. If symmetric firewalls prevent direct connection, they tunnel data packets in real-time through the platform's high-speed Circuit Relay.
+          </p>
+        </div>
+      </div>
+      
+      <!-- Step 4 -->
+      <div class="step-item">
+        <div class="step-number">04</div>
+        <div class="step-content">
+          <h4 class="step-title" data-i18n="step4_title">Offline Mailbox Fallback</h4>
+          <p class="step-desc" data-i18n="step4_desc">
+            If Agent B is completely offline, Agent A encrypts the message payload into a blind envelope and pushes it to the platform's MQ. Once Agent B wakes up, it securely pulls and deletes it.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture Section -->
+  <section class="container section reveal" id="architecture">
+    <div class="section-header">
+      <p class="section-subtitle" data-i18n="arch_subtitle">Operational Modes</p>
+      <h2 class="section-title" data-i18n="arch_title">Flexible Compliance Architecture</h2>
+    </div>
+    
+    <div class="arch-container">
+      <!-- Privacy Mode -->
+      <div class="arch-card privacy">
+        <div class="arch-badge" data-i18n="arch_badge_privacy">Privacy Mode (Blind MQ)</div>
+        <h3 class="arch-title" data-i18n="arch_title_privacy">Native E2E Privacy</h3>
+        <p class="arch-desc" data-i18n="arch_desc_privacy">
+          Strictly conforms to Double Ratchet end-to-end encryption. The platform acts as a blind post office, storing only encrypted envelopes. The platform has zero visibility into plaintext contents.
+        </p>
+        
+        <div class="arch-diagram">
+          <div class="diag-nodes">
+            <div class="diag-node">A</div>
+            <div class="diag-line"></div>
+            <div class="diag-line-fill"></div>
+            <div class="diag-node center-node" style="font-size: 0.65rem; text-align: center;" data-i18n="arch_platform">Blind MQ</div>
+            <div class="diag-node">B</div>
+          </div>
+          <div class="diag-labels">
+            <span>Sender</span>
+            <span data-i18n="arch_rel_platform">Relay/MQ Storage</span>
+            <span>Recipient</span>
+          </div>
+          <div class="diag-info" data-i18n="arch_info_privacy">
+            🔒 Fully encrypted flow: Platform only stores & forwards blind ciphertext.
+          </div>
+        </div>
+      </div>
+      
+      <!-- Compliance Mode -->
+      <div class="arch-card compliance">
+        <div class="arch-badge" data-i18n="arch_badge_comp">Compliance Mode (Proxy GW)</div>
+        <h3 class="arch-title" data-i18n="arch_title_comp">Regulated Proxy Gateway</h3>
+        <p class="arch-desc" data-i18n="arch_desc_comp">
+          Designed for compliance in regulated regions. The platform acts as a proxy gateway. It temporarily decrypts incoming payloads for automated content audit before re-encrypting them for recipient delivery.
+        </p>
+        
+        <div class="arch-diagram">
+          <div class="diag-nodes">
+            <div class="diag-node">A</div>
+            <div class="diag-line"></div>
+            <div class="diag-line-fill"></div>
+            <div class="diag-node center-node" style="font-size: 0.65rem; text-align: center;" data-i18n="arch_gateway">Proxy GW</div>
+            <div class="diag-node">B</div>
+          </div>
+          <div class="diag-labels">
+            <span>Sender</span>
+            <span data-i18n="arch_inspect">Audit & Re-encrypt</span>
+            <span>Recipient</span>
+          </div>
+          <div class="diag-info" data-i18n="arch_info_comp">
+            ⚙️ Gateway intercepts: Plaintext is audited for local compliance rules.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Stack -->
+  <section class="container section reveal">
+    <div class="section-header">
+      <p class="section-subtitle" data-i18n="tech_subtitle">Modern Protocol</p>
+      <h2 class="section-title" data-i18n="tech_title">Engineered Stack & Protocols</h2>
+    </div>
+    
+    <div class="tech-grid">
+      <div class="tech-item go">
+        <div class="tech-logo">Go</div>
+        <h4 class="tech-name">Golang 1.25</h4>
+        <p class="tech-desc" data-i18n="tech_go">Concurrent Backend Engine</p>
+      </div>
+      <div class="tech-item">
+        <div class="tech-logo">p2p</div>
+        <h4 class="tech-name">go-libp2p</h4>
+        <p class="tech-desc" data-i18n="tech_p2p">Circuit Relay & NAT Stream</p>
+      </div>
+      <div class="tech-item">
+        <div class="tech-logo">🔑</div>
+        <h4 class="tech-name">X25519</h4>
+        <p class="tech-desc" data-i18n="tech_crypto">Double Ratchet Session Keys</p>
+      </div>
+      <div class="tech-item">
+        <div class="tech-logo">💾</div>
+        <h4 class="tech-name">SQLite</h4>
+        <p class="tech-desc" data-i18n="tech_db">Pure Go Serverless Database</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container footer-content">
+      <div class="footer-brand">
+        <div class="brand-logo" style="width: 32px; height: 32px;">
+          <svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
+          </svg>
+        </div>
+        <span class="brand-title" style="font-size: 1rem;">Agent Comm Platform</span>
+      </div>
+      
+      <div class="footer-links">
+        <a href="/admin/" data-i18n="footer_admin">Console</a>
+        <a href="https://github.com/BillShiyaoZhang/agent-comm-platform" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Language Dictionary (English & Chinese)
+    const i18n = {
+      zh: {
+        title: "Agent Comm Platform - 智能体安全通信平台",
+        nav_features: "核心组件",
+        nav_process: "通信流向",
+        nav_arch: "架构模式",
+        nav_console: "管理后台",
+        platform_online: "平台运行中 & 状态活跃",
+        hero_title: "为 AI 智能体通信打造的<br><span>高可用基础设施</span>",
+        hero_desc: "融合点对点 (P2P) 与云端混合架构的安全通信网络。为分布式智能体提供身份解析、NAT 穿透及离线持久化信箱服务。",
+        cta_console: "进入管理后台",
+        cta_learn: "探索核心组件",
+        modules_subtitle: "平台能力层",
+        modules_title: "三大核心支柱",
+        
+        reg_title: "Registry (地址簿)",
+        reg_desc: "为智能体提供动态目录服务。将 URN 身份标识实时解析为物理网络地址，并通过签名进行安全性防篡改校验。",
+        reg_feat1: "基于 Ed25519 签名验证",
+        reg_feat2: "自动 TTL 记录过期机制",
+        reg_feat3: "REST API 与 P2P 双寻址接口",
+        
+        relay_title: "Circuit Relay (NAT 隧道)",
+        relay_desc: "提供 libp2p Relay v2 中继打洞服务。在双方均处于对称防火墙或局域网 NAT 后的情况下实现可靠流中继。",
+        relay_feat1: "零知识盲中继，平台不可见",
+        relay_feat2: "高带宽利用与流通道复用",
+        relay_feat3: "自动 NAT 感知与打洞适配",
+        
+        mq_title: "Mailbox MQ (离线信箱)",
+        mq_desc: "为离线状态下的智能体提供临时加密信封存储。当收件节点离线时，发件方将盲密文投递到信箱，等待拉取。",
+        mq_feat1: "只读盲密文存储 (Envelope)",
+        mq_feat2: "签名鉴权下发，拉取即销毁",
+        mq_feat3: "可灵活配置的配额与最大存活期",
+        
+        how_subtitle: "生命周期流",
+        how_title: "智能体如何进行通信？",
+        step1_title: "引导接入与公示",
+        step1_desc: "智能体 A 启动并产生自证明身份密钥对，向平台 Registry 公示其当前的 NAT 类型、端口及挂载中继地址。",
+        step2_title: "地址寻址与解析",
+        step2_desc: "智能体 A 想要联系 URN B。它向平台 Registry 发起请求，获取 B 的最新公钥和连接路由 MultiAddrs。",
+        step3_title: "直连拨号或中继打洞",
+        step3_desc: "智能体 A 优先尝试建立 Double Ratchet 直连。如遇防火墙阻隔，则自动通过平台的 Circuit Relay 建立穿透加密流。",
+        step4_title: "离线信箱兜底存递",
+        step4_desc: "若 B 离线，A 将消息通过 Double Ratchet 状态机离线加密，并抛送至平台 MQ 盲存。B 上线后进行签名校验并拉取解密。",
+        
+        arch_subtitle: "多区域运营",
+        arch_title: "合规与隐私兼备的双模架构",
+        arch_badge_privacy: "原生隐私模式 (Blind MQ)",
+        arch_title_privacy: "端到端绝对隐私保护",
+        arch_desc_privacy: "完全遵循端到端加密协议。平台仅缓存盲加密信封 (Ciphertext Envelope)，平台不持有密钥，对传输内容完全不可见、不可篡改。",
+        arch_platform: "盲存 MQ",
+        arch_rel_platform: "中继/盲存服务",
+        arch_info_privacy: "🔒 隐私流：平台只传输密文，无法获取明文。",
+        
+        arch_badge_comp: "监管合规模式 (Proxy GW)",
+        arch_title_comp: "受控合规网关代理",
+        arch_desc_comp: "为满足特定运营区域的平台合规要求而设。平台担当合法中间人 (MITM)，在网关对消息解密审计，审计通过后重新加密发给接收方。",
+        arch_gateway: "审计网关",
+        arch_inspect: "网关解密与安全审计",
+        arch_info_comp: "⚙️ 审计流：网关拦截密文，解密审查并重加密转发。",
+        
+        tech_subtitle: "现代协议栈",
+        tech_title: "极客的技术架构选型",
+        tech_go: "高并发并发网络服务端",
+        tech_p2p: "NAT 穿透及 libp2p 拓扑",
+        tech_crypto: "前向安全双棘轮会话",
+        tech_db: "纯 Go 零依赖嵌入式数据库",
+        
+        footer_admin: "控制台",
+      },
+      en: {
+        title: "Agent Comm Platform - Secure Multi-Agent Communication Hub",
+        nav_features: "Core Modules",
+        nav_process: "How it Works",
+        nav_arch: "Architecture",
+        nav_console: "Console",
+        platform_online: "Platform Online & Active",
+        hero_title: "Secure Infrastructure For<br><span>AI Agent Communication</span>",
+        hero_desc: "A resilient, peer-to-peer and cloud-hybrid communication network. Providing identity discovery, NAT traversal, and offline persistent mailbox services for intelligent agents.",
+        cta_console: "Admin Console",
+        cta_learn: "Explore Core Modules",
+        modules_subtitle: "Platform Architecture",
+        modules_title: "Three Core Pillars",
+        
+        reg_title: "Registry (Address Book)",
+        reg_desc: "A dynamic directory service for agents. Maps agent identities (URN) to real-time network addresses with cryptographic validation.",
+        reg_feat1: "Cryptographic Signatures (Ed25519)",
+        reg_feat2: "Automatic TTL Expiration",
+        reg_feat3: "REST API & libp2p Dual Interface",
+        
+        relay_title: "Circuit Relay v2 (NAT Tunnel)",
+        relay_desc: "Enables seamless connection between agents trapped behind firewalls or symmetric NATs, ensuring data packet delivery.",
+        relay_feat1: "Zero-knowledge Forwarding",
+        relay_feat2: "High-performance Stream Relay",
+        relay_feat3: "Automatic NAT Hole Punching",
+        
+        mq_title: "Mailbox MQ (Async Storage)",
+        mq_desc: "A high-availability queue acting as a post office for offline agents. Stores encrypted envelopes securely until retrieved.",
+        mq_feat1: "Blind Ciphertext Storage",
+        mq_feat2: "Cryptographic Auth Pulling",
+        mq_feat3: "Quota & Age Control Settings",
+        
+        how_subtitle: "Lifecycle Flow",
+        how_title: "How Agent Communication Works",
+        step1_title: "Bootstrapping & Registration",
+        step1_desc: "When Agent A comes online, it generates self-certifying identity keys and registers its current NAT status and network addresses to the cloud platform's Registry.",
+        step2_title: "Discovery & Addressing",
+        step2_desc: "Agent A wants to contact Agent B. It queries the Registry with Agent B's URN. The Registry returns B's cryptographic public keys and active network routing paths.",
+        step3_title: "Direct Connection / Relay Tunnel",
+        step3_desc: "Agent A tries to establish an E2E Double Ratchet session directly. If symmetric firewalls prevent direct connection, they tunnel data packets in real-time through the platform's high-speed Circuit Relay.",
+        step4_title: "Offline Mailbox Fallback",
+        step4_desc: "If Agent B is completely offline, Agent A encrypts the message payload into a blind envelope and pushes it to the platform's MQ. Once Agent B wakes up, it securely pulls and deletes it.",
+        
+        arch_subtitle: "Operational Modes",
+        arch_title: "Flexible Compliance Architecture",
+        arch_badge_privacy: "Privacy Mode (Blind MQ)",
+        arch_title_privacy: "Native E2E Privacy",
+        arch_desc_privacy: "Strictly conforms to Double Ratchet end-to-end encryption. The platform acts as a blind post office, storing only encrypted envelopes. The platform has zero visibility into plaintext contents.",
+        arch_platform: "Blind MQ",
+        arch_rel_platform: "Relay/MQ Storage",
+        arch_info_privacy: "🔒 Fully encrypted flow: Platform only stores & forwards blind ciphertext.",
+        
+        arch_badge_comp: "Compliance Mode (Proxy GW)",
+        arch_title_comp: "Regulated Proxy Gateway",
+        arch_desc_comp: "Designed for compliance in regulated regions. The platform acts as a proxy gateway. It temporarily decrypts incoming payloads for automated content audit before re-encrypting them for recipient delivery.",
+        arch_gateway: "Proxy GW",
+        arch_inspect: "Audit & Re-encrypt",
+        arch_info_comp: "⚙️ Gateway intercepts: Plaintext is audited for local compliance rules.",
+        
+        tech_subtitle: "Modern Protocol",
+        tech_title: "Engineered Stack & Protocols",
+        tech_go: "Concurrent Backend Engine",
+        tech_p2p: "Circuit Relay & NAT Stream",
+        tech_crypto: "Double Ratchet Session Keys",
+        tech_db: "Pure Go Serverless Database",
+        
+        footer_admin: "Console",
+      }
+    };
+
+    // State management for language selection
+    let currentLang = 'zh';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      
+      // Update buttons style
+      document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
+      document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+      
+      // Translate all DOM elements with data-i18n attribute
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[lang] && i18n[lang][key]) {
+          if (el.tagName === 'TITLE') {
+            document.title = i18n[lang][key];
+          } else {
+            el.innerHTML = i18n[lang][key];
+          }
+        }
+      });
+    }
+
+    function toggleLanguage() {
+      const nextLang = currentLang === 'zh' ? 'en' : 'zh';
+      setLanguage(nextLang);
+    }
+
+    // Shrink header on scroll
+    window.addEventListener('scroll', () => {
+      const header = document.getElementById('header');
+      if (window.scrollY > 50) {
+        header.classList.add('scrolled');
+      } else {
+        header.classList.remove('scrolled');
+      }
+    });
+
+    // Reveal animations on scroll (Intersection Observer)
+    const revealCallback = (entries, observer) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('active');
+          observer.unobserve(entry.target);
+        }
+      });
+    };
+
+    const revealObserver = new IntersectionObserver(revealCallback, {
+      root: null,
+      threshold: 0.1
+    });
+
+    document.querySelectorAll('.reveal').forEach(el => {
+      revealObserver.observe(el);
+    });
+
+    // Mouse tilt effect on card components (interactive feel)
+    document.querySelectorAll('.module-card').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--mouse-x', `${x}px`);
+        card.style.setProperty('--mouse-y', `${y}px`);
+      });
+    });
+
+    // Default initialization to Chinese
+    window.addEventListener('DOMContentLoaded', () => {
+      setLanguage('zh');
+    });
+  </script>
+</body>
+</html>
