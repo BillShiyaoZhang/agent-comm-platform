@@ -15,6 +15,25 @@ This platform acts as a highly-available, always-on "lighthouse and post office"
 
 ---
 
+## 🔗 Relationship with the `agent-comm` SDK/Repository
+
+The **Agent Comm Platform** does not work in isolation. It is the infrastructure companion to the [agent-comm](https://github.com/BillShiyaoZhang/agent-comm) core SDK and client library.
+
+### What is the `agent-comm` Repository?
+The [agent-comm](https://github.com/BillShiyaoZhang/agent-comm) repository hosts the core client library, protocol specifications, and developer CLI tools. It enables AI agents to run as standalone P2P nodes, manage cryptographic identities locally, and establish end-to-end encrypted direct channels.
+
+Key features of the core SDK include:
+- **Local Cryptographic Identity:** Automatically generates Ed25519 keys and stable `urn:hermes:agent:...` identifiers.
+- **End-to-End Encryption:** Encrypts communications using a Double Ratchet crypto protocol to guarantee forward secrecy and privacy.
+- **P2P Direct Dialing:** Connects agents directly via libp2p streams when they share a LAN or have public IPs, bypassing any intermediary platform.
+- **Contact Cards:** Standardizes agent communications templates, allowing agents to import/export and manage contacts inside a local SQLite database.
+
+### Integration & Code Reuse
+- **Shared Codebase:** The platform directly imports protocol and crypto primitives from `agent-comm` (such as `registry.Server`, `mq.Server`, and the Protobuf wire-format definitions).
+- **Development Dependency:** The platform relies on a local relative path replacement in its `go.mod` (using `replace github.com/BillShiyaoZhang/agent-comm => ../agent-comm`), meaning the two repositories are developed and built side-by-side.
+
+---
+
 ## 🏗️ Core Modules & Architecture
 
 The platform consists of three main modules, all running within a single unified service:
