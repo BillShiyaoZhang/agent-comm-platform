@@ -464,3 +464,107 @@ func TestAdminAPIs(t *testing.T) {
 		}
 	})
 }
+
+func TestAdminFiltering(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "api-admin-filter-test")
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	regStore, err := registrypkg.NewStore(filepath.Join(tempDir, "registry.db"), 24)
+	if err != nil {
+		t.Fatalf("create registry store: %v", err)
+	}
+	defer regStore.Close()
+
+	mqStore, err := mqpkg.NewStore(filepath.Join(tempDir, "mq.db"), 7, 100)
+	if err != nil {
+		t.Fatalf("create mq store: %v", err)
+	}
+	defer mqStore.Close()
+
+	// Local host
+	h, err := golibp2p.New(golibp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
+	if err != nil {
+		t.Fatalf("create libp2p host: %v", err)
+	}
+	defer h.Close()
+
+	cfg := &config.Config{
+		Platform: config.PlatformConfig{Mode: "privacy", DataDir: tempDir},
+		API:      config.APIConfig{AdminToken: "test-secret-token"},
+	}
+	policies := &SecurityPolicies{}
+	policies.StoreUserData.Store(true)
+	policies.ForwardToStoragePlatforms.Store(true)
+
+	cfgPath := filepath.Join(tempDir, "config.yaml")
+	if err := config.Save(cfgPath, cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	adminHandler := AdminHandler(cfg, regStore, mqStore, h, nil, policies, cfgPath)
+
+	localPeerID := h.ID().String()
+
+	// 1. Register local platform
+	err = regStore.RegisterWithSignature("urn:hermes:agent:localplatform", localPeerID, []string{"/ip4/127.0.0.1/tcp/123"}, nil, nil, nil, nil, false, 0)
+	if err != nil {
+		t.Fatalf("register local platform: %v", err)
+	}
+
+	// 2. Register a separate agent
+	agentPeerID := "QmdXGMAw9zasf9wGQLNiuK67zqyALwAJa3D22eeeeddddd" // random dummy peer ID
+	err = regStore.RegisterWithSignature("urn:hermes:agent:normalagent", agentPeerID, []string{"/ip4/1.2.3.4/tcp/123"}, nil, nil, nil, nil, false, 0)
+	if err != nil {
+		t.Fatalf("register agent: %v", err)
+	}
+
+	// Test registry list filters out local platform
+	t.Run("Registry list filters local platform", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/admin/registry", nil)
+		req.Header.Set("X-Admin-Token", "test-secret-token")
+		w := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w.Code)
+		}
+
+		var resp map[string]interface{}
+		json.NewDecoder(w.Body).Decode(&resp)
+		entries := resp["entries"].([]interface{})
+
+		// Should only contain the agent, not the local platform
+		if len(entries) != 1 {
+			t.Errorf("expected 1 entry, got %d", len(entries))
+		}
+
+		entryMap := entries[0].(map[string]interface{})
+		if entryMap["PeerID"] == localPeerID {
+			t.Errorf("expected agent peer ID, got local platform peer ID")
+		}
+	})
+
+	// Test overview registry count filters local platform
+	t.Run("Overview registry_count filters local platform", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/admin/overview", nil)
+		req.Header.Set("X-Admin-Token", "test-secret-token")
+		w := httptest.NewRecorder()
+		adminHandler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", w.Code)
+		}
+
+		var resp map[string]interface{}
+		json.NewDecoder(w.Body).Decode(&resp)
+
+		regCount := int(resp["registry_count"].(float64))
+		if regCount != 1 {
+			t.Errorf("expected registry_count to be 1 (only Normal Agent), got %d", regCount)
+		}
+	})
+}
+

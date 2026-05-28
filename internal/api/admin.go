@@ -25,7 +25,7 @@ func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpk
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/v1/admin/overview", handleOverview(cfg, regStore, mqStore, h, policies))
-	mux.HandleFunc("GET /api/v1/admin/registry", handleAdminRegistryList(regStore))
+	mux.HandleFunc("GET /api/v1/admin/registry", handleAdminRegistryList(h, regStore))
 	mux.HandleFunc("DELETE /api/v1/admin/registry", handleAdminRegistryEvict(regStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/mq", handleAdminMQList(mqStore))
 	mux.HandleFunc("DELETE /api/v1/admin/mq/clear", handleAdminMQClear(mqStore, auditLog))
@@ -70,7 +70,6 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 		var m runtime.MemStats
 		runtime.ReadMemStats(&m)
 
-		urns, _ := regStore.ListURNs()
 		mqStats, _ := mqStore.ListQueueStats(r.Context())
 
 		totalPendingMessages := 0
@@ -83,10 +82,27 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 			addrs = append(addrs, addr.String()+"/p2p/"+h.ID().String())
 		}
 
-		// Count inbound/outbound connections
+		localPeerID := h.ID().String()
+		agentPeers := make(map[string]bool)
+		agentCount := 0
+		if entries, err := regStore.ListEntries(); err == nil {
+			for _, entry := range entries {
+				if entry.PeerID != localPeerID {
+					agentCount++
+					agentPeers[entry.PeerID] = true
+				}
+			}
+		}
+
+		// Count inbound/outbound connections for other platforms only
+		platformPeersCount := 0
 		inbound := 0
 		outbound := 0
 		for _, peer := range h.Network().Peers() {
+			if agentPeers[peer.String()] {
+				continue
+			}
+			platformPeersCount++
 			for _, conn := range h.Network().ConnsToPeer(peer) {
 				switch conn.Stat().Direction {
 				case network.DirInbound:
@@ -110,10 +126,10 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 			"history_retention_days":       cfg.Platform.HistoryRetentionDays,
 			"peer_id":                      h.ID().String(),
 			"listen_addrs":                 addrs,
-			"connected_peers":              len(h.Network().Peers()),
+			"connected_peers":              platformPeersCount,
 			"inbound_conns":                inbound,
 			"outbound_conns":               outbound,
-			"registry_count":               len(urns),
+			"registry_count":               agentCount,
 			"mq_queues_count":              len(mqStats),
 			"mq_messages_count":            totalPendingMessages,
 		}
@@ -122,7 +138,7 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 	}
 }
 
-func handleAdminRegistryList(regStore *registrypkg.Store) http.HandlerFunc {
+func handleAdminRegistryList(h host.Host, regStore *registrypkg.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		entries, err := regStore.ListEntries()
 		if err != nil {
@@ -130,9 +146,18 @@ func handleAdminRegistryList(regStore *registrypkg.Store) http.HandlerFunc {
 			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			return
 		}
+
+		localPeerID := h.ID().String()
+		filtered := make([]*registrypkg.Entry, 0)
+		for _, entry := range entries {
+			if entry.PeerID != localPeerID {
+				filtered = append(filtered, entry)
+			}
+		}
+
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"entries": entries,
-			"count":   len(entries),
+			"entries": filtered,
+			"count":   len(filtered),
 		})
 	}
 }
@@ -280,12 +305,17 @@ type PeerInfo struct {
 
 func handleAdminPeers(h host.Host, regStore *registrypkg.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		localPeerID := h.ID().String()
+		agentPeers := make(map[string]bool)
 		peerToStorage := make(map[string]bool)
 		if regStore != nil {
 			entries, err := regStore.ListEntries()
 			if err == nil {
 				for _, entry := range entries {
-					peerToStorage[entry.PeerID] = entry.StoresUserData
+					if entry.PeerID != localPeerID {
+						agentPeers[entry.PeerID] = true
+						peerToStorage[entry.PeerID] = entry.StoresUserData
+					}
 				}
 			}
 		}
@@ -294,6 +324,10 @@ func handleAdminPeers(h host.Host, regStore *registrypkg.Store) http.HandlerFunc
 		infos := make([]*PeerInfo, 0, len(peers))
 
 		for _, pid := range peers {
+			if agentPeers[pid.String()] {
+				continue
+			}
+
 			conns := h.Network().ConnsToPeer(pid)
 			if len(conns) == 0 {
 				continue

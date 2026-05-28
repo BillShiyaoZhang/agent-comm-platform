@@ -3092,15 +3092,11 @@
         if (addrs.length > 2) addrsHTML += `<div style="font-size:0.75rem; color:var(--text-dim);">+ ${addrs.length - 2} more addresses</div>`;
         if (relayAddrs.length > 0) addrsHTML += `<div style="font-family: monospace; font-size:0.8rem; color:var(--accent-cyan); font-weight:500;">[Relayed via ${relayAddrs.length} paths]</div>`;
 
-        const storageBadge = e.StoresUserData
-          ? ` <span class="badge" style="margin-left: 8px; background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.3); color: var(--accent-rose); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${i18n[state.lang].storage_badge_warning}</span>`
-          : '';
-
         tr.innerHTML = `
           <td class="checkbox-cell" onclick="event.stopPropagation()">
             <input type="checkbox" class="reg-select-box" value="${e.URN}" ${checked} onchange="toggleSelectReg('${e.URN}', this)">
           </td>
-          <td style="font-weight:700; color:var(--primary);" onclick="showNodeDetails('${e.URN}')">${e.URN}${storageBadge}</td>
+          <td style="font-weight:700; color:var(--primary);" onclick="showNodeDetails('${e.URN}')">${e.URN}</td>
           <td style="font-family: monospace; font-size:0.85rem;" onclick="showNodeDetails('${e.URN}')">${e.PeerID}</td>
           <td onclick="showNodeDetails('${e.URN}')">${addrsHTML || `<span style="color:var(--text-dim);">[Native Loopback / Indirect]</span>`}</td>
           <td onclick="showNodeDetails('${e.URN}')">${ttlHTML}</td>
@@ -3251,29 +3247,6 @@
               <span class="info-label">Remaining Duration</span>
               <span class="info-value" style="color: var(--accent-amber);">${formatTimeRelative(entry.ExpiresAt).replace(/ ago/, '')}</span>
             </div>
-          </div>
-        </div>
-      `;
-
-      // Privacy & Data Storage Declaration
-      const privacyStatusText = entry.StoresUserData
-        ? (state.lang === 'zh' ? '该节点声明：会接收并暂存离线消息数据 (Stores User Data)' : 'This platform declares that it stores user message data.')
-        : (state.lang === 'zh' ? '该节点声明：不留存任何用户消息数据 (No User Data Stored)' : 'This platform declares that it does not store user data.');
-      const privacyColor = entry.StoresUserData ? 'var(--accent-rose)' : 'var(--success)';
-      const privacyBg = entry.StoresUserData ? 'rgba(244, 63, 94, 0.08)' : 'rgba(16, 185, 129, 0.08)';
-      const privacyBorder = entry.StoresUserData ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)';
-
-      contentHTML += `
-        <div class="drawer-section">
-          <div class="drawer-section-title">${state.lang === 'zh' ? '安全与隐私声明 (Privacy Declaration)' : 'Data Privacy Declaration'}</div>
-          <div style="background: ${privacyBg}; border: 1px solid ${privacyBorder}; padding: 12px; border-radius: 8px; font-size: 0.85rem; color: ${privacyColor}; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-            <svg style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2.5;" viewBox="0 0 24 24">
-              ${entry.StoresUserData 
-                ? '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>'
-                : '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>'
-              }
-            </svg>
-            <span>${privacyStatusText}</span>
           </div>
         </div>
       `;
