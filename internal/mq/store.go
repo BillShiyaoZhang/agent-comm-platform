@@ -23,12 +23,10 @@ CREATE TABLE IF NOT EXISTS messages (
   recipient    TEXT NOT NULL,
   payload      BLOB NOT NULL,
   expiry       INTEGER NOT NULL,
-  stored_at    INTEGER NOT NULL,
-  read_at      INTEGER NOT NULL DEFAULT 0
+  stored_at    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_recipient ON messages(recipient);
 CREATE INDEX IF NOT EXISTS idx_expiry    ON messages(expiry);
-CREATE INDEX IF NOT EXISTS idx_read_at   ON messages(read_at);
 `
 
 // Store is the SQLite-backed MQ store.
