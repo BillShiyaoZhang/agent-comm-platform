@@ -958,7 +958,7 @@
       background: rgba(0, 0, 0, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 12px;
-      padding: 16px;
+      padding: 32px 16px 16px 16px; /* Increased top padding to avoid overlapping copy button */
       font-family: 'Courier New', Courier, monospace;
       font-size: 0.82rem;
       color: #cbd5e1;
@@ -1049,6 +1049,7 @@
     
     .prompt-content {
       display: none;
+      position: relative;
     }
     
     .prompt-content.active {
@@ -1062,6 +1063,7 @@
       border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 12px;
       padding: 14px;
+      padding-right: 90px; /* Space for copy button */
       color: #cbd5e1;
       font-family: monospace;
       font-size: 0.78rem;
@@ -1069,6 +1071,50 @@
       outline: none;
       margin-bottom: 16px;
       line-height: 1.5;
+    }
+
+    /* Copy Button Styling */
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+      z-index: 10;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .copy-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .copy-btn.copied {
+      border-color: var(--success) !important;
+      color: var(--success) !important;
+      background: rgba(16, 185, 129, 0.08);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
     }
   </style>
 </head>
@@ -1623,6 +1669,7 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
         int_sdk_desc: "在您的 AI Agent 代码中配置平台引导节点与目录服务：",
         int_rest_title: "REST API 接入 (HTTP 接口)",
         int_rest_desc: "适合轻客户端、Web 应用程序或无状态 Serverless Agent 查询：",
+        btn_copy: "复制",
         footer_admin: "控制台",
       },
       en: {
@@ -1710,12 +1757,51 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
         int_sdk_desc: "Configure your AI Agent codebase to point to our platform bootstrap address:",
         int_rest_title: "REST API Endpoints (HTTP)",
         int_rest_desc: "Query registry or mailbox via HTTP gateway for thin clients or serverless runs:",
+        btn_copy: "Copy",
         footer_admin: "Console",
       }
     };
 
     // State management for language selection
     let currentLang = 'zh';
+
+    // Copy to clipboard utility function
+    function copyText(btn, selector) {
+      const target = document.querySelector(selector);
+      if (!target) return;
+      
+      let text = "";
+      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
+        text = target.value;
+      } else {
+        // Use textContent to get clean plain text without HTML syntax highlighting spans
+        text = target.textContent || target.innerText;
+      }
+      
+      navigator.clipboard.writeText(text).then(() => {
+        // Apply "copied" success styles
+        btn.classList.add('copied');
+        const span = btn.querySelector('span');
+        if (span) {
+          span.innerText = currentLang === 'zh' ? '已复制！' : 'Copied!';
+        }
+        
+        // Clear previous timeout if any
+        if (btn._copyTimeout) {
+          clearTimeout(btn._copyTimeout);
+        }
+        
+        btn._copyTimeout = setTimeout(() => {
+          btn.classList.remove('copied');
+          if (span) {
+            span.innerText = currentLang === 'zh' ? '复制' : 'Copy';
+          }
+          btn._copyTimeout = null;
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+      });
+    }
 
     function setLanguage(lang) {
       currentLang = lang;
