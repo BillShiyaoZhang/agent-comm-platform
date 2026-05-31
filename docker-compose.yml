@@ -1,15 +1,15 @@
 services:
   platform:
     build:
-      context: ..
-      dockerfile: agent-comm-platform/Dockerfile
+      context: ../agent-comm-platform
+      dockerfile: Dockerfile
     expose:
       - "8080"
     ports:
       - "45041:45041"
       - "45041:45041/udp"
     volumes:
-      - ./config.example.yaml:/etc/platform/config.yaml:ro
+      - ./config.yaml:/etc/platform/config.yaml:ro
       - /data:/data
     environment:
       - PLATFORM_ADMIN_TOKEN=${PLATFORM_ADMIN_TOKEN}
@@ -20,19 +20,35 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  web:
+    build:
+      context: ../agent-collaboration-web
+      dockerfile: Dockerfile
+    expose:
+      - "3000"
+    volumes:
+      - ./prisma:/app/prisma:rw
+    environment:
+      - DATABASE_URL=file:./prod.db
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - AGENT_PLATFORM_URL=http://platform:8080
+    restart: unless-stopped
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp" # 启用 HTTP/3 支持
+      - "443:443/udp"
     volumes:
-      - /data/Caddyfile:/etc/caddy/Caddyfile
+      - /data/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - platform
+      - web
 
 volumes:
   caddy_data:
