@@ -2,14 +2,14 @@ FROM golang:1.25.0 AS builder
 ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /src
 COPY agent-comm/go.mod agent-comm/go.sum ./agent-comm/
-COPY agent-comm-platform/go.mod agent-comm-platform/go.sum ./agent-comm-platform/
+COPY go.mod go.sum ./agent-comm-platform/
 
 WORKDIR /src/agent-comm-platform
 RUN go mod download
 
 WORKDIR /src
 COPY agent-comm ./agent-comm
-COPY agent-comm-platform ./agent-comm-platform
+COPY . ./agent-comm-platform/
 
 WORKDIR /src/agent-comm-platform
 RUN CGO_ENABLED=0 go build -o /platform ./cmd/platform
