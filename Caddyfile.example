@@ -1,22 +1,19 @@
 agent-communication.online {
+    # 开启 gzip / zstd 压缩，优化传输性能
     encode gzip zstd
 
-    # API routes → Go platform backend (Registry/Relay/MQ)
-    @api {
-        path /api/*
-    }
-    reverse_proxy @api platform:8080
+    # 将所有 HTTPS 流量代理到内部的 platform 容器的 8080 端口
+    reverse_proxy platform:8080
 
-    # All other requests → Next.js web UI (port 3000)
-    @web {
-        not path /api/*
-    }
-    reverse_proxy @web web:3000
-
+    # 还可以加入安全响应头（可选）
     header {
+        # 启用 HSTS (强制客户端使用 HTTPS)
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # 防框架劫持
         X-Frame-Options "DENY"
+        # 防 XSS 嗅探
         X-Content-Type-Options "nosniff"
+        # 隐藏 Server 标识
         -Server
     }
 }
