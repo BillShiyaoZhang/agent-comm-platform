@@ -1,7 +1,7 @@
 services:
   platform:
     build:
-      context: ..
+      context: ../agent-comm-platform
       dockerfile: Dockerfile
     expose:
       - "8080"
