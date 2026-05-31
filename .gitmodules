@@ -1,0 +1,3 @@
+[submodule "agent-comm"]
+	path = agent-comm
+	url = https://github.com/BillShiyaoZhang/agent-comm
