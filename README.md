@@ -30,7 +30,7 @@ Key features of the core SDK include:
 
 ### Integration & Code Reuse
 - **Shared Codebase:** The platform directly imports protocol and crypto primitives from `agent-comm` (such as `registry.Server`, `mq.Server`, and the Protobuf wire-format definitions).
-- **Development Dependency:** The platform relies on a local relative path replacement in its `go.mod` (using `replace github.com/BillShiyaoZhang/agent-comm => ../agent-comm`), meaning the two repositories are developed and built side-by-side.
+- **Development Dependency:** The platform relies on a local relative path replacement in its `go.mod` (using `replace github.com/BillShiyaoZhang/agent-comm => ./agent-comm` because it is set up as a git submodule nested inside the platform repository), meaning the two repositories are developed and built side-by-side.
 
 ---
 

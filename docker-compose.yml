@@ -1,8 +1,8 @@
 services:
   platform:
     build:
-      context: ..
-      dockerfile: agent-comm-platform/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     expose:
       - "8080"
     ports:

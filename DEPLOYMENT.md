@@ -122,23 +122,21 @@ libp2p:
 ## 6. 使用 Docker Compose 运行服务
 
 ### ⚠️ 核心构建前提 (Go Module 本地依赖)
-由于平台服务直接复用了核心 SDK 的代码，平台在 `go.mod` 中以本地替换方式依赖核心库 `agent-comm`：
+由于平台服务直接复用了核心 SDK 的代码，平台在 `go.mod` 中以本地替换方式依赖核心库 `agent-comm`。在新的子模块架构下，它被添加为 `agent-comm-platform` 的子模块：
 ```go
-replace github.com/BillShiyaoZhang/agent-comm => ../agent-comm
+replace github.com/BillShiyaoZhang/agent-comm => ./agent-comm
 ```
-因此在 ECS 上进行 Docker 构建前，**必须将 `agent-comm` 和 `agent-comm-platform` 两个代码库并排放置在同一个父目录下**（例如 `/data/app/`）：
-```text
-/data/app/
-├── agent-comm/          # 核心 SDK 代码库
-└── agent-comm-platform/ # 平台代码库 (在此目录下运行 docker compose)
-```
+因此在部署构建前，**必须拉取带有子模块的代码库**，以确保 `agent-comm-platform/agent-comm` 目录包含 SDK 代码。
 
 ### 部署步骤：
-1. **拉取两个仓库代码**：
+1. **拉取仓库及其子模块代码**：
    ```bash
    cd /data/app
-   git clone https://github.com/BillShiyaoZhang/agent-comm.git
-   git clone https://github.com/BillShiyaoZhang/agent-comm-platform.git
+   # 递归克隆平台仓库（自动拉取 agent-comm 子模块）
+   git clone --recursive https://github.com/BillShiyaoZhang/agent-comm-platform.git
+   
+   # 或者，如果之前已克隆，更新并初始化子模块：
+   # cd agent-comm-platform && git submodule update --init --recursive
    ```
 2. **复制配置到平台目录下**：将 `config.yaml` 配置文件保存在 `agent-comm-platform` 目录下。
 3. **创建 Caddy 配置文件**：在您的数据盘挂载根目录下创建 `/data/Caddyfile`，并指定您的域名：
@@ -162,8 +160,8 @@ services:
   platform:
     image: agent-comm-platform:latest
     build:
-      context: ..
-      dockerfile: agent-comm-platform/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     expose:
       - "8080"
     ports:
