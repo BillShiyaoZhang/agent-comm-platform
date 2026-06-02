@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +36,9 @@ type Store struct {
 	defaultTTL           time.Duration
 	maxPerURN            int
 	historyRetentionDays int32
+
+	mu          sync.RWMutex
+	subscribers map[string][]chan *proto.EncryptedEnvelope
 }
 
 var _ mq.Store = (*Store)(nil)
@@ -63,6 +67,7 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 		defaultTTL:           time.Duration(defaultTTLDays) * 24 * time.Hour,
 		maxPerURN:            maxPerURN,
 		historyRetentionDays: 30,
+		subscribers:          make(map[string][]chan *proto.EncryptedEnvelope),
 	}
 	go s.cleanupLoop()
 	return s, nil
@@ -73,6 +78,9 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 	msgID := env.GetMessageId()
 	if msgID == "" {
 		msgID = uuid.New().String()
+		env.MessageId = msgID
+	} else if env.MessageId == "" {
+		env.MessageId = msgID
 	}
 
 	if expiryUnix == 0 {
@@ -101,7 +109,59 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 	if err != nil {
 		return "", fmt.Errorf("insert message: %w", err)
 	}
+
+	s.NotifySubscribers(recipientURN, env)
 	return msgID, nil
+}
+
+// RegisterSubscriber adds a new subscriber channel for a URN.
+func (s *Store) RegisterSubscriber(urn string, ch chan *proto.EncryptedEnvelope) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.subscribers == nil {
+		s.subscribers = make(map[string][]chan *proto.EncryptedEnvelope)
+	}
+	s.subscribers[urn] = append(s.subscribers[urn], ch)
+}
+
+// UnregisterSubscriber removes a subscriber channel for a URN.
+func (s *Store) UnregisterSubscriber(urn string, ch chan *proto.EncryptedEnvelope) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	chans, ok := s.subscribers[urn]
+	if !ok {
+		return
+	}
+	for i, c := range chans {
+		if c == ch {
+			s.subscribers[urn] = append(chans[:i], chans[i+1:]...)
+			break
+		}
+	}
+	if len(s.subscribers[urn]) == 0 {
+		delete(s.subscribers, urn)
+	}
+}
+
+// NotifySubscribers sends an envelope to all subscribers of a URN.
+func (s *Store) NotifySubscribers(urn string, env *proto.EncryptedEnvelope) {
+	s.mu.RLock()
+	chans, ok := s.subscribers[urn]
+	if !ok || len(chans) == 0 {
+		s.mu.RUnlock()
+		return
+	}
+	chansCopy := make([]chan *proto.EncryptedEnvelope, len(chans))
+	copy(chansCopy, chans)
+	s.mu.RUnlock()
+
+	for _, ch := range chansCopy {
+		select {
+		case ch <- env:
+		default:
+			// Non-blocking write to avoid blocking on slow readers
+		}
+	}
 }
 
 // Retrieve satisfies the mq.Store interface from the core SDK.

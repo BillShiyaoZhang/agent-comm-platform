@@ -20,6 +20,7 @@ func HTTPHandler(store *Store, isStoreAllowed func() bool, isForwardAllowed func
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/mq/store", auth.VerifySignatureMiddleware(handleStore(store, isStoreAllowed, isForwardAllowed)))
 	mux.HandleFunc("GET /api/v1/mq/retrieve", handleRetrieve(store))
+	mux.HandleFunc("GET /api/v1/mq/subscribe", handleSubscribe(store))
 	mux.HandleFunc("POST /api/v1/mq/ack", handleAck(store))
 	return mux
 }
@@ -221,4 +222,91 @@ func hexVal(c byte) byte {
 		return c - 'A' + 10
 	}
 	return 255
+}
+
+func handleSubscribe(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		urn := r.Header.Get("X-URN")
+		tsStr := r.Header.Get("X-Timestamp")
+		pubkeyHex := r.Header.Get("X-Pubkey")
+		sigHex := r.Header.Get("X-Signature")
+
+		if urn == "" {
+			http.Error(w, "X-URN required", http.StatusBadRequest)
+			return
+		}
+
+		// Verify auth is provided and valid
+		if pubkeyHex == "" || sigHex == "" || tsStr == "" {
+			http.Error(w, "auth failed: signature headers (X-Pubkey, X-Signature, X-Timestamp) are required", http.StatusUnauthorized)
+			return
+		}
+
+		if err := verifyRetrieveAuth(urn, tsStr, pubkeyHex, sigHex); err != nil {
+			http.Error(w, "auth failed: "+err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		// Support Server-Sent Events headers
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no")
+
+		// Create subscriber channel
+		ch := make(chan *proto.EncryptedEnvelope, 100)
+		store.RegisterSubscriber(urn, ch)
+		defer store.UnregisterSubscriber(urn, ch)
+
+		// Create a flusher so we can push data immediately
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+
+		// Send initial keepalive comment to open the stream
+		_, _ = fmt.Fprint(w, ": ok\n\n")
+		flusher.Flush()
+
+		// Heartbeat ticker to prevent proxy timeouts
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case env := <-ch:
+				payloadBytes, err := goproto.Marshal(env)
+				if err != nil {
+					continue
+				}
+				// Format as SSE data line
+				type msgItem struct {
+					MessageID    string `json:"message_id"`
+					PayloadProto []byte `json:"payload_proto"`
+				}
+				data, err := json.Marshal(msgItem{
+					MessageID:    env.GetMessageId(),
+					PayloadProto: payloadBytes,
+				})
+				if err != nil {
+					continue
+				}
+				_, err = fmt.Fprintf(w, "data: %s\n\n", string(data))
+				if err != nil {
+					return // connection closed or errored
+				}
+				flusher.Flush()
+			case <-ticker.C:
+				// Send ping to keep connection alive
+				_, err := fmt.Fprint(w, ": keepalive\n\n")
+				if err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+		}
+	}
 }

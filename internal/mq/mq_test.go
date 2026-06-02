@@ -610,4 +610,104 @@ func TestMQHistoryAndRetention(t *testing.T) {
 	}
 }
 
+func TestMQHTTPSubscribe(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "mq-subscribe-test")
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "mq.db")
+	store, err := NewStore(dbPath, 1, 10)
+	if err != nil {
+		t.Fatalf("NewStore error: %v", err)
+	}
+	defer store.Close()
+
+	handler := HTTPHandler(store, func() bool { return true }, func(recipientURN string) bool { return true })
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	senderPubKey, senderPrivKey, _ := ed25519.GenerateKey(nil)
+	kp := &crypto.IdentityKeyPair{PublicKey: senderPubKey, PrivateKey: senderPrivKey}
+	senderURN := kp.URN()
+
+	urn := "urn:hermes:agent:subscribe-recipient"
+	timestamp := time.Now().Unix()
+
+	// Generate valid signature for subscribe auth (reusing mq-retrieve)
+	tsBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(tsBuf, uint64(timestamp))
+	msg := append([]byte("mq-retrieve|"+urn+"|"), tsBuf...)
+	sig := ed25519.Sign(senderPrivKey, msg)
+
+	client := &http.Client{}
+	reqSubscribe, _ := http.NewRequest("GET", srv.URL+"/api/v1/mq/subscribe", nil)
+	reqSubscribe.Header.Set("X-URN", urn)
+	reqSubscribe.Header.Set("X-Timestamp", strconv.FormatInt(timestamp, 10))
+	reqSubscribe.Header.Set("X-Pubkey", hex.EncodeToString(senderPubKey))
+	reqSubscribe.Header.Set("X-Signature", hex.EncodeToString(sig))
+
+	respSubscribe, err := client.Do(reqSubscribe)
+	if err != nil {
+		t.Fatalf("GET subscribe error: %v", err)
+	}
+	defer respSubscribe.Body.Close()
+
+	if respSubscribe.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(respSubscribe.Body)
+		t.Fatalf("expected status 200, got %d, body: %s", respSubscribe.StatusCode, string(b))
+	}
+
+	// Read initial ": ok\n\n" line
+	buf := make([]byte, 1024)
+	n, err := respSubscribe.Body.Read(buf)
+	if err != nil && err != io.EOF {
+		t.Fatalf("read initial error: %v", err)
+	}
+	initialStr := string(buf[:n])
+	if !strings.Contains(initialStr, ": ok\n\n") {
+		t.Errorf("expected initial response to contain ': ok\\n\\n', got %q", initialStr)
+	}
+
+	// Trigger a store in a separate goroutine
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		env := &pb.EncryptedEnvelope{
+			MessageId:  "msg-sub-1",
+			Ciphertext: []byte("pushed payload"),
+			SenderUrn:  senderURN,
+		}
+		envBytes, _ := goproto.Marshal(env)
+		storeReqObj := storeReq{
+			RecipientURN: urn,
+			PayloadProto: envBytes,
+		}
+		bodyBytes, _ := json.Marshal(storeReqObj)
+		reqStore, _ := http.NewRequest("POST", srv.URL+"/api/v1/mq/store", strings.NewReader(string(bodyBytes)))
+		reqStore.Header.Set("Content-Type", "application/json")
+		payloadSig := ed25519.Sign(senderPrivKey, bodyBytes)
+		reqStore.Header.Set("Authorization", "Ed25519 "+hex.EncodeToString(payloadSig)+":"+hex.EncodeToString(senderPubKey))
+
+		respStore, err := client.Do(reqStore)
+		if err == nil {
+			respStore.Body.Close()
+		}
+	}()
+
+	// Read the pushed message
+	n, err = respSubscribe.Body.Read(buf)
+	if err != nil && err != io.EOF {
+		t.Fatalf("read message error: %v", err)
+	}
+	pushedStr := string(buf[:n])
+	if !strings.Contains(pushedStr, "data: ") {
+		t.Errorf("expected pushed message, got %q", pushedStr)
+	}
+	if !strings.Contains(pushedStr, "msg-sub-1") {
+		t.Errorf("expected msg-sub-1, got %q", pushedStr)
+	}
+}
+
+
 
