@@ -1494,7 +1494,7 @@
           <pre class="code-block" id="code-sdk"><span class="code-comment">// Initialize client with our deployed platform bootstrap address</span>
 client, err := sdk.NewClient(
     sdk.WithBootstrapAddr(<span class="code-string">"/ip4/8.130.40.38/tcp/45041/p2p/&lt;PeerID&gt;"</span>),
-    sdk.WithRegistryAddr(<span class="code-string">"http://8.130.40.38:8080"</span>),
+    sdk.WithRegistryAddr(<span class="code-string">"https://agent-communication.online"</span>),
 )
 <span class="code-comment">// Securely resolve addresses and spin up Double Ratchet streams</span>
 client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target"</span>, payload)</pre>
@@ -1514,10 +1514,10 @@ client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target"</spa
             <span data-i18n="btn_copy">Copy</span>
           </button>
           <pre class="code-block" id="code-rest"><span class="code-comment"># Query the active bootstrap details including Peer ID and storage options</span>
-curl http://8.130.40.38:8080/api/v1/bootstrap
+curl https://agent-communication.online/api/v1/bootstrap
 
 <span class="code-comment"># Resolve a target URN identity to its network path</span>
-curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</pre>
+curl https://agent-communication.online/api/v1/registry/resolve?urn=urn:hermes:agent:123</pre>
         </div>
       </div>
     </div>
