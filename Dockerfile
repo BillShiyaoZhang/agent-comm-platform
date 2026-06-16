@@ -1,5 +1,6 @@
 FROM golang:1.25.0 AS builder
 ENV GOPROXY=https://goproxy.cn,direct
+ENV GOTOOLCHAIN=auto
 WORKDIR /src/agent-comm-platform
 
 # Copy the go.mod/sum files to their correct relative paths to allow caching of dependency downloads
