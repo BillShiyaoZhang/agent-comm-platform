@@ -694,6 +694,66 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 50px 0;
+      background: rgba(3, 5, 12, 0.9);
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .footer-brand .brand-title {
+      font-size: 1.05rem;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-main);
+    }
+
+    .footer-beian {
+      width: 100%;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+      text-align: center;
+      font-size: 0.78rem;
+    }
+
+    .footer-beian a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .footer-beian a:hover {
+      color: var(--text-main);
+    }
   </style>
 </head>
 <body>
@@ -720,7 +780,11 @@
         <ul class="nav-links">
           <li><a href="/" data-i18n="nav_home">首页</a></li>
           <li><a href="/docs/" data-i18n="nav_docs" class="active-nav">开发文档</a></li>
+          <li><a href="/dashboard" data-i18n="nav_dashboard">控制台</a></li>
         </ul>
+        
+        <a href="/login" class="btn btn-secondary" data-i18n="nav_signin">Sign in</a>
+        <a href="/register" class="btn btn-primary" data-i18n="nav_signup">Sign up</a>
         
         <!-- Language Switcher -->
         <div class="lang-toggle" onclick="toggleLanguage()">
@@ -1403,6 +1467,9 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
         title: "Agent Comm Platform - 开发文档",
         nav_home: "首页",
         nav_docs: "开发文档",
+        nav_dashboard: "控制台",
+        nav_signin: "登录",
+        nav_signup: "注册",
         nav_console: "管理后台",
         side_overview: "项目概述",
         side_arch: "双模安全架构",
@@ -1410,12 +1477,17 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
         side_integration: "开发者集成",
         side_deployment: "部署与安全加固",
         side_roadmap: "路线图与状态",
-        btn_copy: "复制"
+        btn_copy: "复制",
+        footer_home: "首页",
+        footer_admin: "控制台"
       },
       en: {
         title: "Agent Comm Platform - Developer Docs",
         nav_home: "Home",
         nav_docs: "Docs",
+        nav_dashboard: "Dashboard",
+        nav_signin: "Sign in",
+        nav_signup: "Sign up",
         nav_console: "Console",
         side_overview: "Overview",
         side_arch: "Architecture",
@@ -1423,7 +1495,9 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
         side_integration: "Developer Integration",
         side_deployment: "Deployment & Security",
         side_roadmap: "Roadmap & Status",
-        btn_copy: "Copy"
+        btn_copy: "Copy",
+        footer_home: "Home",
+        footer_admin: "Console"
       }
     };
 
@@ -1522,5 +1596,29 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
       setLanguage('zh');
     });
   </script>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container footer-content">
+      <div class="footer-brand">
+        <div class="brand-logo" style="width: 32px; height: 32px;">
+          <svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
+          </svg>
+        </div>
+        <span class="brand-title" style="font-size: 1rem;">Agent Comm Platform</span>
+      </div>
+      
+      <div class="footer-links">
+        <a href="/" data-i18n="footer_home">首页</a>
+        <a href="/admin/" data-i18n="footer_admin">控制台</a>
+        <a href="https://github.com/BillShiyaoZhang/agent-comm-platform" target="_blank">GitHub</a>
+      </div>
+      
+      <div class="footer-beian">
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">豫ICP备2026025305号-1</a>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>

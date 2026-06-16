@@ -1477,6 +1477,29 @@
     input:checked + .slider:before {
       transform: translateX(20px);
     }
+
+    /* Beian footer bar (fixed at viewport bottom) */
+    .beian-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1000;
+      background: rgba(7, 9, 19, 0.92);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      text-align: center;
+      padding: 8px 16px;
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+    .beian-bar a {
+      color: #9ca3af;
+      text-decoration: none;
+    }
+    .beian-bar a:hover {
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -3922,5 +3945,10 @@
       .catch(err => showToast('Failed: ' + err.message, 'error'));
     }
   </script>
+
+  <!-- ICP Beian Footer (fixed bar) -->
+  <div class="beian-bar">
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">豫ICP备2026025305号-1</a>
+  </div>
 </body>
 </html>

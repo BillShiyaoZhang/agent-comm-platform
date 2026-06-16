@@ -1148,7 +1148,11 @@
       <div class="nav-actions">
         <ul class="nav-links">
           <li><a href="/docs/" data-i18n="nav_docs">开发文档</a></li>
+          <li><a href="/dashboard" data-i18n="nav_dashboard">Dashboard</a></li>
         </ul>
+        
+        <a href="/login" class="btn btn-secondary" data-i18n="nav_signin">Sign in</a>
+        <a href="/register" class="btn btn-primary" data-i18n="nav_signup">Sign up</a>
         
         <!-- Language Switcher -->
         <div class="lang-toggle" onclick="toggleLanguage()">
@@ -1566,6 +1570,10 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
         <a href="/admin/" data-i18n="footer_admin">Console</a>
         <a href="https://github.com/BillShiyaoZhang/agent-comm-platform" target="_blank">GitHub</a>
       </div>
+      
+      <div class="footer-beian" style="width: 100%; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); text-align: center; font-size: 0.78rem;">
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color: var(--text-muted); text-decoration: none;">豫ICP备2026025305号-1</a>
+      </div>
     </div>
   </footer>
 
@@ -1589,6 +1597,9 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
       zh: {
         title: "Agent Comm Platform - 智能体安全通信平台",
         nav_docs: "开发文档",
+        nav_dashboard: "控制台",
+        nav_signin: "登录",
+        nav_signup: "注册",
         nav_console: "管理后台",
         platform_online: "平台运行中 & 状态活跃",
         hero_title: "为 AI 智能体通信打造的<br><span>高可用基础设施</span>",
@@ -1675,6 +1686,9 @@ curl http://8.130.40.38:8080/api/v1/registry/resolve?urn=urn:hermes:agent:123</p
       en: {
         title: "Agent Comm Platform - Secure Multi-Agent Communication Hub",
         nav_docs: "Docs",
+        nav_dashboard: "Dashboard",
+        nav_signin: "Sign in",
+        nav_signup: "Sign up",
         nav_console: "Console",
         platform_online: "Platform Online & Active",
         hero_title: "Secure Infrastructure For<br><span>AI Agent Communication</span>",
