@@ -2,7 +2,7 @@
 
 此次升级必须与配套 `agent-comm` SDK/helper 一起发布。服务器需要由维护者更新；本地验证不会部署到生产服务器。
 
-本次配套 SDK 提交：`0f94961bb0cce0a0c9f0c5016a6583156d383ec6`。两个仓库的实现分支均为 `codex/hermes-reliable-messaging`；部署平台分支时必须同时更新它固定的 SDK 子模块。
+本次配套 SDK 提交：`0f94961bb0cce0a0c9f0c5016a6583156d383ec6`。SDK 的默认分支为 `master`，platform 的默认分支为 `main`；部署 platform 的 `main` 时必须同时更新它固定的 SDK 子模块。
 
 ## 部署顺序
 
@@ -11,13 +11,13 @@
 
    ```bash
    git fetch origin
-   git switch codex/hermes-reliable-messaging
+   git switch main
    git pull --ff-only
    git submodule update --init --recursive
    git submodule status agent-comm
    ```
 
-   核对显示的 SDK 提交与上面的发布记录一致。合并进入正式发布分支后，可切换为你的正式分支，但仍须保持该配套子模块版本。不要使用 `git submodule update --remote` 随意改为另一个提交。
+   核对显示的 SDK 提交与上面的发布记录一致。不要使用 `git submodule update --remote` 随意改为另一个提交。
 3. 暂停客户端发送，停止平台服务并备份当前挂载的数据目录（含 SQLite 数据库、可能存在的 WAL/SHM 文件、平台密钥和配置）。已有队列中未签名的旧信封不能补签为可信的新信封；升级前应处理完旧队列，或保留备份并由原始发送者重发。升级代码不会自动删除这些历史数据。
 4. 保持现有 `config.yaml`、数据卷和密钥路径，重建并启动 Compose 中的 `platform` 服务：
 
