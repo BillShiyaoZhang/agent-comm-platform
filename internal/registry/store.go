@@ -4,9 +4,7 @@ package registry
 
 import (
 	"context"
-	"crypto/ed25519"
 	"database/sql"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -15,7 +13,6 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/BillShiyaoZhang/agent-comm/registry"
 )
 
@@ -26,7 +23,7 @@ type Entry struct {
 	Addrs          []string // JSON-encoded
 	RelayAddrs     []string
 	X25519Pubkey   []byte
-	Ed25519Pubkey   []byte
+	Ed25519Pubkey  []byte
 	Signature      []byte
 	Timestamp      int64
 	StoresUserData bool
@@ -41,7 +38,6 @@ type Store struct {
 }
 
 var _ registry.Store = (*Store)(nil)
-
 
 const schema = `
 CREATE TABLE IF NOT EXISTS registry (
@@ -84,22 +80,16 @@ func NewStore(dbPath string, ttlHours int) (*Store, error) {
 	return s, nil
 }
 
-// Register satisfies the registry.Store interface from the core SDK.
+// Register is retained for source compatibility but unsigned registration is disabled.
+// Call RegisterWithSignature with proof from the URN owner instead.
 func (s *Store) Register(urn, peerID string, addrs []string, x25519PubKey []byte) (bool, string) {
-	err := s.RegisterWithSignature(urn, peerID, addrs, nil, x25519PubKey, nil, nil, false, 0)
-	if err != nil {
-		return false, err.Error()
-	}
-	return true, ""
+	return false, registry.ErrUnsignedRegistration.Error()
 }
 
 // Resolve satisfies the registry.Store interface from the core SDK.
 func (s *Store) Resolve(urn string) (string, []string, []byte, bool) {
 	entry, err := s.ResolveEntry(urn)
 	if err != nil || entry == nil {
-		return "", nil, nil, false
-	}
-	if _, err := peer.Decode(entry.PeerID); err != nil {
 		return "", nil, nil, false
 	}
 	return entry.PeerID, entry.Addrs, entry.X25519Pubkey, true
@@ -111,31 +101,20 @@ func (s *Store) ResolveExtended(urn string) (string, []string, []string, []byte,
 	if err != nil || entry == nil {
 		return "", nil, nil, nil, nil, nil, false, 0, false
 	}
-	if _, err := peer.Decode(entry.PeerID); err != nil {
-		return "", nil, nil, nil, nil, nil, false, 0, false
-	}
 	return entry.PeerID, entry.Addrs, entry.RelayAddrs, entry.X25519Pubkey, entry.Ed25519Pubkey, entry.Signature, entry.StoresUserData, entry.Timestamp, true
 }
 
-// RegisterWithSignature upserts a URN entry. If ed25519Pubkey+signature are provided,
-// the signature is verified before storing. signature covers: urn||peer_id||stores_user_data||timestamp (big-endian int64).
+// RegisterWithSignature upserts an entry only after authenticating its URN owner.
+// First registration and updates use identical checks, allowing an owner to
+// recover an existing poisoned record without trusting the old database key.
 func (s *Store) RegisterWithSignature(urn, peerID string, addrs, relayAddrs []string,
 	x25519PK, ed25519PK, signature []byte, storesUserData bool, timestamp int64) error {
 
-	// Replay-attack guard: reject if timestamp is >5 min old
+	if err := registry.ValidateRegistration(urn, peerID, x25519PK, ed25519PK, signature, storesUserData, timestamp); err != nil {
+		return err
+	}
+
 	now := time.Now().Unix()
-	if timestamp != 0 && (now-timestamp > 300 || timestamp-now > 60) {
-		return fmt.Errorf("timestamp out of window")
-	}
-
-	// Verify signature if pubkey provided
-	if len(ed25519PK) == ed25519.PublicKeySize && len(signature) > 0 {
-		msg := buildSignedMsg(urn, peerID, x25519PK, storesUserData, timestamp)
-		if !ed25519.Verify(ed25519.PublicKey(ed25519PK), msg, signature) {
-			return fmt.Errorf("invalid signature")
-		}
-	}
-
 	addrsJSON := encodeStringSlice(addrs)
 	relayJSON := encodeStringSlice(relayAddrs)
 	expiresAt := now + int64(s.ttl.Seconds())
@@ -158,7 +137,7 @@ func (s *Store) RegisterWithSignature(urn, peerID string, addrs, relayAddrs []st
 	return err
 }
 
-// ResolveEntry looks up a URN. Returns nil if not found or expired.
+// ResolveEntry looks up a URN. Returns nil if not found, expired, or unauthenticated.
 func (s *Store) ResolveEntry(urn string) (*Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -180,35 +159,42 @@ func (s *Store) ResolveEntry(urn string) (*Entry, error) {
 	e.Addrs = decodeStringSlice(addrsJSON)
 	e.RelayAddrs = decodeStringSlice(relayJSON)
 	e.StoresUserData = (storesUserDataInt != 0)
+	if !authenticatedEntry(&e) {
+		return nil, nil
+	}
 	return &e, nil
 }
 
-// ListURNs returns all non-expired URNs.
+// authenticatedEntry logically quarantines legacy or poisoned rows: they remain
+// in SQLite for audit and owner recovery, but are never served as registry data.
+// Freshness is checked on writes; valid stored signatures remain usable until TTL.
+func authenticatedEntry(e *Entry) bool {
+	if err := registry.VerifyRegistration(e.URN, e.PeerID, e.X25519Pubkey, e.Ed25519Pubkey, e.Signature, e.StoresUserData, e.Timestamp); err != nil {
+		log.Printf("[registry] quarantined unauthenticated record urn=%q: %v", e.URN, err)
+		return false
+	}
+	return true
+}
+
+// ListURNs returns all authenticated, non-expired URNs.
 func (s *Store) ListURNs() ([]string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	rows, err := s.db.QueryContext(context.Background(),
-		"SELECT urn FROM registry WHERE expires_at > ?", time.Now().Unix())
+	entries, err := s.ListEntries()
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var urns []string
-	for rows.Next() {
-		var u string
-		if err := rows.Scan(&u); err == nil {
-			urns = append(urns, u)
-		}
+	for _, entry := range entries {
+		urns = append(urns, entry.URN)
 	}
 	return urns, nil
 }
 
-// ListEntries returns all non-expired entries in the registry.
+// ListEntries returns all authenticated, non-expired entries in the registry.
 func (s *Store) ListEntries() ([]*Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	rows, err := s.db.QueryContext(context.Background(),
-		"SELECT urn, peer_id, addrs, relay_addrs, x25519_pubkey, ed25519_pubkey, stores_user_data, expires_at FROM registry WHERE expires_at > ?", time.Now().Unix())
+		"SELECT urn, peer_id, addrs, relay_addrs, x25519_pubkey, ed25519_pubkey, stores_user_data, signature, timestamp, expires_at FROM registry WHERE expires_at > ?", time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -218,15 +204,18 @@ func (s *Store) ListEntries() ([]*Entry, error) {
 		var e Entry
 		var addrsJSON, relayJSON string
 		var storesUserDataInt int
-		if err := rows.Scan(&e.URN, &e.PeerID, &addrsJSON, &relayJSON, &e.X25519Pubkey, &e.Ed25519Pubkey, &storesUserDataInt, &e.ExpiresAt); err != nil {
-			continue
+		if err := rows.Scan(&e.URN, &e.PeerID, &addrsJSON, &relayJSON, &e.X25519Pubkey, &e.Ed25519Pubkey, &storesUserDataInt, &e.Signature, &e.Timestamp, &e.ExpiresAt); err != nil {
+			return nil, err
 		}
 		e.Addrs = decodeStringSlice(addrsJSON)
 		e.RelayAddrs = decodeStringSlice(relayJSON)
 		e.StoresUserData = (storesUserDataInt != 0)
+		if !authenticatedEntry(&e) {
+			continue
+		}
 		entries = append(entries, &e)
 	}
-	return entries, nil
+	return entries, rows.Err()
 }
 
 // EvictEntry deletes a URN entry from the database.
@@ -255,19 +244,6 @@ func (s *Store) cleanupLoop() {
 			log.Printf("[registry] cleanup error: %v", err)
 		}
 	}
-}
-
-// buildSignedMsg constructs the canonical message that must be signed during registration.
-func buildSignedMsg(urn, peerID string, x25519Pub []byte, storesUserData bool, timestamp int64) []byte {
-	ts := make([]byte, 8)
-	binary.BigEndian.PutUint64(ts, uint64(timestamp))
-	flag := "0"
-	if storesUserData {
-		flag = "1"
-	}
-	xHex := hex.EncodeToString(x25519Pub)
-	msg := []byte(urn + "|" + peerID + "|" + xHex + "|" + flag + "|")
-	return append(msg, ts...)
 }
 
 // encodeStringSlice encodes a string slice as a simple hex-delimited string for SQLite storage.

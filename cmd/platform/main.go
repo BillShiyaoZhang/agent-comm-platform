@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"flag"
 	"fmt"
 	"log"
@@ -77,9 +78,10 @@ func main() {
 	regSrv.Register()
 	log.Printf("Registry: %s", registry.ProtoID)
 
-	// Self-register
-	_ = regStore.RegisterWithSignature(id.Ed25519.URN(), h.ID().String(), hostAddrs(h), nil,
-		id.X25519PK, id.Ed25519.PublicKey, nil, cfg.Platform.StoreUserData, 0)
+	// Publish the platform's identity using the same ownership proof as clients.
+	if err := registerPlatformIdentity(regStore, h, id, cfg.Platform.StoreUserData); err != nil {
+		log.Fatalf("self-register platform: %v", err)
+	}
 
 	// ── Relay v2 ─────────────────────────────────────────────────────────────
 	if cfg.Relay.Enabled {
@@ -115,6 +117,26 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		interval := time.Duration(cfg.Registry.TTLHours) * time.Hour / 2
+		if interval <= 0 || interval > time.Hour {
+			interval = time.Hour
+		}
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := registerPlatformIdentity(regStore, h, id, apiSrv.Policies.StoreUserData.Load()); err != nil {
+					log.Printf("renew platform registry entry: %v", err)
+				}
+			}
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		if err := apiSrv.Start(ctx); err != nil {
 			log.Printf("HTTP API: %v", err)
 		}
@@ -130,6 +152,14 @@ func main() {
 	cancel()
 	wg.Wait()
 	log.Println("Done.")
+}
+
+func registerPlatformIdentity(store registry.Store, h host.Host, id *crypto.IdentityKeys, storesUserData bool) error {
+	timestamp := time.Now().Unix()
+	signature := ed25519.Sign(id.Ed25519.PrivateKey, registry.BuildSignedMsg(
+		id.Ed25519.URN(), h.ID().String(), id.X25519PK, storesUserData, timestamp))
+	return store.RegisterWithSignature(id.Ed25519.URN(), h.ID().String(), hostAddrs(h), nil,
+		id.X25519PK, id.Ed25519.PublicKey, signature, storesUserData, timestamp)
 }
 
 func hostAddrs(h host.Host) []string {

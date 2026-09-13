@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	coremq "github.com/BillShiyaoZhang/agent-comm/mq"
+	"github.com/BillShiyaoZhang/agent-comm/registry"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -116,11 +118,11 @@ func TestAdminAPIs(t *testing.T) {
 	})
 
 	t.Run("Authorized - Registry List and Evict", func(t *testing.T) {
-		// Register a dummy node
-		err := regStore.RegisterWithSignature("urn:hermes:agent:testnode", "peer-id-xyz", []string{"/ip4/1.2.3.4/tcp/123"}, nil, nil, nil, nil, false, 0)
+		key, err := crypto.GenerateIdentityKeyPair()
 		if err != nil {
-			t.Fatalf("register test node: %v", err)
+			t.Fatal(err)
 		}
+		registerAdminTestIdentity(t, regStore, key)
 
 		// List
 		req := httptest.NewRequest("GET", "/api/v1/admin/registry", nil)
@@ -140,7 +142,7 @@ func TestAdminAPIs(t *testing.T) {
 		}
 
 		// Evict
-		evictReq := httptest.NewRequest("DELETE", "/api/v1/admin/registry?urn="+url.QueryEscape("urn:hermes:agent:testnode"), nil)
+		evictReq := httptest.NewRequest("DELETE", "/api/v1/admin/registry?urn="+url.QueryEscape(key.URN()), nil)
 		evictReq.Header.Set("X-Admin-Token", "test-secret-token")
 		w2 := httptest.NewRecorder()
 		adminHandler.ServeHTTP(w2, evictReq)
@@ -150,7 +152,7 @@ func TestAdminAPIs(t *testing.T) {
 		}
 
 		// Verify evicted
-		entry, err := regStore.ResolveEntry("urn:hermes:agent:testnode")
+		entry, err := regStore.ResolveEntry(key.URN())
 		if err != nil {
 			t.Fatalf("resolve error: %v", err)
 		}
@@ -515,17 +517,20 @@ func TestAdminFiltering(t *testing.T) {
 	localPeerID := h.ID().String()
 
 	// 1. Register local platform
-	err = regStore.RegisterWithSignature("urn:hermes:agent:localplatform", localPeerID, []string{"/ip4/127.0.0.1/tcp/123"}, nil, nil, nil, nil, false, 0)
+	rawPrivate, err := h.Peerstore().PrivKey(h.ID()).Raw()
 	if err != nil {
-		t.Fatalf("register local platform: %v", err)
+		t.Fatal(err)
 	}
+	localPrivate := ed25519.PrivateKey(rawPrivate)
+	localKey := &crypto.IdentityKeyPair{PrivateKey: localPrivate, PublicKey: localPrivate.Public().(ed25519.PublicKey)}
+	registerAdminTestIdentity(t, regStore, localKey)
 
 	// 2. Register a separate agent
-	agentPeerID := "QmdXGMAw9zasf9wGQLNiuK67zqyALwAJa3D22eeeeddddd" // random dummy peer ID
-	err = regStore.RegisterWithSignature("urn:hermes:agent:normalagent", agentPeerID, []string{"/ip4/1.2.3.4/tcp/123"}, nil, nil, nil, nil, false, 0)
+	agentKey, err := crypto.GenerateIdentityKeyPair()
 	if err != nil {
-		t.Fatalf("register agent: %v", err)
+		t.Fatal(err)
 	}
+	registerAdminTestIdentity(t, regStore, agentKey)
 
 	// Test registry list filters out local platform
 	t.Run("Registry list filters local platform", func(t *testing.T) {
@@ -572,6 +577,24 @@ func TestAdminFiltering(t *testing.T) {
 			t.Errorf("expected registry_count to be 1 (only Normal Agent), got %d", regCount)
 		}
 	})
+}
+
+func registerAdminTestIdentity(t *testing.T, store registry.Store, key *crypto.IdentityKeyPair) {
+	t.Helper()
+	peerID, err := key.PeerID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, x25519PK, err := crypto.GenerateX25519KeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestamp := time.Now().Unix()
+	signature := ed25519.Sign(key.PrivateKey, registry.BuildSignedMsg(key.URN(), peerID, x25519PK, false, timestamp))
+	if err := store.RegisterWithSignature(key.URN(), peerID, []string{"/ip4/127.0.0.1/tcp/123"}, nil,
+		x25519PK, key.PublicKey, signature, false, timestamp); err != nil {
+		t.Fatalf("register test identity: %v", err)
+	}
 }
 
 func signAdminTestEnvelope(t *testing.T, key *crypto.IdentityKeyPair, env *pb.EncryptedEnvelope) *pb.EncryptedEnvelope {

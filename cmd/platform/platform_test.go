@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 
 	golibp2p "github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	goproto "google.golang.org/protobuf/proto"
@@ -63,6 +65,67 @@ func readPrefixed(r io.Reader, msg goproto.Message) error {
 		return err
 	}
 	return goproto.Unmarshal(data, msg)
+}
+
+func TestRegisterPlatformIdentityOwnershipAndRenewal(t *testing.T) {
+	id, err := crypto.LoadOrCreateIdentity(filepath.Join(t.TempDir(), "keys"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(id.Ed25519.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := golibp2p.New(golibp2p.Identity(privateKey), golibp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	store, err := registrypkg.NewStore(filepath.Join(t.TempDir(), "registry.db"), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := registerPlatformIdentity(store, h, id, true); err != nil {
+		t.Fatalf("publish platform identity: %v", err)
+	}
+	first, err := store.ResolveEntry(id.Ed25519.URN())
+	if err != nil || first == nil {
+		t.Fatalf("resolve platform identity: entry=%v err=%v", first, err)
+	}
+	if err := registry.VerifyResolveResult(first.URN, &registry.ResolveResult{
+		AddrInfo: peer.AddrInfo{ID: h.ID()}, X25519PubKey: first.X25519Pubkey,
+		Ed25519PubKey: first.Ed25519Pubkey, Signature: first.Signature,
+		Timestamp: first.Timestamp, StoresUserData: first.StoresUserData,
+	}); err != nil {
+		t.Fatalf("published platform identity must be client-verifiable: %v", err)
+	}
+	// Cross the protocol's one-second timestamp granularity before changing policy.
+	time.Sleep(time.Until(time.Unix(first.Timestamp+1, 0)))
+	if err := registerPlatformIdentity(store, h, id, false); err != nil {
+		t.Fatalf("renew platform identity: %v", err)
+	}
+	renewed, err := store.ResolveEntry(id.Ed25519.URN())
+	if err != nil || renewed == nil {
+		t.Fatalf("resolve renewed identity: entry=%v err=%v", renewed, err)
+	}
+	if renewed.Timestamp <= first.Timestamp || renewed.ExpiresAt <= first.ExpiresAt || renewed.StoresUserData {
+		t.Fatalf("renewal must refresh proof, expiry and storage policy: first=%+v renewed=%+v", first, renewed)
+	}
+	if err := registry.VerifyResolveResult(renewed.URN, &registry.ResolveResult{
+		AddrInfo: peer.AddrInfo{ID: h.ID()}, X25519PubKey: renewed.X25519Pubkey,
+		Ed25519PubKey: renewed.Ed25519Pubkey, Signature: renewed.Signature,
+		Timestamp: renewed.Timestamp, StoresUserData: renewed.StoresUserData,
+	}); err != nil {
+		t.Fatalf("renewed platform identity must be client-verifiable: %v", err)
+	}
+	otherIdentity, err := crypto.LoadOrCreateIdentity(filepath.Join(t.TempDir(), "other_keys"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registerPlatformIdentity(store, h, otherIdentity, true); err == nil {
+		t.Fatal("self-registration must report a host/owner identity mismatch")
+	}
 }
 
 func TestPlatformFullIntegration(t *testing.T) {
@@ -119,8 +182,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	registry.NewServer(h, regStore).Register()
 
 	// Self-register
-	err = regStore.RegisterWithSignature(id.Ed25519.URN(), h.ID().String(), hostAddrs(h), nil,
-		id.X25519PK, id.Ed25519.PublicKey, nil, cfg.Platform.StoreUserData, 0)
+	err = registerPlatformIdentity(regStore, h, id, cfg.Platform.StoreUserData)
 	if err != nil {
 		t.Fatalf("self register: %v", err)
 	}
@@ -145,23 +207,46 @@ func TestPlatformFullIntegration(t *testing.T) {
 	}
 
 	// 6. HTTP API
+	// Ask the OS for an available port; arbitrary ports can be reserved on Windows.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.API.ListenAddr = listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
 	apiSrv := api.New(cfg, regStore, mqStore, h.ID().String(), h, "")
-
-	// We need to resolve the actual port bound to the HTTP server
-	// We can listen on a TCP port first to get a random port, close it, and bind the server,
-	// but api.Start binds internally. To get around this and find the port, we can listen ourselves and pass the listener,
-	// however api.Start does: `ln, err := net.Listen("tcp", s.srv.Addr)`.
-	// Since api.Start doesn't expose the listener or address easily, let's write a small helper or just start it on an actual port.
-	// Actually, we can listen on a free port ourselves, close it, and immediately use it. There is a tiny race condition but it is usually fine for testing.
-	// Let's find a free port:
-	freePort := 1024 + (time.Now().UnixNano() % 50000)
-	cfg.API.ListenAddr = fmt.Sprintf("127.0.0.1:%d", freePort)
-	apiSrv = api.New(cfg, regStore, mqStore, h.ID().String(), h, "")
-
+	if apiSrv.AuditLog != nil {
+		defer apiSrv.AuditLog.Close()
+	}
+	apiFinished := make(chan struct{})
+	var apiErr error
 	go func() {
-		apiSrv.Start(ctx)
+		apiErr = apiSrv.Start(ctx)
+		close(apiFinished)
 	}()
-	time.Sleep(100 * time.Millisecond) // Give HTTP server a moment to start
+	defer func() {
+		cancel()
+		<-apiFinished
+	}()
+	readyDeadline := time.Now().Add(5 * time.Second)
+	for {
+		select {
+		case <-apiFinished:
+			t.Fatalf("start HTTP API: %v", apiErr)
+		default:
+		}
+		conn, err := net.DialTimeout("tcp", cfg.API.ListenAddr, 100*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			break
+		}
+		if time.Now().After(readyDeadline) {
+			t.Fatalf("HTTP API did not start: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// 7. Setup Client Host
 	hCli, err := golibp2p.New(golibp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
@@ -206,13 +291,23 @@ func TestPlatformFullIntegration(t *testing.T) {
 	rawPrivate, _ := hCli.Peerstore().PrivKey(hCli.ID()).Raw()
 	clientKey := &crypto.IdentityKeyPair{PrivateKey: ed25519.PrivateKey(rawPrivate), PublicKey: ed25519.PrivateKey(rawPrivate).Public().(ed25519.PublicKey)}
 	clientURN := clientKey.URN()
+	_, clientX25519PK, err := crypto.GenerateX25519KeyPair()
+	if err != nil {
+		t.Fatalf("generate client X25519 key: %v", err)
+	}
+	registrationTimestamp := time.Now().Unix()
+	registrationSignature := ed25519.Sign(clientKey.PrivateKey, registry.BuildSignedMsg(
+		clientURN, hCli.ID().String(), clientX25519PK, false, registrationTimestamp))
 	reqReg := &pb.URNRegistryRequest{
 		Op: &pb.URNRegistryRequest_Register{
 			Register: &pb.RegisterRequest{
-				Urn:          clientURN,
-				PeerId:       hCli.ID().String(),
-				Addrs:        []string{"/ip4/127.0.0.1/tcp/9999"},
-				X25519Pubkey: []byte("client_x25519_pk_bytes_dummy_32b"),
+				Urn:           clientURN,
+				PeerId:        hCli.ID().String(),
+				Addrs:         []string{"/ip4/127.0.0.1/tcp/9999"},
+				X25519Pubkey:  clientX25519PK,
+				Ed25519Pubkey: clientKey.PublicKey,
+				Signature:     registrationSignature,
+				Timestamp:     registrationTimestamp,
 			},
 		},
 	}

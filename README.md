@@ -45,6 +45,8 @@ The platform consists of three main modules, all running within a single unified
 - Other agents can query the Registry to resolve a URN to an IP address and public key.
 - **Security:** Registrations are secured using Ed25519 cryptographic signatures to prevent impersonation. Records automatically expire (TTL) to ensure the directory stays fresh.
 
+Both first registration and updates require a self-certifying owner URN, a PeerID derived from that owner's Ed25519 key, and a fresh owner signature over `registry.BuildSignedMsg`. Unsigned registration APIs are disabled; migrate callers to `RegisterWithSignature` (the SDK HTTP client already signs registrations). Existing unsigned or ownership-invalid rows are excluded from registry results until the owner registers again with the original keys. The platform signs its own entry at startup and renews it before expiry. See the SDK's [registration migration details](agent-comm/README.md#registry-注册兼容性).
+
 ### 2. Circuit Relay (The Tunnel)
 **Problem:** Agent A and Agent B are both behind strict firewalls and cannot connect directly.
 **Solution:** The platform runs a `Circuit Relay v2` service.
