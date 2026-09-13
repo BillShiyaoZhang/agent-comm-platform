@@ -54,6 +54,7 @@ func VerifySignatureMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		r.Body = http.MaxBytesReader(w, r.Body, 20<<20)
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "bad request: failed to read body", http.StatusBadRequest)

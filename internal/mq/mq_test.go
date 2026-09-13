@@ -67,15 +67,16 @@ func TestMQStore(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	dbPath := filepath.Join(tempDir, "mq.db")
-	// Set MaxMsgsPerURN to 3 for eviction test
+	// Set MaxMsgsPerURN to 3 for backpressure test
 	store, err := NewStore(dbPath, 1, 3)
 	if err != nil {
 		t.Fatalf("NewStore error: %v", err)
 	}
 	defer store.Close()
 
-	ctx := context.Background()
-	urn := "urn:hermes:agent:recipient1"
+	kp, _ := crypto.GenerateIdentityKeyPair()
+	ctx := coremq.WithAuthenticatedPublicKey(context.Background(), kp.PublicKey)
+	urn := kp.URN()
 
 	env1 := &pb.EncryptedEnvelope{MessageId: "msg-1", Ciphertext: []byte("payload-1")}
 	env2 := &pb.EncryptedEnvelope{MessageId: "msg-2", Ciphertext: []byte("payload-2")}
@@ -83,7 +84,7 @@ func TestMQStore(t *testing.T) {
 	env4 := &pb.EncryptedEnvelope{MessageId: "msg-4", Ciphertext: []byte("payload-4")}
 
 	// 1. Store Envelope
-	id, err := store.StoreEnvelope(ctx, urn, env1, 0)
+	id, err := store.StoreEnvelope(ctx, urn, signTestEnvelope(t, kp, urn, env1), 0)
 	if err != nil {
 		t.Fatalf("StoreEnvelope error: %v", err)
 	}
@@ -103,12 +104,14 @@ func TestMQStore(t *testing.T) {
 		t.Errorf("expected 1 id msg-1, got %v", ids)
 	}
 
-	// 3. Quota Eviction (evicts msg-1 when msg-4 is added because max=3)
-	store.StoreEnvelope(ctx, urn, env2, 0)
+	// 3. A full queue rejects msg-4 and preserves every accepted message.
+	store.StoreEnvelope(ctx, urn, signTestEnvelope(t, kp, urn, env2), 0)
 	time.Sleep(10 * time.Millisecond) // Make sure stored_at is sequential
-	store.StoreEnvelope(ctx, urn, env3, 0)
+	store.StoreEnvelope(ctx, urn, signTestEnvelope(t, kp, urn, env3), 0)
 	time.Sleep(10 * time.Millisecond)
-	store.StoreEnvelope(ctx, urn, env4, 0)
+	if _, err := store.StoreEnvelope(ctx, urn, signTestEnvelope(t, kp, urn, env4), 0); err != ErrQueueFull {
+		t.Fatalf("expected queue full, got %v", err)
+	}
 
 	envs, _, err = store.RetrieveEntry(ctx, urn)
 	if err != nil {
@@ -117,15 +120,15 @@ func TestMQStore(t *testing.T) {
 	if len(envs) != 3 {
 		t.Fatalf("expected 3 envelopes, got %d", len(envs))
 	}
-	// msg-1 should be evicted, msg-2, msg-3, msg-4 should remain
+	// msg-1, msg-2 and msg-3 must remain.
 	for _, env := range envs {
-		if env.MessageId == "msg-1" {
-			t.Error("msg-1 should have been evicted")
+		if env.MessageId == "msg-4" {
+			t.Error("rejected msg-4 should not be present")
 		}
 	}
 
 	// 4. Acknowledgment (Ack)
-	deleted, err := store.Ack(ctx, []string{"msg-2", "msg-3"})
+	deleted, err := store.Ack(ctx, urn, []string{"msg-2", "msg-3"})
 	if err != nil {
 		t.Fatalf("Ack error: %v", err)
 	}
@@ -137,22 +140,22 @@ func TestMQStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Retrieve after ack error: %v", err)
 	}
-	if len(envs) != 1 || envs[0].MessageId != "msg-4" {
-		t.Errorf("expected only msg-4 to remain, got %+v", envs)
+	if len(envs) != 1 || envs[0].MessageId != "msg-1" {
+		t.Errorf("expected only msg-1 to remain, got %+v", envs)
 	}
 
 	// 5. Expiration
 	expiredEnv := &pb.EncryptedEnvelope{MessageId: "expired-msg", Ciphertext: []byte("expired")}
 	pastExpiry := time.Now().Unix() - 10
-	store.StoreEnvelope(ctx, urn, expiredEnv, pastExpiry)
+	store.StoreEnvelope(ctx, urn, signTestEnvelope(t, kp, urn, expiredEnv), pastExpiry)
 
 	envs, _, err = store.RetrieveEntry(ctx, urn)
 	if err != nil {
 		t.Fatalf("Retrieve with expired error: %v", err)
 	}
-	// Only msg-4 should be returned since expired-msg is expired
-	if len(envs) != 1 || envs[0].MessageId != "msg-4" {
-		t.Errorf("expected only msg-4, got %v", envs)
+	// Only msg-1 should be returned since expired-msg is expired
+	if len(envs) != 1 || envs[0].MessageId != "msg-1" {
+		t.Errorf("expected only msg-1, got %v", envs)
 	}
 }
 
@@ -200,12 +203,15 @@ func TestMQStreamServer(t *testing.T) {
 	}
 	defer streamStore.Close()
 
-	urn := "urn:hermes:agent:stream-recipient"
+	rawPrivate, _ := hCli.Peerstore().PrivKey(hCli.ID()).Raw()
+	kp := &crypto.IdentityKeyPair{PrivateKey: ed25519.PrivateKey(rawPrivate), PublicKey: ed25519.PrivateKey(rawPrivate).Public().(ed25519.PublicKey)}
+	urn := kp.URN()
 	env := &pb.EncryptedEnvelope{
 		MessageId:  "msg-stream-id",
 		Ciphertext: []byte("ciphertext bytes over stream"),
 	}
 
+	env = signTestEnvelope(t, kp, urn, env)
 	reqStore := &pb.MQRequest{
 		Op: &pb.MQRequest_Store{
 			Store: &pb.StoreRequest{
@@ -319,12 +325,14 @@ func TestMQHTTPHandlers(t *testing.T) {
 	kp := &crypto.IdentityKeyPair{PublicKey: senderPubKey, PrivateKey: senderPrivKey}
 	senderURN := kp.URN()
 
-	urn := "urn:hermes:agent:http-recipient"
+	recipientKey, _ := crypto.GenerateIdentityKeyPair()
+	urn := recipientKey.URN()
 	env := &pb.EncryptedEnvelope{
 		MessageId:  "msg-http-id",
 		Ciphertext: []byte("ciphertext bytes over http"),
 		SenderUrn:  senderURN,
 	}
+	env = signTestEnvelope(t, kp, urn, env)
 	envBytes, _ := goproto.Marshal(env)
 
 	// 1. POST /api/v1/mq/store
@@ -357,7 +365,7 @@ func TestMQHTTPHandlers(t *testing.T) {
 	}
 
 	// 2. GET /api/v1/mq/retrieve (With signature auth validation)
-	pubKey, privKey, _ := ed25519.GenerateKey(nil)
+	pubKey, privKey := recipientKey.PublicKey, recipientKey.PrivateKey
 	timestamp := time.Now().Unix()
 
 	// Generate valid signature over "mq-retrieve|<urn>|<timestamp 8 bytes big-endian>"
@@ -426,10 +434,13 @@ func TestMQHTTPHandlers(t *testing.T) {
 
 	// 4. POST /api/v1/mq/ack
 	ackReqObj := ackReq{
+		RecipientURN: urn, Timestamp: time.Now().Unix(),
 		MessageIDs: []string{"msg-http-id"},
 	}
 	bodyAckBytes, _ := json.Marshal(ackReqObj)
-	respAck, err := http.Post(srv.URL+"/api/v1/mq/ack", "application/json", strings.NewReader(string(bodyAckBytes)))
+	requestAck, _ := http.NewRequest("POST", srv.URL+"/api/v1/mq/ack", strings.NewReader(string(bodyAckBytes)))
+	requestAck.Header.Set("Authorization", "Ed25519 "+hex.EncodeToString(ed25519.Sign(privKey, bodyAckBytes))+":"+hex.EncodeToString(pubKey))
+	respAck, err := client.Do(requestAck)
 	if err != nil {
 		t.Fatalf("POST ack error: %v", err)
 	}
@@ -475,6 +486,7 @@ func TestMQStoragePolicy(t *testing.T) {
 		Ciphertext: []byte("ciphertext"),
 		SenderUrn:  senderURN,
 	}
+	env = signTestEnvelope(t, kp, urn, env)
 	envBytes, _ := goproto.Marshal(env)
 
 	storeReqObj := storeReq{
@@ -553,14 +565,15 @@ func TestMQHistoryAndRetention(t *testing.T) {
 	}
 	defer store.Close()
 
-	ctx := context.Background()
-	urn := "urn:hermes:agent:tester"
+	kp, _ := crypto.GenerateIdentityKeyPair()
+	ctx := coremq.WithAuthenticatedPublicKey(context.Background(), kp.PublicKey)
+	urn := kp.URN()
 
 	env1 := &pb.EncryptedEnvelope{MessageId: "msg-h1", Ciphertext: []byte("h1")}
 	env2 := &pb.EncryptedEnvelope{MessageId: "msg-h2", Ciphertext: []byte("h2")}
 
-	_, _ = store.StoreEnvelope(ctx, urn, env1, 0)
-	_, _ = store.StoreEnvelope(ctx, urn, env2, 0)
+	_, _ = store.StoreEnvelope(ctx, urn, signTestEnvelope(t, kp, urn, env1), 0)
+	_, _ = store.StoreEnvelope(ctx, urn, signTestEnvelope(t, kp, urn, env2), 0)
 
 	// 1. Check pending messages
 	pendings, err := store.ListMessagesDetail(ctx, urn, "pending")
@@ -572,7 +585,7 @@ func TestMQHistoryAndRetention(t *testing.T) {
 	}
 
 	// 2. Ack one message
-	_, err = store.Ack(ctx, []string{"msg-h1"})
+	_, err = store.Ack(ctx, urn, []string{"msg-h1"})
 	if err != nil {
 		t.Fatalf("Ack error: %v", err)
 	}
@@ -632,7 +645,7 @@ func TestMQHTTPSubscribe(t *testing.T) {
 	kp := &crypto.IdentityKeyPair{PublicKey: senderPubKey, PrivateKey: senderPrivKey}
 	senderURN := kp.URN()
 
-	urn := "urn:hermes:agent:subscribe-recipient"
+	urn := kp.URN()
 	timestamp := time.Now().Unix()
 
 	// Generate valid signature for subscribe auth (reusing mq-retrieve)
@@ -678,6 +691,7 @@ func TestMQHTTPSubscribe(t *testing.T) {
 			Ciphertext: []byte("pushed payload"),
 			SenderUrn:  senderURN,
 		}
+		env = signTestEnvelope(t, kp, urn, env)
 		envBytes, _ := goproto.Marshal(env)
 		storeReqObj := storeReq{
 			RecipientURN: urn,
@@ -709,5 +723,13 @@ func TestMQHTTPSubscribe(t *testing.T) {
 	}
 }
 
-
-
+func signTestEnvelope(t *testing.T, keys *crypto.IdentityKeyPair, recipientURN string, env *pb.EncryptedEnvelope) *pb.EncryptedEnvelope {
+	t.Helper()
+	env.SenderUrn, env.RecipientUrn = keys.URN(), recipientURN
+	env.SenderStaticPubkey, env.EphemeralPubkey = make([]byte, 32), make([]byte, 32)
+	env.Nonce, env.Tag = make([]byte, 12), make([]byte, 16)
+	if err := crypto.SignEnvelope(env, keys); err != nil {
+		t.Fatal(err)
+	}
+	return env
+}

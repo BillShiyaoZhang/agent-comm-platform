@@ -2,18 +2,21 @@
 package mq
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
-	proto "github.com/BillShiyaoZhang/agent-comm/proto"
+	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	"github.com/BillShiyaoZhang/agent-comm/mq"
+	proto "github.com/BillShiyaoZhang/agent-comm/proto"
 	goproto "google.golang.org/protobuf/proto"
 	_ "modernc.org/sqlite"
 )
@@ -33,16 +36,21 @@ CREATE INDEX IF NOT EXISTS idx_expiry    ON messages(expiry);
 // Store is the SQLite-backed MQ store.
 type Store struct {
 	db                   *sql.DB
+	done                 chan struct{}
+	closeOnce            sync.Once
 	defaultTTL           time.Duration
 	maxPerURN            int
 	historyRetentionDays int32
 
-	mu          sync.RWMutex
-	subscribers map[string][]chan *proto.EncryptedEnvelope
+	mu             sync.RWMutex
+	subscribers    map[string][]chan *proto.EncryptedEnvelope
+	storeAllowed   func() bool
+	forwardAllowed func(string) bool
 }
 
 var _ mq.Store = (*Store)(nil)
 
+var ErrQueueFull = errors.New("recipient mailbox is full; retry later")
 
 // NewStore opens (or creates) the MQ database.
 func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
@@ -50,6 +58,7 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open mq db: %w", err)
 	}
+	db.SetMaxOpenConns(1)
 	// Enable WAL journal mode and busy timeout to avoid database locks (SQLITE_BUSY) under concurrent loads
 	_, _ = db.Exec("PRAGMA journal_mode=WAL;")
 	_, _ = db.Exec("PRAGMA busy_timeout=5000;")
@@ -64,6 +73,7 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 
 	s := &Store{
 		db:                   db,
+		done:                 make(chan struct{}),
 		defaultTTL:           time.Duration(defaultTTLDays) * 24 * time.Hour,
 		maxPerURN:            maxPerURN,
 		historyRetentionDays: 30,
@@ -73,55 +83,96 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 	return s, nil
 }
 
-// StoreEnvelope saves an EncryptedEnvelope for a recipient. Enforces per-URN quota (FIFO eviction).
+// StoreEnvelope saves an EncryptedEnvelope for a recipient. Full queues reject
+// new messages so their senders can retain them in durable outboxes for retry.
 func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *proto.EncryptedEnvelope, expiryUnix int64) (string, error) {
-	msgID := env.GetMessageId()
-	if msgID == "" {
-		msgID = uuid.New().String()
-		env.MessageId = msgID
-	} else if env.MessageId == "" {
-		env.MessageId = msgID
+	s.mu.RLock()
+	storeAllowed, forwardAllowed := s.storeAllowed, s.forwardAllowed
+	s.mu.RUnlock()
+	if storeAllowed != nil && !storeAllowed() {
+		return "", fmt.Errorf("message queue storage is disabled")
 	}
-
+	if forwardAllowed != nil && !forwardAllowed(recipientURN) {
+		return "", fmt.Errorf("recipient blocked by storage policy")
+	}
+	if err := crypto.VerifyEnvelope(env, recipientURN); err != nil {
+		return "", err
+	}
+	if err := mq.AuthorizeRecipient(ctx, env.SenderUrn); err != nil {
+		return "", err
+	}
+	msgID := env.MessageId
 	if expiryUnix == 0 {
 		expiryUnix = time.Now().Add(s.defaultTTL).Unix()
 	}
-
 	payload, err := goproto.Marshal(env)
 	if err != nil {
 		return "", fmt.Errorf("marshal envelope: %w", err)
 	}
 
-	// Enforce per-URN quota: delete oldest if over limit
-	if s.maxPerURN > 0 {
-		if _, err := s.db.ExecContext(ctx, `
-			DELETE FROM messages WHERE id IN (
-			  SELECT id FROM messages WHERE recipient=? AND read_at=0 ORDER BY stored_at ASC
-			  LIMIT MAX(0, (SELECT COUNT(*) FROM messages WHERE recipient=? AND read_at=0) - ?)
-			)`, recipientURN, recipientURN, s.maxPerURN-1); err != nil {
-			log.Printf("[mq] quota eviction error: %v", err)
-		}
+	// Insert, duplicate detection, and quota checks are one atomic operation.
+	// A retry must not consume another slot or notify subscribers twice.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
 	}
-
-	_, err = s.db.ExecContext(ctx,
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx,
 		"INSERT OR IGNORE INTO messages (id, recipient, payload, expiry, stored_at) VALUES (?, ?, ?, ?, ?)",
 		msgID, recipientURN, payload, expiryUnix, time.Now().Unix())
 	if err != nil {
 		return "", fmt.Errorf("insert message: %w", err)
 	}
-
+	inserted, err := res.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if inserted == 0 {
+		var existingRecipient string
+		var existingPayload []byte
+		if err := tx.QueryRowContext(ctx, "SELECT recipient, payload FROM messages WHERE id=?", msgID).Scan(&existingRecipient, &existingPayload); err != nil {
+			return "", err
+		}
+		if existingRecipient != recipientURN || !bytes.Equal(existingPayload, payload) {
+			return "", fmt.Errorf("message ID conflict")
+		}
+		return msgID, nil
+	}
+	if s.maxPerURN > 0 {
+		var pending int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?)`, recipientURN, time.Now().Unix()).Scan(&pending); err != nil {
+			return "", fmt.Errorf("quota check: %w", err)
+		}
+		if pending > s.maxPerURN {
+			return "", ErrQueueFull
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
 	s.NotifySubscribers(recipientURN, env)
 	return msgID, nil
 }
 
+// SetStoragePolicy applies the same dynamic platform policy to HTTP and libp2p.
+func (s *Store) SetStoragePolicy(storeAllowed func() bool, forwardAllowed func(string) bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.storeAllowed, s.forwardAllowed = storeAllowed, forwardAllowed
+}
+
 // RegisterSubscriber adds a new subscriber channel for a URN.
-func (s *Store) RegisterSubscriber(urn string, ch chan *proto.EncryptedEnvelope) {
+func (s *Store) RegisterSubscriber(ctx context.Context, urn string, ch chan *proto.EncryptedEnvelope) error {
+	if err := mq.AuthorizeRecipient(ctx, urn); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.subscribers == nil {
 		s.subscribers = make(map[string][]chan *proto.EncryptedEnvelope)
 	}
 	s.subscribers[urn] = append(s.subscribers[urn], ch)
+	return nil
 }
 
 // UnregisterSubscriber removes a subscriber channel for a URN.
@@ -172,6 +223,9 @@ func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*proto.Enc
 
 // RetrieveEntry returns all pending envelopes and their database IDs for a recipient (oldest first).
 func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*proto.EncryptedEnvelope, []string, error) {
+	if err := mq.AuthorizeRecipient(ctx, recipientURN); err != nil {
+		return nil, nil, err
+	}
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT id, payload FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC",
 		recipientURN, time.Now().Unix())
@@ -199,24 +253,24 @@ func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*prot
 }
 
 // Ack updates read_at for the given message IDs, marking them as read history.
-func (s *Store) Ack(ctx context.Context, ids []string) (int, error) {
+func (s *Store) Ack(ctx context.Context, recipientURN string, ids []string) (int, error) {
+	if err := mq.AuthorizeRecipient(ctx, recipientURN); err != nil {
+		return 0, err
+	}
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	placeholders := "?" 
-	args := make([]interface{}, len(ids)+1)
-	args[0] = time.Now().Unix()
-	args[1] = ids[0]
-	for i := 1; i < len(ids); i++ {
-		placeholders += ",?"
-		args[i+1] = ids[i]
+	args := make([]interface{}, len(ids)+2)
+	args[0], args[1] = time.Now().Unix(), recipientURN
+	for i, id := range ids {
+		args[i+2] = id
 	}
-	res, err := s.db.ExecContext(ctx, "UPDATE messages SET read_at = ? WHERE id IN ("+placeholders+")", args...)
+	res, err := s.db.ExecContext(ctx, "UPDATE messages SET read_at=? WHERE recipient=? AND read_at=0 AND id IN (?"+strings.Repeat(",?", len(ids)-1)+")", args...)
 	if err != nil {
 		return 0, err
 	}
-	n, _ := res.RowsAffected()
-	return int(n), nil
+	n, err := res.RowsAffected()
+	return int(n), err
 }
 
 // QueueStat represents statistics about a recipient's message queue.
@@ -256,13 +310,13 @@ func (s *Store) ListQueueStats(ctx context.Context) ([]*QueueStat, error) {
 
 // MessageDetail represents details about a stored envelope.
 type MessageDetail struct {
-	ID        string `json:"id"`
-	Sender    string `json:"sender"`
-	Size      int    `json:"size"`
-	StoredAt  int64  `json:"stored_at"`
-	ReadAt    int64  `json:"read_at"`
-	Expiry    int64  `json:"expiry"`
-	Payload   string `json:"payload"` // hex encoded ciphertext
+	ID       string `json:"id"`
+	Sender   string `json:"sender"`
+	Size     int    `json:"size"`
+	StoredAt int64  `json:"stored_at"`
+	ReadAt   int64  `json:"read_at"`
+	Expiry   int64  `json:"expiry"`
+	Payload  string `json:"payload"` // hex encoded ciphertext
 }
 
 // ListMessagesDetail returns messages for a recipient, filtered by status ('pending' or 'history').
@@ -330,7 +384,7 @@ func (s *Store) PurgeQueue(ctx context.Context, recipient string) (int, error) {
 }
 
 // Close closes the database.
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error { s.closeOnce.Do(func() { close(s.done) }); return s.db.Close() }
 
 func (s *Store) SetHistoryRetentionDays(days int) {
 	atomic.StoreInt32(&s.historyRetentionDays, int32(days))
@@ -343,7 +397,12 @@ func (s *Store) GetHistoryRetentionDays() int {
 func (s *Store) cleanupLoop() {
 	tick := time.NewTicker(5 * time.Minute)
 	defer tick.Stop()
-	for range tick.C {
+	for {
+		select {
+		case <-s.done:
+			return
+		case <-tick.C:
+		}
 		now := time.Now().Unix()
 		// 1. Delete expired messages
 		if _, err := s.db.Exec("DELETE FROM messages WHERE expiry>0 AND expiry<?", now); err != nil {

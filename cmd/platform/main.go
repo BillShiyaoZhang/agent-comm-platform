@@ -102,6 +102,8 @@ func main() {
 		log.Fatalf("create mq store: %v", err)
 	}
 	defer mqStore.Close()
+	// Install shared storage policy before exposing the libp2p MQ handler.
+	apiSrv := api.New(cfg, regStore, mqStore, h.ID().String(), h, *cfgPath)
 	_, err = mq.NewServer(h, mqStore)
 	if err != nil {
 		log.Fatalf("create mq server: %v", err)
@@ -109,7 +111,6 @@ func main() {
 	log.Printf("MQ: %s", mq.ProtoID)
 
 	// ── HTTP API ─────────────────────────────────────────────────────────────
-	apiSrv := api.New(cfg, regStore, mqStore, h.ID().String(), h, *cfgPath)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {

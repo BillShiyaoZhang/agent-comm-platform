@@ -28,8 +28,8 @@ import (
 	relaypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/relay"
 	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	"github.com/BillShiyaoZhang/agent-comm/mq"
-	"github.com/BillShiyaoZhang/agent-comm/registry"
 	pb "github.com/BillShiyaoZhang/agent-comm/proto"
+	"github.com/BillShiyaoZhang/agent-comm/registry"
 )
 
 // Helper to write length-prefixed protocol data
@@ -146,7 +146,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 
 	// 6. HTTP API
 	apiSrv := api.New(cfg, regStore, mqStore, h.ID().String(), h, "")
-	
+
 	// We need to resolve the actual port bound to the HTTP server
 	// We can listen on a TCP port first to get a random port, close it, and bind the server,
 	// but api.Start binds internally. To get around this and find the port, we can listen ourselves and pass the listener,
@@ -203,7 +203,9 @@ func TestPlatformFullIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open reg stream: %v", err)
 	}
-	clientURN := "urn:hermes:agent:client-urn"
+	rawPrivate, _ := hCli.Peerstore().PrivKey(hCli.ID()).Raw()
+	clientKey := &crypto.IdentityKeyPair{PrivateKey: ed25519.PrivateKey(rawPrivate), PublicKey: ed25519.PrivateKey(rawPrivate).Public().(ed25519.PublicKey)}
+	clientURN := clientKey.URN()
 	reqReg := &pb.URNRegistryRequest{
 		Op: &pb.URNRegistryRequest_Register{
 			Register: &pb.RegisterRequest{
@@ -270,6 +272,12 @@ func TestPlatformFullIntegration(t *testing.T) {
 		Ciphertext: []byte("encrypted message"),
 	}
 
+	env.RecipientUrn = clientURN
+	env.SenderStaticPubkey, env.EphemeralPubkey = make([]byte, 32), make([]byte, 32)
+	env.Nonce, env.Tag = make([]byte, 12), make([]byte, 16)
+	if err := crypto.SignEnvelope(env, clientKey); err != nil {
+		t.Fatal(err)
+	}
 	reqStore := &pb.MQRequest{
 		Op: &pb.MQRequest_Store{
 			Store: &pb.StoreRequest{
@@ -287,7 +295,7 @@ func TestPlatformFullIntegration(t *testing.T) {
 	if err := readPrefixed(streamMQ, &respStore); err != nil {
 		t.Fatalf("read MQ store response: %v", err)
 	}
-	if !respStore.GetStore().Ok || respStore.GetStore().MessageId != "msg-id-123" {
+	if respStore.GetStore() == nil || !respStore.GetStore().Ok || respStore.GetStore().MessageId != "msg-id-123" {
 		t.Errorf("MQ store failed: %+v", respStore.GetStore())
 	}
 
@@ -347,13 +355,16 @@ func TestPlatformFullIntegration(t *testing.T) {
 	// --- VERIFICATION 5: HTTP MQ Retrieve with Auth ---
 	// Store one envelope first
 	env.MessageId = "msg-id-456"
-	_, err = mqStore.StoreEnvelope(ctx, clientURN, env, 0)
+	if err := crypto.SignEnvelope(env, clientKey); err != nil {
+		t.Fatal(err)
+	}
+	_, err = mqStore.StoreEnvelope(mq.WithAuthenticatedPublicKey(ctx, clientKey.PublicKey), clientURN, env, 0)
 	if err != nil {
 		t.Fatalf("store envelope: %v", err)
 	}
 
 	// Generate signature
-	pubKey, privKey, _ := ed25519.GenerateKey(nil)
+	pubKey, privKey := clientKey.PublicKey, clientKey.PrivateKey
 	timestamp := time.Now().Unix()
 	tsBuf := make([]byte, 8)
 	binary.BigEndian.PutUint64(tsBuf, uint64(timestamp))

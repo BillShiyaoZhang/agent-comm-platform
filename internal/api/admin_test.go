@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/BillShiyaoZhang/agent-comm/crypto"
+	coremq "github.com/BillShiyaoZhang/agent-comm/mq"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -159,12 +161,14 @@ func TestAdminAPIs(t *testing.T) {
 
 	t.Run("Authorized - MQ Queue Stats and Clear", func(t *testing.T) {
 		// Mock storing a message
-		recipient := "urn:hermes:agent:offline-recipient"
+		fixtureKey, _ := crypto.GenerateIdentityKeyPair()
+		fixtureCtx := coremq.WithAuthenticatedPublicKey(context.Background(), fixtureKey.PublicKey)
+		recipient := fixtureKey.URN()
 		env := &pb.EncryptedEnvelope{
 			MessageId:  "msg-1234",
 			Ciphertext: []byte("fake-payload"),
 		}
-		_, err = mqStore.StoreEnvelope(context.Background(), recipient, env, time.Now().Add(1*time.Hour).Unix())
+		_, err = mqStore.StoreEnvelope(fixtureCtx, recipient, signAdminTestEnvelope(t, fixtureKey, env), time.Now().Add(1*time.Hour).Unix())
 		if err != nil {
 			t.Fatalf("mock MQ message insert: %v", err)
 		}
@@ -385,7 +389,9 @@ func TestAdminAPIs(t *testing.T) {
 	})
 
 	t.Run("Authorized - MQ Messages Detail", func(t *testing.T) {
-		recipient := "urn:hermes:agent:detail-recipient"
+		fixtureKey, _ := crypto.GenerateIdentityKeyPair()
+		fixtureCtx := coremq.WithAuthenticatedPublicKey(context.Background(), fixtureKey.PublicKey)
+		recipient := fixtureKey.URN()
 		env1 := &pb.EncryptedEnvelope{
 			MessageId:  "msg-detail-pending",
 			Ciphertext: []byte("pending-payload"),
@@ -396,17 +402,17 @@ func TestAdminAPIs(t *testing.T) {
 		}
 
 		// Store pending
-		_, err := mqStore.StoreEnvelope(context.Background(), recipient, env1, time.Now().Add(1*time.Hour).Unix())
+		_, err := mqStore.StoreEnvelope(fixtureCtx, recipient, signAdminTestEnvelope(t, fixtureKey, env1), time.Now().Add(1*time.Hour).Unix())
 		if err != nil {
 			t.Fatalf("store pending error: %v", err)
 		}
 
 		// Store history (by storing and then ACK-ing it)
-		id2, err := mqStore.StoreEnvelope(context.Background(), recipient, env2, time.Now().Add(1*time.Hour).Unix())
+		id2, err := mqStore.StoreEnvelope(fixtureCtx, recipient, signAdminTestEnvelope(t, fixtureKey, env2), time.Now().Add(1*time.Hour).Unix())
 		if err != nil {
 			t.Fatalf("store history msg error: %v", err)
 		}
-		_, err = mqStore.Ack(context.Background(), []string{id2})
+		_, err = mqStore.Ack(fixtureCtx, recipient, []string{id2})
 		if err != nil {
 			t.Fatalf("ack msg error: %v", err)
 		}
@@ -568,3 +574,13 @@ func TestAdminFiltering(t *testing.T) {
 	})
 }
 
+func signAdminTestEnvelope(t *testing.T, key *crypto.IdentityKeyPair, env *pb.EncryptedEnvelope) *pb.EncryptedEnvelope {
+	t.Helper()
+	env.SenderUrn, env.RecipientUrn = key.URN(), key.URN()
+	env.SenderStaticPubkey, env.EphemeralPubkey = make([]byte, 32), make([]byte, 32)
+	env.Nonce, env.Tag = make([]byte, 12), make([]byte, 16)
+	if err := crypto.SignEnvelope(env, key); err != nil {
+		t.Fatal(err)
+	}
+	return env
+}

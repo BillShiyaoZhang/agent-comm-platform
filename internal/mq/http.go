@@ -5,13 +5,16 @@ import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
+	coremq "github.com/BillShiyaoZhang/agent-comm/mq"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/BillShiyaoZhang/agent-comm-platform/internal/auth"
 	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	proto "github.com/BillShiyaoZhang/agent-comm/proto"
-	"github.com/BillShiyaoZhang/agent-comm-platform/internal/auth"
 	goproto "google.golang.org/protobuf/proto"
 )
 
@@ -21,7 +24,7 @@ func HTTPHandler(store *Store, isStoreAllowed func() bool, isForwardAllowed func
 	mux.HandleFunc("POST /api/v1/mq/store", auth.VerifySignatureMiddleware(handleStore(store, isStoreAllowed, isForwardAllowed)))
 	mux.HandleFunc("GET /api/v1/mq/retrieve", handleRetrieve(store))
 	mux.HandleFunc("GET /api/v1/mq/subscribe", handleSubscribe(store))
-	mux.HandleFunc("POST /api/v1/mq/ack", handleAck(store))
+	mux.HandleFunc("POST /api/v1/mq/ack", auth.VerifySignatureMiddleware(handleAck(store)))
 	return mux
 }
 
@@ -72,15 +75,22 @@ func handleStore(store *Store, isStoreAllowed func() bool, isForwardAllowed func
 		}
 
 		// Derive URN and verify it matches the envelope's SenderUrn
-		kp := &crypto.IdentityKeyPair{PublicKey: ed25519.PublicKey(authPubkey)}
-		expectedURN := kp.URN()
-		if env.SenderUrn != expectedURN {
+		if !crypto.URNMatchesPublicKey(env.SenderUrn, authPubkey) {
 			http.Error(w, "store failed: sender URN mismatch with signing key", http.StatusUnauthorized)
 			return
 		}
 
-		id, err := store.StoreEnvelope(r.Context(), req.RecipientURN, &env, req.ExpiryUnix)
+		if err := crypto.VerifyEnvelope(&env, req.RecipientURN); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		id, err := store.StoreEnvelope(coremq.WithAuthenticatedPublicKey(r.Context(), authPubkey), req.RecipientURN, &env, req.ExpiryUnix)
 		if err != nil {
+			if errors.Is(err, ErrQueueFull) {
+				w.Header().Set("Retry-After", "5")
+				http.Error(w, err.Error(), http.StatusTooManyRequests)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -119,7 +129,8 @@ func handleRetrieve(store *Store) http.HandlerFunc {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		publicKey, _ := hexDecode(pubkeyHex)
+		ctx, cancel := context.WithTimeout(coremq.WithAuthenticatedPublicKey(r.Context(), publicKey), 10*time.Second)
 		defer cancel()
 
 		envs, ids, err := store.RetrieveEntry(ctx, urn)
@@ -146,7 +157,9 @@ func handleRetrieve(store *Store) http.HandlerFunc {
 }
 
 type ackReq struct {
-	MessageIDs []string `json:"message_ids"`
+	RecipientURN string   `json:"recipient_urn"`
+	Timestamp    int64    `json:"timestamp"`
+	MessageIDs   []string `json:"message_ids"`
 }
 
 func handleAck(store *Store) http.HandlerFunc {
@@ -156,7 +169,17 @@ func handleAck(store *Store) http.HandlerFunc {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		n, err := store.Ack(r.Context(), req.MessageIDs)
+		publicKey, err := auth.ExtractPubkeyFromAuth(r.Header.Get("Authorization"))
+		if err != nil || !crypto.URNMatchesPublicKey(req.RecipientURN, publicKey) {
+			http.Error(w, "ack failed: recipient does not match signing key", http.StatusUnauthorized)
+			return
+		}
+		if err := verifyTimestamp(req.Timestamp); err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		ctx := coremq.WithAuthenticatedPublicKey(r.Context(), publicKey)
+		n, err := store.Ack(ctx, req.RecipientURN, req.MessageIDs)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
@@ -167,18 +190,19 @@ func handleAck(store *Store) http.HandlerFunc {
 }
 
 func verifyRetrieveAuth(urn, tsStr, pubkeyHex, sigHex string) error {
-	var ts int64
-	if _, err := fmt.Sscanf(tsStr, "%d", &ts); err != nil {
+	ts, err := strconv.ParseInt(tsStr, 10, 64)
+	if err != nil {
 		return fmt.Errorf("invalid timestamp")
 	}
-	now := time.Now().Unix()
-	if now-ts > 300 || ts-now > 60 {
-		return fmt.Errorf("timestamp out of window")
+	if err := verifyTimestamp(ts); err != nil {
+		return err
 	}
-
 	pubkey, err := hexDecode(pubkeyHex)
 	if err != nil || len(pubkey) != ed25519.PublicKeySize {
 		return fmt.Errorf("invalid pubkey")
+	}
+	if !crypto.URNMatchesPublicKey(urn, pubkey) {
+		return fmt.Errorf("recipient URN mismatch with signing key")
 	}
 	sig, err := hexDecode(sigHex)
 	if err != nil {
@@ -191,6 +215,14 @@ func verifyRetrieveAuth(urn, tsStr, pubkeyHex, sigHex string) error {
 
 	if !ed25519.Verify(ed25519.PublicKey(pubkey), msg, sig) {
 		return fmt.Errorf("signature mismatch")
+	}
+	return nil
+}
+
+func verifyTimestamp(ts int64) error {
+	now := time.Now().Unix()
+	if ts < now-300 || ts > now+60 {
+		return fmt.Errorf("timestamp out of window")
 	}
 	return nil
 }
@@ -255,7 +287,11 @@ func handleSubscribe(store *Store) http.HandlerFunc {
 
 		// Create subscriber channel
 		ch := make(chan *proto.EncryptedEnvelope, 100)
-		store.RegisterSubscriber(urn, ch)
+		publicKey, _ := hexDecode(pubkeyHex)
+		if err := store.RegisterSubscriber(coremq.WithAuthenticatedPublicKey(r.Context(), publicKey), urn, ch); err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
 		defer store.UnregisterSubscriber(urn, ch)
 
 		// Create a flusher so we can push data immediately

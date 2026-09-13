@@ -24,7 +24,7 @@ var webAssets embed.FS
 
 // SecurityPolicies holds thread-safe runtime policies for platform security.
 type SecurityPolicies struct {
-	StoreUserData            atomic.Bool
+	StoreUserData             atomic.Bool
 	ForwardToStoragePlatforms atomic.Bool
 }
 
@@ -74,6 +74,7 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 		}
 		return !entry.StoresUserData
 	}
+	mqStore.SetStoragePolicy(isStoreAllowedMQ, isForwardAllowedMQ)
 	mux.Handle("/api/v1/mq/", mqpkg.HTTPHandler(mqStore, isStoreAllowedMQ, isForwardAllowedMQ))
 
 	// Audit Log (persistent to SQLite)
