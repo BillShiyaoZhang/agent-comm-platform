@@ -4,7 +4,7 @@
 
 ## 代码关系与构建
 
-Platform 复用 `agent-comm` 的身份、协议、Registry/MQ 服务接口和客户端实现，增加持久服务端存储、HTTP 接口、管理功能与公共网页。
+Platform 复用 `agent-comm` 的身份、协议、Registry/MQ 服务接口和客户端实现，增加持久服务端存储、HTTP 接口、管理功能与技术文档页面。产品官网由独立 Web 项目的 `site/` 目录维护，不编译进本服务。
 
 SDK 是本仓库的 Git 子模块；`go.mod` 中使用：
 
@@ -110,7 +110,7 @@ ACK 将消息标记为已确认，之后不再作为待收消息返回；并不�
 
 | 路径 | 用途 |
 | --- | --- |
-| `/` | 官网介绍页 |
+| `/` | 无产品首页路由；官网由 Web 的 `site/` 静态目录与部署层提供 |
 | `/healthz` | 进程健康检查 |
 | `/api/v1/bootstrap` | 平台 PeerID 与存储策略信息 |
 | `/api/v1/status` | 基础 Registry 计数 |

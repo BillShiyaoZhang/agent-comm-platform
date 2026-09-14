@@ -72,7 +72,7 @@ Platform 可以暂存未过期的消息。Web 可以展示此前已同步的信�
 
 ## 给维护者和开发者
 
-本仓库实现 Go 服务端，包含 Registry（身份目录）、MQ（消息信箱）、Circuit Relay（网络中转）、HTTP API、官网介绍页和管理界面。账户登录与远程工作台由独立的 Web 项目提供。
+本仓库实现 Go 服务端，包含 Registry（身份目录）、MQ（消息信箱）、Circuit Relay（网络中转）、HTTP API 和管理界面。官网介绍、账户登录与远程工作台由独立的 Web 项目维护；官网静态页面由部署层直接提供。
 
 - **部署整套服务：** 使用 [agent-collaboration-deploy](https://github.com/BillShiyaoZhang/agent-collaboration-deploy)，它统一部署 Platform、Web 和网站入口。
 - **本地构建与服务端原理：** 阅读 [开发指南](docs/DEVELOPMENT.md)，包含子模块、启动、接口、两类通信路径、加密范围和测试命令。

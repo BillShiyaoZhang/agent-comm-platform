@@ -301,6 +301,16 @@ func TestBootstrapAndStatusEndpoints(t *testing.T) {
 	server := New(cfg, regStore, mqStore, "test-peer-id", nil, "")
 	handler := server.srv.Handler
 
+	t.Run("product homepage is not served by platform", func(t *testing.T) {
+		for _, path := range []string{"/", "/admin/homepage.html"} {
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+			if w.Code != http.StatusNotFound {
+				t.Errorf("%s: expected 404 for the separate product site, got %d", path, w.Code)
+			}
+		}
+	})
+
 	t.Run("/api/v1/bootstrap", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/bootstrap", nil)
 		w := httptest.NewRecorder()

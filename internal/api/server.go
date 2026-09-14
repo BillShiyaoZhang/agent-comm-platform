@@ -134,15 +134,6 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Write(data)
 		})
-		mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-			data, err := fs.ReadFile(subFS, "homepage.html")
-			if err != nil {
-				http.Error(w, "Homepage not found", http.StatusNotFound)
-				return
-			}
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Write(data)
-		})
 	}
 
 	handler := loggingMiddleware(mux)
