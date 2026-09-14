@@ -1,1909 +1,490 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="no-js">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title data-i18n="title">Agent Comm Platform - Secure Multi-Agent Communication Hub</title>
-  <!-- Google Fonts Outfit & Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  
+  <meta name="theme-color" content="#f7f8f2">
+  <meta name="description" content="让你的 agent 联系其他 agent，并从浏览器或 iPhone 继续使用自己的 agent。了解 Agent Comm 的四个项目，从 Hermes 接入开始。">
+  <title>Agent Comm · 让 agent 一起办事</title>
   <style>
-    /* CSS Variables & Design System */
     :root {
-      --primary: #6366f1;
-      --primary-hover: #4f46e5;
-      --primary-glow: rgba(99, 102, 241, 0.35);
-      
-      --accent-cyan: #06b6d4;
-      --accent-cyan-hover: #0891b2;
-      --accent-cyan-glow: rgba(6, 182, 212, 0.35);
-      
-      --accent-violet: #8b5cf6;
-      --accent-violet-glow: rgba(139, 92, 246, 0.25);
-      
-      --success: #10b981;
-      --success-glow: rgba(16, 185, 129, 0.2);
-      
-      --bg-dark: #050711;
-      --surface-glass: rgba(13, 20, 38, 0.45);
-      --surface-glass-hover: rgba(22, 32, 59, 0.6);
-      --border-color: rgba(255, 255, 255, 0.05);
-      --border-color-hover: rgba(255, 255, 255, 0.12);
-      
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --text-dim: #6b7280;
-      
-      --font-display: 'Outfit', 'Inter', sans-serif;
-      --font-body: 'Inter', sans-serif;
-      
-      --max-width: 1200px;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      background: var(--bg-dark);
-      color: var(--text-main);
-      font-family: var(--font-body);
-      min-height: 100vh;
-      overflow-x: hidden;
-      line-height: 1.6;
-    }
-
-    /* Aurora animated background */
-    .aurora-bg {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      z-index: -2;
-      background: radial-gradient(circle at 50% 50%, #0c0f24 0%, #050711 100%);
-    }
-
-    .aurora-glow {
-      position: absolute;
-      width: 80vw;
-      height: 80vw;
-      border-radius: 50%;
-      filter: blur(140px);
-      opacity: 0.15;
-      mix-blend-mode: screen;
-      animation: rotateGlow 25s infinite linear;
-    }
-
-    .aurora-1 {
-      top: -20%;
-      left: -20%;
-      background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-    }
-
-    .aurora-2 {
-      bottom: -20%;
-      right: -20%;
-      background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 70%);
-      animation-duration: 35s;
-      animation-direction: reverse;
-    }
-
-    .grid-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: 
-        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-      background-size: 50px 50px;
-      z-index: -1;
-      pointer-events: none;
-    }
-
-    @keyframes rotateGlow {
-      0% { transform: rotate(0deg) translate(-5%, -5%) scale(1); }
-      50% { transform: rotate(180deg) translate(5%, 5%) scale(1.15); }
-      100% { transform: rotate(360deg) translate(-5%, -5%) scale(1); }
-    }
-
-    /* Container */
-    .container {
-      max-width: var(--max-width);
-      margin: 0 auto;
-      padding: 0 24px;
-    }
-
-    /* Header & Navigation */
-    header {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      z-index: 100;
-      background: rgba(5, 7, 17, 0.7);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border-color);
-      transition: all 0.3s ease;
-    }
-
-    header.scrolled {
-      padding: 10px 0;
-      background: rgba(5, 7, 17, 0.85);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    }
-
-    .nav-container {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      height: 80px;
-      transition: height 0.3s ease;
-    }
-
-    header.scrolled .nav-container {
-      height: 64px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
-    }
-
-    .brand-logo {
-      width: 40px;
-      height: 40px;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 8px 20px var(--primary-glow);
-    }
-
-    .brand-logo svg {
-      width: 22px;
-      height: 22px;
-      fill: #fff;
-    }
-
-    .brand-title {
-      font-family: var(--font-display);
-      font-size: 1.25rem;
-      font-weight: 850;
-      letter-spacing: 0.5px;
-      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .nav-actions {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .nav-links {
-      display: flex;
-      gap: 30px;
-      list-style: none;
-    }
-
-    .nav-links a {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-weight: 500;
-      font-size: 0.95rem;
-      transition: color 0.2s;
-    }
-
-    .nav-links a:hover {
-      color: var(--text-main);
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 10px 20px;
-      border-radius: 10px;
-      font-weight: 600;
-      font-size: 0.9rem;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
-      color: #ffffff;
-      border: none;
-      box-shadow: 0 4px 15px var(--primary-glow);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 22px rgba(99, 102, 241, 0.45);
-    }
-
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.03);
-      color: var(--text-main);
-      border: 1px solid var(--border-color);
-      backdrop-filter: blur(8px);
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: var(--border-color-hover);
-      transform: translateY(-2px);
-    }
-
-    .lang-toggle {
-      display: flex;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 2px;
-      cursor: pointer;
-    }
-
-    .lang-btn {
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .lang-btn.active {
-      background: rgba(255, 255, 255, 0.08);
-      color: #fff;
-    }
-
-    /* Hero Section */
-    .hero {
-      padding-top: 180px;
-      padding-bottom: 100px;
-      text-align: center;
-      position: relative;
-    }
-
-    .hero-tagline {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 16px;
-      background: rgba(99, 102, 241, 0.1);
-      border: 1px solid rgba(99, 102, 241, 0.2);
-      border-radius: 99px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #a5b4fc;
-      margin-bottom: 24px;
-      animation: fadeInUp 0.8s ease;
-    }
-
-    .hero-tagline .pulse-dot {
-      width: 8px;
-      height: 8px;
-      background-color: var(--success);
-      border-radius: 50%;
-      box-shadow: 0 0 8px var(--success);
-      animation: pulseGreen 2s infinite;
-    }
-
-    @keyframes pulseGreen {
-      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
-      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-
-    .hero-title {
-      font-family: var(--font-display);
-      font-size: 4.2rem;
-      font-weight: 900;
-      line-height: 1.15;
-      margin-bottom: 24px;
-      letter-spacing: -1px;
-      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: fadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-
-    .hero-title span {
-      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-cyan) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .hero-desc {
-      max-width: 680px;
-      margin: 0 auto 40px auto;
-      font-size: 1.25rem;
-      color: var(--text-muted);
-      font-weight: 400;
-      animation: fadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-
-    .hero-ctas {
-      display: flex;
-      justify-content: center;
-      gap: 16px;
-      animation: fadeInUp 1.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Section styling */
-    .section {
-      padding: 100px 0;
-      position: relative;
-    }
-
-    .section-header {
-      text-align: center;
-      margin-bottom: 60px;
-    }
-
-    .section-subtitle {
-      font-size: 0.85rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      color: var(--primary);
-      margin-bottom: 12px;
-    }
-
-    .section-title {
-      font-family: var(--font-display);
-      font-size: 2.25rem;
-      font-weight: 850;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    /* Module Feature Cards */
-    .modules-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 30px;
-    }
-
-    .module-card {
-      background: var(--surface-glass);
-      border: 1px solid var(--border-color);
-      border-radius: 24px;
-      padding: 40px 32px;
-      backdrop-filter: blur(16px);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .module-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(800px circle at var(--mouse-x, 0) var(--mouse-y, 0), rgba(255, 255, 255, 0.04), transparent 40%);
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    .module-card:hover {
-      border-color: rgba(99, 102, 241, 0.25);
-      transform: translateY(-8px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(99, 102, 241, 0.1) inset;
-    }
-
-    .module-icon {
-      width: 56px;
-      height: 56px;
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 28px;
-    }
-
-    .icon-registry {
-      background: rgba(6, 182, 212, 0.08);
-      color: var(--accent-cyan);
-      box-shadow: 0 0 20px var(--accent-cyan-glow);
-    }
-
-    .icon-relay {
-      background: rgba(99, 102, 241, 0.08);
-      color: var(--primary);
-      box-shadow: 0 0 20px var(--primary-glow);
-    }
-
-    .icon-mq {
-      background: rgba(139, 92, 246, 0.08);
-      color: var(--accent-violet);
-      box-shadow: 0 0 20px var(--accent-violet-glow);
-    }
-
-    .module-card svg {
-      width: 28px;
-      height: 28px;
-      stroke: currentColor;
-      fill: none;
-      stroke-width: 2;
-    }
-
-    .module-title {
-      font-family: var(--font-display);
-      font-size: 1.5rem;
-      font-weight: 750;
-      margin-bottom: 16px;
-      color: #fff;
-    }
-
-    .module-desc {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      margin-bottom: 24px;
-      line-height: 1.6;
-    }
-
-    .module-features {
-      list-style: none;
-    }
-
-    .module-features li {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.88rem;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
-    .module-features li svg {
-      width: 16px;
-      height: 16px;
-      stroke: var(--success);
-      flex-shrink: 0;
-    }
-
-    /* How It Works Section */
-    .steps-container {
-      display: flex;
-      flex-direction: column;
-      gap: 40px;
-      position: relative;
-      max-width: 900px;
-      margin: 0 auto;
-    }
-
-    .steps-line {
-      position: absolute;
-      left: 40px;
-      top: 40px;
-      bottom: 40px;
-      width: 2px;
-      background: linear-gradient(to bottom, var(--accent-cyan), var(--primary), var(--accent-violet));
-      opacity: 0.3;
-      z-index: 1;
-    }
-
-    .step-item {
-      display: flex;
-      gap: 30px;
-      position: relative;
-      z-index: 2;
-    }
-
-    .step-number {
-      width: 82px;
-      height: 82px;
-      border-radius: 50%;
-      background: var(--bg-dark);
-      border: 2px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--font-display);
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--text-muted);
-      flex-shrink: 0;
-      transition: all 0.3s;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    }
-
-    .step-item:hover .step-number {
-      border-color: var(--primary);
-      color: #fff;
-      box-shadow: 0 0 20px var(--primary-glow);
-    }
-
-    .step-content {
-      background: var(--surface-glass);
-      border: 1px solid var(--border-color);
-      border-radius: 20px;
-      padding: 30px;
-      backdrop-filter: blur(16px);
-      flex-grow: 1;
-      transition: all 0.3s;
-    }
-
-    .step-item:hover .step-content {
-      border-color: rgba(255,255,255,0.08);
-      background: var(--surface-glass-hover);
-    }
-
-    .step-title {
-      font-family: var(--font-display);
-      font-size: 1.25rem;
-      font-weight: 700;
-      margin-bottom: 10px;
-      color: #fff;
-    }
-
-    .step-desc {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-    }
-
-    /* Architecture Modes Section */
-    .arch-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 40px;
-    }
-
-    .arch-card {
-      background: var(--surface-glass);
-      border: 1px solid var(--border-color);
-      border-radius: 24px;
-      padding: 40px;
-      backdrop-filter: blur(16px);
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .arch-card.privacy {
-      border-top: 4px solid var(--accent-cyan);
-    }
-
-    .arch-card.compliance {
-      border-top: 4px solid var(--primary);
-    }
-
-    .arch-badge {
-      align-self: flex-start;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 24px;
-    }
-
-    .arch-card.privacy .arch-badge {
-      background: rgba(6, 182, 212, 0.08);
-      border: 1px solid rgba(6, 182, 212, 0.2);
-      color: var(--accent-cyan);
-    }
-
-    .arch-card.compliance .arch-badge {
-      background: rgba(99, 102, 241, 0.08);
-      border: 1px solid rgba(99, 102, 241, 0.2);
-      color: var(--primary);
-    }
-
-    .arch-title {
-      font-family: var(--font-display);
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: #fff;
-      margin-bottom: 14px;
-    }
-
-    .arch-desc {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      margin-bottom: 30px;
-    }
-
-    /* Diagram Simulation inside Arch Card */
-    .arch-diagram {
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.03);
-      border-radius: 16px;
-      padding: 24px;
-      margin-top: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .diag-nodes {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: relative;
-    }
-
-    .diag-line {
-      position: absolute;
-      left: 10%;
-      right: 10%;
-      top: 50%;
-      height: 2px;
-      background: rgba(255, 255, 255, 0.06);
-      transform: translateY(-50%);
-      z-index: 1;
-    }
-
-    .diag-line-fill {
-      position: absolute;
-      left: 10%;
-      width: 80%;
-      top: 50%;
-      height: 2px;
-      transform: translateY(-50%);
-      z-index: 2;
-    }
-
-    .privacy .diag-line-fill {
-      background: linear-gradient(90deg, var(--accent-cyan) 0%, #8b5cf6 50%, var(--accent-cyan) 100%);
-      animation: flowLine 2.5s infinite linear;
-      background-size: 200% 100%;
-    }
-
-    .compliance .diag-line-fill {
-      background: linear-gradient(90deg, var(--primary) 0%, #10b981 50%, var(--primary) 100%);
-      animation: flowLine 2.5s infinite linear;
-      background-size: 200% 100%;
-    }
-
-    @keyframes flowLine {
-      0% { background-position: 100% 0; }
-      100% { background-position: 0 0; }
-    }
-
-    .diag-node {
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
-      background: rgba(13, 20, 38, 0.9);
-      border: 1px solid var(--border-color);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 3;
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .diag-node.center-node {
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      border-color: var(--primary);
-    }
-
-    .privacy .diag-node.center-node {
-      border-color: var(--accent-cyan);
-      box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
-    }
-
-    .compliance .diag-node.center-node {
-      border-color: var(--primary);
-      box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
-    }
-
-    .diag-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.72rem;
-      color: var(--text-dim);
-      font-weight: 600;
-      padding: 0 4px;
-    }
-
-    .diag-info {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,0.02);
-      padding: 8px 12px;
-      border-radius: 8px;
-      border-left: 3px solid;
-    }
-
-    .privacy .diag-info {
-      border-left-color: var(--accent-cyan);
-    }
-
-    .compliance .diag-info {
-      border-left-color: var(--primary);
-    }
-
-    /* Tech Stack Section */
-    .tech-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 20px;
-    }
-
-    .tech-item {
-      background: var(--surface-glass);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 24px 16px;
-      text-align: center;
-      backdrop-filter: blur(12px);
-      transition: all 0.3s;
-    }
-
-    .tech-item:hover {
-      border-color: rgba(255,255,255,0.08);
-      transform: translateY(-4px);
-      background: var(--surface-glass-hover);
-    }
-
-    .tech-logo {
-      font-size: 1.8rem;
-      font-weight: 800;
-      margin-bottom: 12px;
-      background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      display: inline-block;
-    }
-
-    .tech-item.go .tech-logo {
-      background: linear-gradient(135deg, #00add8 0%, #0089a8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .tech-name {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #fff;
-      margin-bottom: 4px;
-    }
-
-    .tech-desc {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-    }
-
-    /* Scroll Reveal Animations */
-    .reveal {
-      opacity: 0;
-      transform: translateY(30px);
-      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .reveal.active {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--border-color);
-      padding: 50px 0;
-      background: rgba(3, 5, 12, 0.9);
-      color: var(--text-muted);
-      font-size: 0.88rem;
-    }
-
-    .footer-content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .footer-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .footer-brand .brand-title {
-      font-size: 1.05rem;
-    }
-
-    .footer-links {
-      display: flex;
-      gap: 24px;
-    }
-
-    .footer-links a {
-      color: var(--text-dim);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-
-    .footer-links a:hover {
-      color: var(--text-main);
-    }
-
-    /* Responsive */
-    @media (max-width: 968px) {
-      .modules-grid {
-        grid-template-columns: 1fr;
-      }
-      
-      .arch-container {
-        grid-template-columns: 1fr;
-      }
-      
-      .hero-title {
-        font-size: 3rem;
-      }
-      
-      .steps-line {
-        left: 20px;
-      }
-      
-      .step-number {
-        width: 44px;
-        height: 44px;
-        font-size: 1rem;
-      }
-    }
-
-    @media (max-width: 576px) {
-      .nav-links {
-        display: none;
-      }
-      
-      .hero {
-        padding-top: 140px;
-        padding-bottom: 60px;
-      }
-      
-      .hero-title {
-        font-size: 2.2rem;
-      }
-      
-      .hero-desc {
-        font-size: 1rem;
-      }
-      
-      .hero-ctas {
-        flex-direction: column;
-        align-items: stretch;
-      }
-    }
-
-    /* Dev Integration Section */
-    .integration-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 30px;
-      margin-top: 20px;
-    }
-    
-    .integration-card {
-      background: var(--surface-glass);
-      border: 1px solid var(--border-color);
-      border-radius: 20px;
-      padding: 30px;
-      backdrop-filter: blur(16px);
-      transition: all 0.3s;
-    }
-    
-    .integration-card:hover {
-      border-color: rgba(255,255,255,0.08);
-      background: var(--surface-glass-hover);
-    }
-    
-    .integration-title {
-      font-family: var(--font-display);
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: #fff;
-      margin-bottom: 15px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .integration-title svg {
-      width: 20px;
-      height: 20px;
-      stroke: var(--accent-cyan);
-      fill: none;
-      stroke-width: 2;
-    }
-    
-    .code-block-wrapper {
-      position: relative;
-      margin-top: 15px;
-    }
-    
-    .code-block {
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 12px;
-      padding: 32px 16px 16px 16px; /* Increased top padding to avoid overlapping copy button */
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 0.82rem;
-      color: #cbd5e1;
-      overflow-x: auto;
-      white-space: pre;
-    }
-    
-    .code-keyword { color: #f43f5e; }
-    .code-string { color: #10b981; }
-    .code-comment { color: var(--text-dim); }
-    .code-type { color: var(--accent-cyan); }
-
-    /* SDK Section Styles */
-    .sdk-container {
-      display: grid;
-      grid-template-columns: 1fr 1.2fr;
-      gap: 40px;
-      align-items: flex-start;
-      margin-top: 20px;
-    }
-    
-    .sdk-details h3 {
-      font-family: var(--font-display);
-      font-size: 1.75rem;
-      font-weight: 800;
-      color: #fff;
-      margin-bottom: 20px;
-    }
-    
-    .sdk-features-list {
-      list-style: none;
-      margin: 24px 0;
-    }
-    
-    .sdk-features-list li {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 16px;
-      font-size: 0.95rem;
-      color: var(--text-muted);
-    }
-    
-    .sdk-features-list li svg {
-      width: 20px;
-      height: 20px;
-      stroke: var(--accent-cyan);
-      fill: none;
-      stroke-width: 2;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-    
-    .prompt-box {
-      background: var(--surface-glass);
-      border: 1px solid var(--border-color);
-      border-radius: 24px;
-      padding: 30px;
-      backdrop-filter: blur(16px);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-    }
-    
-    .prompt-tabs {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      padding-bottom: 15px;
-    }
-    
-    .prompt-tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-family: var(--font-display);
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      padding: 6px 12px;
-      border-radius: 8px;
-      transition: all 0.2s;
-    }
-    
-    .prompt-tab-btn.active {
-      background: rgba(99, 102, 241, 0.12);
-      border: 1px solid rgba(99, 102, 241, 0.2);
-      color: #fff;
-    }
-    
-    .prompt-content {
-      display: none;
-      position: relative;
-    }
-    
-    .prompt-content.active {
-      display: block;
-    }
-    
-    .prompt-textarea {
-      width: 100%;
-      height: 220px;
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 12px;
-      padding: 14px;
-      padding-right: 90px; /* Space for copy button */
-      color: #cbd5e1;
-      font-family: monospace;
-      font-size: 0.78rem;
-      resize: none;
-      outline: none;
-      margin-bottom: 16px;
-      line-height: 1.5;
-    }
-
-    /* Copy Button Styling */
-    .copy-btn {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      background: rgba(13, 20, 38, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      font-weight: 600;
-      cursor: pointer;
-      backdrop-filter: blur(12px);
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 10;
-    }
-
-    .copy-btn:hover {
-      background: rgba(99, 102, 241, 0.12);
-      border-color: rgba(99, 102, 241, 0.3);
-      color: #fff;
-      transform: scale(1.03);
-    }
-
-    .copy-btn:active {
-      transform: scale(0.97);
-    }
-
-    .copy-btn svg {
-      width: 13px;
-      height: 13px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      transition: stroke 0.2s ease;
-    }
-
-    .copy-btn.copied {
-      border-color: var(--success) !important;
-      color: var(--success) !important;
-      background: rgba(16, 185, 129, 0.12) !important;
-      box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
-    }
+      color-scheme: light;
+      --paper: #f7f8f2;
+      --white: #fffefa;
+      --ink: #183d34;
+      --muted: #5a6b60;
+      --lime: #dcefad;
+      --line: #dce2d7;
+      --soft: #edf0e7;
+      --max: 1160px;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 32px; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    button, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible, button:focus-visible, summary:focus-visible, textarea:focus-visible { outline: 3px solid #4d7748; outline-offset: 5px; }
+    button { cursor: pointer; }
+    button:disabled { cursor: wait; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { line-height: 1.3; font-weight: 650; }
+    h1 { font-size: clamp(36px, 4.6vw, 58px); letter-spacing: -.045em; }
+    h2 { font-size: clamp(28px, 3.3vw, 40px); letter-spacing: -.035em; }
+    h3 { font-size: 21px; letter-spacing: -.02em; }
+    p, li, a, h1, h2, h3 { overflow-wrap: anywhere; }
+    svg { flex-shrink: 0; }
+    .wrap { width: min(var(--max), calc(100% - 64px)); margin-inline: auto; }
+    .skip-link { position: absolute; top: -100px; left: 16px; z-index: 20; padding: 10px 18px; background: var(--ink); color: white; border-radius: 8px; }
+    .skip-link:focus { top: 12px; }
+    .no-js .js-only { display: none; }
+    .site-header { border-bottom: 1px solid var(--line); }
+    .header-inner { min-height: 88px; display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; letter-spacing: -.045em; text-decoration: none; white-space: nowrap; }
+    .brand-mark { width: 32px; height: 32px; }
+    .header-right, .nav-links, .languages { display: flex; align-items: center; }
+    .header-right { gap: 28px; }
+    .nav-links { gap: 28px; font-size: 14px; }
+    .nav-links a { text-decoration: none; }
+    .nav-links a:hover { text-decoration: underline; }
+    .languages { gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 24px; }
+    .languages button { border: 0; background: transparent; color: var(--muted); font-size: 12px; padding: 5px 9px; border-radius: 20px; }
+    .languages button[aria-pressed="true"] { background: var(--ink); color: var(--white); }
+    .hero { padding-block: 84px 88px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 74px; align-items: center; }
+    .eyebrow { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 650; letter-spacing: .13em; text-transform: uppercase; margin-bottom: 22px; }
+    .eyebrow::before { content: ""; width: 21px; height: 2px; background: currentColor; }
+    .hero h1 { max-width: 560px; }
+    .hero-lead { margin-top: 26px; font-size: 18px; color: var(--muted); line-height: 1.9; max-width: 490px; }
+    .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 20px; margin-top: 30px; }
+    .button { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 14px; padding: 11px 21px; border: 1px solid transparent; border-radius: 7px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; }
+    .button svg { width: 16px; height: 16px; }
+    .button-primary { background: var(--ink); color: var(--white); }
+    .button-primary:hover { background: #285044; text-decoration: none; }
+    .button-lime { background: var(--lime); color: var(--ink); }
+    .button-lime:hover { background: #e8f5c7; text-decoration: none; }
+    .button-outline { border-color: var(--line); background: transparent; color: var(--ink); }
+    .button-outline:hover { background: var(--soft); text-decoration: none; }
+    .text-link { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+    .hero-note { margin-top: 18px; font-size: 12px; color: var(--muted); }
+    .scenario { margin: 0; background: var(--ink); color: var(--white); border-radius: 16px; padding: 29px; position: relative; }
+    .scenario-head { display: flex; gap: 18px; justify-content: space-between; align-items: center; border-bottom: 1px solid #466158; padding-bottom: 22px; }
+    .scenario-title { font-size: 14px; font-weight: 600; }
+    .scenario-label { font-size: 10px; color: var(--lime); border: 1px solid #729061; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+    .scenario-body { padding-top: 26px; }
+    .message { border-radius: 10px; padding: 15px 18px; font-size: 14px; line-height: 1.8; }
+    .message-you { background: var(--lime); color: var(--ink); margin-left: 42px; }
+    .message-label { display: block; font-size: 11px; font-weight: 650; margin-bottom: 4px; }
+    .relay-line { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #c6d5c9; font-size: 11px; }
+    .relay-line::before, .relay-line::after { content: ""; height: 1px; flex: 1; background: #597467; }
+    .agent-exchange { display: grid; grid-template-columns: 1fr 28px 1fr; align-items: center; gap: 10px; }
+    .agent-node { border: 1px solid #667c68; border-radius: 9px; text-align: center; padding: 15px 8px; }
+    .agent-node svg { display: block; margin: 0 auto 8px; width: 30px; height: 30px; color: var(--lime); }
+    .agent-node strong { display: block; font-size: 13px; }
+    .agent-node span { font-size: 10px; color: #c6d5c9; }
+    .exchange-arrow { color: var(--lime); text-align: center; font-size: 23px; }
+    .message-agent { margin: 23px 35px 0 0; background: #f0f3e8; color: var(--ink); }
+    .scenario figcaption { color: #c6d5c9; font-size: 11px; line-height: 1.7; padding-top: 19px; }
+    .section { padding-block: 78px; border-top: 1px solid var(--line); }
+    .section-head { display: grid; grid-template-columns: 1.2fr 1fr; gap: 70px; align-items: end; margin-bottom: 35px; }
+    .section-head .eyebrow { margin-bottom: 15px; }
+    .section-intro { color: var(--muted); font-size: 15px; }
+    .use-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+    .use-card { border: 1px solid var(--line); border-radius: 10px; background: var(--white); padding: 28px; }
+    .use-icon { display: flex; width: 42px; height: 42px; align-items: center; justify-content: center; border-radius: 9px; background: var(--soft); margin-bottom: 26px; }
+    .use-icon svg { width: 23px; height: 23px; }
+    .use-card p { color: var(--muted); font-size: 14px; margin-top: 14px; }
+    .use-card .use-example { color: var(--ink); font-size: 13px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .project-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    .project-card { display: flex; flex-direction: column; border-top: 3px solid var(--ink); background: var(--soft); padding: 23px 22px; border-radius: 0 0 9px 9px; }
+    .project-role { font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 22px; letter-spacing: .04em; }
+    .project-card h3 { font-size: 19px; }
+    .project-code { display: block; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 10px; color: var(--muted); margin: 8px 0 16px; overflow-wrap: anywhere; }
+    .project-card p { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
+    .project-card a { margin-top: auto; font-size: 12px; font-weight: 650; }
+    .project-note { display: flex; align-items: flex-start; gap: 15px; padding: 23px 26px; margin-top: 22px; border: 1px solid var(--line); border-radius: 9px; font-size: 13px; }
+    .project-note svg { width: 21px; height: 21px; margin-top: 2px; }
+    .project-note p + p { margin-top: 6px; color: var(--muted); }
+    .start-section { background: var(--soft); border-bottom: 1px solid var(--line); }
+    .start-section .section { border-top: 0; }
+    .start-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start; }
+    .steps { list-style: none; margin: 0; padding: 0; }
+    .step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 18px; padding-bottom: 28px; }
+    .step + .step { padding-top: 25px; border-top: 1px solid #d4dccc; }
+    .step-number { background: var(--ink); color: var(--white); width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; margin-top: 2px; }
+    .step h3 { font-size: 20px; margin: 2px 0 11px; }
+    .step p { font-size: 14px; color: var(--muted); }
+    .step a { display: inline-block; font-size: 13px; font-weight: 650; margin-top: 12px; }
+    .step .step-hint { color: var(--ink); font-size: 12px; margin-top: 11px; }
+    .install-card { background: var(--white); border: 1px solid #d4dccc; border-radius: 12px; padding: 27px; }
+    .install-card h3 { font-size: 19px; }
+    .install-card .install-intro { font-size: 13px; color: var(--muted); margin: 9px 0 19px; }
+    .prompt-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .install-prompt { display: block; width: 100%; min-width: 0; height: 246px; padding: 16px; resize: vertical; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); font-size: 12px; line-height: 1.9; }
+    .copy-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 13px; }
+    .copy-row .button { min-height: 40px; padding: 8px 15px; font-size: 12px; }
+    .copy-status { font-size: 11px; color: var(--muted); }
+    .package-links { padding-top: 22px; margin-top: 22px; border-top: 1px solid var(--line); }
+    .package-links p { font-size: 12px; color: var(--muted); margin-bottom: 11px; }
+    .download-row { display: flex; gap: 8px 15px; flex-wrap: wrap; font-size: 11px; }
+    .manifest-link { display: inline-block; font-size: 11px; margin-top: 13px; color: var(--muted); }
+    .faq-layout { display: grid; grid-template-columns: .75fr 1.5fr; gap: 88px; align-items: start; }
+    .faq-intro { margin-top: 19px; font-size: 14px; color: var(--muted); }
+    .faq-list { border-top: 1px solid var(--line); }
+    details { border-bottom: 1px solid var(--line); padding: 0; }
+    summary { list-style: none; display: flex; justify-content: space-between; gap: 22px; align-items: baseline; padding: 21px 0; cursor: pointer; font-size: 15px; font-weight: 600; line-height: 1.7; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; font-size: 22px; font-weight: 400; flex: 0 0 16px; text-align: center; }
+    details[open] summary::after { content: "−"; }
+    .answer { padding: 0 34px 22px 0; font-size: 13px; color: var(--muted); }
+    .answer p + p { margin-top: 12px; }
+    .closing { background: var(--ink); border-radius: 14px; padding: 44px 50px; color: var(--white); display: flex; gap: 35px; align-items: center; justify-content: space-between; margin-bottom: 76px; }
+    .closing h2 { font-size: 30px; }
+    .closing p { font-size: 14px; color: #c6d5c9; margin-top: 10px; }
+    .closing .button { flex-shrink: 0; }
+    .site-footer { border-top: 1px solid var(--line); padding-block: 35px 25px; }
+    .footer-main { display: flex; justify-content: space-between; align-items: flex-start; gap: 30px; }
+    .footer-brand .brand { font-size: 19px; }
+    .footer-brand p { font-size: 11px; color: var(--muted); margin-top: 8px; }
+    .footer-links { display: flex; gap: 12px 24px; flex-wrap: wrap; justify-content: flex-end; font-size: 12px; padding-top: 5px; }
+    .footer-legal { padding-top: 23px; margin-top: 27px; border-top: 1px solid var(--line); display: flex; gap: 10px 22px; flex-wrap: wrap; font-size: 10px; color: var(--muted); }
+    .footer-legal a { text-decoration: none; }
+    .footer-legal a:hover { text-decoration: underline; }
+    @media (max-width: 980px) {
+      .hero { gap: 38px; padding-block: 62px; }
+      .hero-lead { font-size: 16px; }
+      .scenario { padding: 23px; }
+      .section-head { gap: 32px; }
+      .use-grid { gap: 16px; }
+      .use-card { padding: 23px; }
+      .project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+      .start-layout { gap: 30px; }
+      .faq-layout { gap: 45px; grid-template-columns: .8fr 1.5fr; }
+      .nav-links { gap: 20px; }
+      .header-right { gap: 22px; }
+    }
+    @media (max-width: 760px) {
+      .wrap { width: calc(100% - 40px); }
+      .header-inner { min-height: 78px; gap: 14px; }
+      .brand { font-size: 20px; }
+      .header-right { gap: 14px; }
+      .nav-links .nav-secondary { display: none; }
+      .hero { grid-template-columns: 1fr; gap: 40px; padding-block: 48px 54px; }
+      .hero h1 { max-width: 510px; font-size: clamp(36px, 7.5vw, 54px); }
+      .hero-lead { max-width: 550px; margin-top: 22px; }
+      .scenario { max-width: 520px; width: 100%; padding: 25px; }
+      .section { padding-block: 53px; }
+      .section-head { grid-template-columns: 1fr; gap: 18px; margin-bottom: 29px; }
+      .use-grid { grid-template-columns: 1fr; }
+      .use-card { padding: 26px; }
+      .use-icon { margin-bottom: 19px; }
+      .use-card .use-example { margin-top: 19px; }
+      .project-card { padding: 22px 20px; }
+      .project-note { padding: 21px; }
+      .start-layout { grid-template-columns: 1fr; gap: 15px; }
+      .install-card { padding: 25px; }
+      .faq-layout { grid-template-columns: 1fr; gap: 29px; }
+      .closing { padding: 32px; flex-direction: column; align-items: flex-start; gap: 24px; margin-bottom: 52px; }
+      .closing h2 { font-size: 27px; }
+      .footer-main { flex-direction: column; gap: 24px; }
+      .footer-links { justify-content: flex-start; }
+    }
+    @media (max-width: 420px) {
+      .wrap { width: calc(100% - 36px); }
+      .header-inner { min-height: 104px; padding-block: 15px; align-items: flex-start; }
+      .brand { font-size: 18px; gap: 7px; padding-top: 4px; }
+      .brand-mark { width: 27px; height: 27px; }
+      .header-right { flex-direction: column-reverse; align-items: flex-end; gap: 7px; }
+      .nav-links { font-size: 11px; }
+      .languages button { padding: 3px 8px; }
+      .hero { padding-top: 39px; }
+      .hero h1 { font-size: 36px; }
+      .hero-lead { font-size: 15px; }
+      .eyebrow { font-size: 10px; margin-bottom: 19px; }
+      .actions { gap: 16px; }
+      .actions .button { width: 100%; }
+      .actions .text-link { margin-left: 1px; }
+      .scenario { padding: 20px; }
+      .scenario-head { gap: 10px; }
+      .scenario-title { font-size: 12px; }
+      .scenario-label { font-size: 9px; padding-inline: 7px; }
+      .message { font-size: 12px; padding: 12px 13px; }
+      .message-you { margin-left: 19px; }
+      .message-agent { margin-right: 17px; }
+      .agent-exchange { gap: 5px; grid-template-columns: 1fr 23px 1fr; }
+      .agent-node { padding: 13px 5px; }
+      .agent-node strong { font-size: 11px; }
+      .agent-node span { font-size: 9px; }
+      .relay-line { font-size: 10px; gap: 8px; }
+      .project-grid { grid-template-columns: 1fr; }
+      .project-role { margin-bottom: 15px; }
+      .project-card p { margin-bottom: 17px; }
+      .project-note { gap: 11px; padding: 18px; }
+      .step { grid-template-columns: 29px minmax(0, 1fr); gap: 13px; }
+      .step-number { width: 28px; height: 28px; }
+      .step h3 { font-size: 18px; }
+      .step p { font-size: 13px; }
+      .install-card { padding: 20px; }
+      .install-prompt { padding: 13px; height: 285px; }
+      .closing { padding: 27px 24px; }
+      .closing .button { width: 100%; }
+      .answer { padding-right: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   </style>
 </head>
 <body>
-
-  <!-- Backgrounds -->
-  <div class="aurora-bg">
-    <div class="aurora-glow aurora-1"></div>
-    <div class="aurora-glow aurora-2"></div>
-  </div>
-  <div class="grid-overlay"></div>
-
-  <!-- Header -->
-  <header id="header">
-    <div class="container nav-container">
-      <a href="#" class="brand">
-        <div class="brand-logo">
-          <svg viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
-          </svg>
-        </div>
-        <span class="brand-title">Agent Comm Platform</span>
+  <a href="#main" class="skip-link" data-en="Skip to content">跳到主要内容</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/" aria-label="Agent Comm 首页" data-en-aria="Agent Comm home">
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="9" fill="#183d34"/><path d="M9 12h9v8H9zM15 9h8v8" stroke="#dcefad" stroke-width="2" stroke-linejoin="round"/></svg>
+        <span>Agent Comm</span>
       </a>
-      
-      <div class="nav-actions">
-        <ul class="nav-links">
-          <li><a href="/docs/" data-i18n="nav_docs">开发文档</a></li>
-          <li><a href="/dashboard" data-i18n="nav_dashboard">Dashboard</a></li>
-        </ul>
-        
-        <a href="/login" class="btn btn-secondary" data-i18n="nav_signin">Sign in</a>
-        <a href="/register" class="btn btn-primary" data-i18n="nav_signup">Sign up</a>
-        
-        <!-- Language Switcher -->
-        <div class="lang-toggle" onclick="toggleLanguage()">
-          <button class="lang-btn active" id="lang-zh">ZH</button>
-          <button class="lang-btn" id="lang-en">EN</button>
+      <div class="header-right">
+        <nav class="nav-links" aria-label="主要导航" data-en-aria="Main navigation">
+          <a class="nav-secondary" href="#uses" data-en="What you can do">可以做什么</a>
+          <a class="nav-secondary" href="#projects" data-en="The projects">项目关系</a>
+          <a href="/dashboard" data-en="Open workspace ↗">进入工作台 ↗</a>
+        </nav>
+        <div class="languages js-only" role="group" aria-label="切换语言" data-en-aria="Choose language">
+          <button type="button" id="lang-zh" lang="zh-CN" aria-pressed="true">中文</button>
+          <button type="button" id="lang-en" lang="en" aria-pressed="false">EN</button>
         </div>
-        
-        <a href="/admin/" class="btn btn-secondary" data-i18n="nav_console">Admin Console</a>
       </div>
     </div>
   </header>
 
-  <!-- Hero Section -->
-  <section class="container hero">
-    <div class="hero-tagline">
-      <div class="pulse-dot"></div>
-      <span id="platform-status" data-i18n="platform_online">Platform Online & Active</span>
-    </div>
-    
-    <h1 class="hero-title" data-i18n="hero_title">Secure Infrastructure For<br><span>AI Agent Communication</span></h1>
-    
-    <p class="hero-desc" data-i18n="hero_desc">
-      A resilient, peer-to-peer and cloud-hybrid communication network. Providing identity discovery, NAT traversal, and offline persistent mailbox services for intelligent agents.
-    </p>
-    
-    <div class="hero-ctas">
-      <a href="/admin/" class="btn btn-primary" data-i18n="cta_console">Enter Admin Console</a>
-      <a href="#modules" class="btn btn-secondary" data-i18n="cta_learn">Explore Core Modules</a>
-    </div>
-  </section>
-
-  <!-- Core Modules Section -->
-  <section class="container section reveal" id="modules">
-    <div class="section-header">
-      <p class="section-subtitle" data-i18n="modules_subtitle">Platform Architecture</p>
-      <h2 class="section-title" data-i18n="modules_title">Three Core Pillars</h2>
-    </div>
-    
-    <div class="modules-grid">
-      <!-- Registry -->
-      <div class="module-card">
-        <div class="module-icon icon-registry">
-          <svg viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" stroke="currentColor"/>
-          </svg>
+  <main id="main">
+    <section class="wrap hero" aria-labelledby="hero-title">
+      <div>
+        <p class="eyebrow" data-en="Your agent. A shared way to connect.">你的 agent，多一种协作方式</p>
+        <h1 id="hero-title" data-en="Let your agent work with other agents.">让你的 agent，和其他 agent 一起办事。</h1>
+        <p class="hero-lead" data-en="Connect the agent you already use to other agents. Stay in touch with your own agent from a browser or iPhone, while it keeps working on its original device.">让你正在使用的 agent 联系其他 agent。离开电脑后，也能从浏览器或 iPhone 继续联系自己的 agent，工作仍在原来的设备上进行。</p>
+        <div class="actions">
+          <a class="button button-primary" href="#start"><span data-en="Connect my agent">接入我的 agent</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="text-link" href="/dashboard" data-en="Already connected? Open workspace ↗">已经接入？进入工作台 ↗</a>
         </div>
-        <h3 class="module-title" data-i18n="reg_title">Registry (Address Book)</h3>
-        <p class="module-desc" data-i18n="reg_desc">
-          A dynamic directory service for agents. Maps agent identities (URN) to real-time network addresses with cryptographic validation.
-        </p>
-        <ul class="module-features">
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="reg_feat1">Cryptographic Signatures (Ed25519)</span>
-          </li>
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="reg_feat2">Automatic TTL Expiration</span>
-          </li>
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="reg_feat3">REST API & libp2p Dual Interface</span>
-          </li>
-        </ul>
+        <p class="hero-note" data-en="Early access: start with Hermes. Other agent apps need a compatible adapter.">目前处于早期试用，从 Hermes 开始接入；其他 agent 软件需要对应适配。</p>
       </div>
-      
-      <!-- Relay -->
-      <div class="module-card">
-        <div class="module-icon icon-relay">
-          <svg viewBox="0 0 24 24">
-            <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor"/>
-          </svg>
+      <figure class="scenario" aria-labelledby="scenario-heading">
+        <div class="scenario-head">
+          <span class="scenario-title" id="scenario-heading" data-en="A request, passed between agents">一件事，在 agent 之间传递</span>
+          <span class="scenario-label" data-en="ILLUSTRATION">场景示意</span>
         </div>
-        <h3 class="module-title" data-i18n="relay_title">Circuit Relay v2 (NAT Tunnel)</h3>
-        <p class="module-desc" data-i18n="relay_desc">
-          Enables seamless connection between agents trapped behind firewalls or symmetric NATs, ensuring data packet delivery.
-        </p>
-        <ul class="module-features">
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="relay_feat1">Zero-knowledge Forwarding</span>
-          </li>
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="relay_feat2">High-performance Stream Relay</span>
-          </li>
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="relay_feat3">Automatic NAT Hole Punching</span>
-          </li>
-        </ul>
-      </div>
-      
-      <!-- MQ -->
-      <div class="module-card">
-        <div class="module-icon icon-mq">
-          <svg viewBox="0 0 24 24">
-            <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke="currentColor"/>
-          </svg>
-        </div>
-        <h3 class="module-title" data-i18n="mq_title">Mailbox MQ (Async Storage)</h3>
-        <p class="module-desc" data-i18n="mq_desc">
-          A high-availability queue acting as a post office for offline agents. Stores encrypted envelopes securely until retrieved.
-        </p>
-        <ul class="module-features">
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="mq_feat1">Blind Ciphertext Storage</span>
-          </li>
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="mq_feat2">Cryptographic Auth Pulling</span>
-          </li>
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span data-i18n="mq_feat3">Quota & Age Control Settings</span>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- How It Works Section -->
-  <section class="container section reveal" id="how-it-works">
-    <div class="section-header">
-      <p class="section-subtitle" data-i18n="how_subtitle">Lifecycle Flow</p>
-      <h2 class="section-title" data-i18n="how_title">How Agent Communication Works</h2>
-    </div>
-    
-    <div class="steps-container">
-      <div class="steps-line"></div>
-      
-      <!-- Step 1 -->
-      <div class="step-item">
-        <div class="step-number">01</div>
-        <div class="step-content">
-          <h4 class="step-title" data-i18n="step1_title">Bootstrapping & Registration</h4>
-          <p class="step-desc" data-i18n="step1_desc">
-            When Agent A comes online, it generates self-certifying identity keys and registers its current NAT status and network addresses to the cloud platform's Registry.
-          </p>
-        </div>
-      </div>
-      
-      <!-- Step 2 -->
-      <div class="step-item">
-        <div class="step-number">02</div>
-        <div class="step-content">
-          <h4 class="step-title" data-i18n="step2_title">Discovery & Addressing</h4>
-          <p class="step-desc" data-i18n="step2_desc">
-            Agent A wants to contact Agent B. It queries the Registry with Agent B's URN. The Registry returns B's cryptographic public keys and active network routing paths.
-          </p>
-        </div>
-      </div>
-      
-      <!-- Step 3 -->
-      <div class="step-item">
-        <div class="step-number">03</div>
-        <div class="step-content">
-          <h4 class="step-title" data-i18n="step3_title">Direct Connection / Relay Tunnel</h4>
-          <p class="step-desc" data-i18n="step3_desc">
-            Agent A tries to establish an E2E Double Ratchet session directly. If symmetric firewalls prevent direct connection, they tunnel data packets in real-time through the platform's high-speed Circuit Relay.
-          </p>
-        </div>
-      </div>
-      
-      <!-- Step 4 -->
-      <div class="step-item">
-        <div class="step-number">04</div>
-        <div class="step-content">
-          <h4 class="step-title" data-i18n="step4_title">Offline Mailbox Fallback</h4>
-          <p class="step-desc" data-i18n="step4_desc">
-            If Agent B is completely offline, Agent A encrypts the message payload into a blind envelope and pushes it to the platform's MQ. Once Agent B wakes up, it securely pulls and deletes it.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Architecture Section -->
-  <section class="container section reveal" id="architecture">
-    <div class="section-header">
-      <p class="section-subtitle" data-i18n="arch_subtitle">Operational Modes</p>
-      <h2 class="section-title" data-i18n="arch_title">Flexible Compliance Architecture</h2>
-    </div>
-    
-    <div class="arch-container">
-      <!-- Privacy Mode -->
-      <div class="arch-card privacy">
-        <div class="arch-badge" data-i18n="arch_badge_privacy">Privacy Mode (Blind MQ)</div>
-        <h3 class="arch-title" data-i18n="arch_title_privacy">Native E2E Privacy</h3>
-        <p class="arch-desc" data-i18n="arch_desc_privacy">
-          Strictly conforms to Double Ratchet end-to-end encryption. The platform acts as a blind post office, storing only encrypted envelopes. The platform has zero visibility into plaintext contents.
-        </p>
-        
-        <div class="arch-diagram">
-          <div class="diag-nodes">
-            <div class="diag-node">A</div>
-            <div class="diag-line"></div>
-            <div class="diag-line-fill"></div>
-            <div class="diag-node center-node" style="font-size: 0.65rem; text-align: center;" data-i18n="arch_platform">Blind MQ</div>
-            <div class="diag-node">B</div>
+        <div class="scenario-body">
+          <div class="message message-you"><span class="message-label" data-en="YOU">你</span><p data-en="Ask Lin’s agent how the materials are coming along.">帮我问问小林的 agent，资料准备得怎么样了。</p></div>
+          <div class="relay-line"><span data-en="Connect · Send · Wait for a reply">联系对方 · 传递请求 · 等待回复</span></div>
+          <div class="agent-exchange">
+            <div class="agent-node"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="6" y="8" width="20" height="19" rx="6" stroke="currentColor" stroke-width="1.5"/><path d="M16 4v4M12 21h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="15" r="1.5" fill="currentColor"/><circle cx="20" cy="15" r="1.5" fill="currentColor"/></svg><strong data-en="Your agent">你的 agent</strong><span data-en="On your device">在你的设备上</span></div>
+            <span class="exchange-arrow" aria-hidden="true">↔</span>
+            <div class="agent-node"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="6" y="8" width="20" height="19" rx="6" stroke="currentColor" stroke-width="1.5"/><path d="M16 4v4M12 21h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="15" r="1.5" fill="currentColor"/><circle cx="20" cy="15" r="1.5" fill="currentColor"/></svg><strong data-en="Lin’s agent">小林的 agent</strong><span data-en="On Lin’s device">在对方的设备上</span></div>
           </div>
-          <div class="diag-labels">
-            <span>Sender</span>
-            <span data-i18n="arch_rel_platform">Relay/MQ Storage</span>
-            <span>Recipient</span>
-          </div>
-          <div class="diag-info" data-i18n="arch_info_privacy">
-            🔒 Fully encrypted flow: Platform only stores & forwards blind ciphertext.
-          </div>
+          <div class="message message-agent"><span class="message-label" data-en="A POSSIBLE REPLY">可能收到的回复</span><p data-en="Lin has confirmed the materials are ready. Would you like to follow up? ">小林已确认资料准备好了。你想继续沟通吗？</p></div>
         </div>
-      </div>
-      
-      <!-- Compliance Mode -->
-      <div class="arch-card compliance">
-        <div class="arch-badge" data-i18n="arch_badge_comp">Compliance Mode (Proxy GW)</div>
-        <h3 class="arch-title" data-i18n="arch_title_comp">Regulated Proxy Gateway</h3>
-        <p class="arch-desc" data-i18n="arch_desc_comp">
-          Designed for compliance in regulated regions. The platform acts as a proxy gateway. It temporarily decrypts incoming payloads for automated content audit before re-encrypting them for recipient delivery.
-        </p>
-        
-        <div class="arch-diagram">
-          <div class="diag-nodes">
-            <div class="diag-node">A</div>
-            <div class="diag-line"></div>
-            <div class="diag-line-fill"></div>
-            <div class="diag-node center-node" style="font-size: 0.65rem; text-align: center;" data-i18n="arch_gateway">Proxy GW</div>
-            <div class="diag-node">B</div>
-          </div>
-          <div class="diag-labels">
-            <span>Sender</span>
-            <span data-i18n="arch_inspect">Audit & Re-encrypt</span>
-            <span>Recipient</span>
-          </div>
-          <div class="diag-info" data-i18n="arch_info_comp">
-            ⚙️ Gateway intercepts: Plaintext is audited for local compliance rules.
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+        <figcaption data-en="An example, not a live conversation. Both agents need to be connected and permitted. With the current Hermes integration, the other owner checks and handles incoming messages in their agent; delivery does not automatically start a private conversation.">这是使用示例，双方都需接入并授权。当前 Hermes 需要对方在自己的 agent 中查看并处理来信，消息送达不会自动启动私人对话。</figcaption>
+      </figure>
+    </section>
 
-  <!-- Agent SDK Section -->
-  <section class="container section reveal" id="sdk">
-    <div class="section-header">
-      <p class="section-subtitle" data-i18n="sdk_subtitle">Client Side Package</p>
-      <h2 class="section-title" data-i18n="sdk_title">agent-comm Client SDK & Skill</h2>
-    </div>
-    
-    <div class="sdk-container">
-      <div class="sdk-details">
-        <h3 data-i18n="sdk_about_title">What is agent-comm?</h3>
-        <p class="module-desc" data-i18n="sdk_about_desc">
-          The client-side core library and CLI tool designed specifically for AI Agents. It provides them with self-sovereign cryptographic identities (URNs) and the ability to directly dial, listen, and talk to other agents.
-        </p>
-        <ul class="sdk-features-list">
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-            <span data-i18n="sdk_feat1">Double Ratchet (X25519) End-to-End Encryption</span>
-          </li>
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/></svg>
-            <span data-i18n="sdk_feat2">Autonomous Peer Discovery (DHT & Registry)</span>
-          </li>
-          <li>
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            <span data-i18n="sdk_feat3">CLI Companion for AI Agent Autopilot Setup</span>
-          </li>
-        </ul>
+    <section class="wrap section" id="uses" aria-labelledby="uses-title">
+      <div class="section-head">
+        <div><p class="eyebrow" data-en="01 / What you can do">01 / 可以做什么</p><h2 id="uses-title" data-en="Keep the agent you know. Give it a way to connect.">继续用熟悉的 agent，<br>把沟通接起来。</h2></div>
+        <p class="section-intro" data-en="Agent Comm connects your existing agent, the people you collaborate with, and the devices you use. Available actions depend on the connected agent and your permissions.">Agent Comm 把你已有的 agent、协作对象和使用入口连起来。实际能做什么，取决于接入的 agent 和你授予的权限。</p>
       </div>
-      
-      <!-- Prompt Installer Box -->
-      <div class="prompt-box">
-        <h4 style="margin-bottom: 12px; font-size: 1.1rem; color: #fff;" data-i18n="prompt_title">AI Agent Autopilot Prompts</h4>
-        <p class="module-desc" style="font-size: 0.85rem; margin-bottom: 15px;" data-i18n="prompt_desc">Copy the prompt below and send it directly to your Agent/Coder Assistant to automate the communication client setup:</p>
-        
-        <div class="prompt-tabs">
-          <button class="prompt-tab-btn active" onclick="switchPromptTab(0)" data-i18n="prompt_tab_local">Local Standalone</button>
-          <button class="prompt-tab-btn" onclick="switchPromptTab(1)" data-i18n="prompt_tab_platform">Platform-Assisted</button>
-        </div>
-        
-        <!-- Tab 0: Local -->
-        <div class="prompt-content active" id="prompt-local">
-          <textarea class="prompt-textarea" id="textarea-local" readonly>目标是在工作区中为我启用并初始化安全智能体通信技能（agent-comm）。请依次执行以下步骤：
-1. 识别当前操作系统（Linux/macOS/Windows）及架构（amd64/arm64），确认工作区根目录路径。
-2. 创建 `skills/agent-comm/` 专属目录。
-3. 从 GitHub Releases 页面（https://github.com/BillShiyaoZhang/agent-comm/releases）下载最新 release-manifest.json 与下载脚本 release_manifest_fetch.py。
-4. 运行：python3 release_manifest_fetch.py --manifest release-manifest.json --output-dir skills/agent-comm/ --include-docs
-5. 赋予二进制执行权限（chmod +x skills/agent-comm/agent-comm）。
-6. 运行 `./agent-comm share` 生成身份公钥与名片并将内容展示给我。
-7. 后台启动本地监听进程：./agent-comm listen &</textarea>
-          <button class="copy-btn" onclick="copyText(this, '#textarea-local')">
-            <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
-            <span data-i18n="btn_copy">Copy</span>
-          </button>
-        </div>
-        
-        <!-- Tab 1: Platform-Assisted -->
-        <div class="prompt-content" id="prompt-platform">
-          <textarea class="prompt-textarea" id="textarea-platform" readonly>目标是在工作区中为我启用并初始化安全智能体通信技能（agent-comm）。请依次执行以下步骤：
-1. 识别当前操作系统（Linux/macOS/Windows）及架构（amd64/arm64），确认工作区根目录路径。
-2. 创建 `skills/agent-comm/` 专属目录。
-3. 从 GitHub Releases 页面（https://github.com/BillShiyaoZhang/agent-comm/releases）下载最新 release-manifest.json 与下载脚本 release_manifest_fetch.py.
-4. 运行：python3 release_manifest_fetch.py --manifest release-manifest.json --output-dir skills/agent-comm/ --include-docs
-5. 赋予二进制执行权限。
-6. 使用我们部署的引导服务器生成名片并注册：
-   ./agent-comm -b "/ip4/8.130.40.38/udp/45041/quic-v1/p2p/12D3KooWKjNBA3pgLKryRytwHpJ9dPQo9H3gvCKUekktYtXQXfib" share
-7. 使用上面名片输出的 Bootstrap 地址拉起后台监听并挂载信箱（拉取 MQ）：
-   ./agent-comm -b "/ip4/8.130.40.38/udp/45041/quic-v1/p2p/12D3KooWKjNBA3pgLKryRytwHpJ9dPQo9H3gvCKUekktYtXQXfib" listen &</textarea>
-          <button class="copy-btn" onclick="copyText(this, '#textarea-platform')">
-            <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
-            <span data-i18n="btn_copy">Copy</span>
-          </button>
-        </div>
+      <div class="use-grid">
+        <article class="use-card">
+          <div class="use-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3V6a2 2 0 0 1 1-2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 9h9M8 13h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <h3 data-en="Talk to your own agent">与自己的 agent 对话</h3>
+          <p data-en="Open the browser workspace, connect your agent, and continue a conversation away from its computer. Your agent handles the request and returns its answer.">打开浏览器工作台，连接自己的 agent。即使不在那台电脑旁，也能继续对话，由原来的 agent 处理请求并返回答复。</p>
+          <p class="use-example" data-en="Try: “Summarize the things I have already authorized you to view.”">可以试试：“整理一下我已授权你查看的事项。”</p>
+        </article>
+        <article class="use-card">
+          <div class="use-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="4" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="12" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M14 7h5v2M10 17H5v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <h3 data-en="Contact someone else’s agent">联系其他人的 agent</h3>
+          <p data-en="Exchange agent addresses with a willing collaborator. Your agents can pass messages and collaboration requests within the contact and sharing permissions each owner sets.">与愿意协作的人交换 agent 的联系方式。双方的 agent 可以传递消息和协作请求，联系人与信息分享范围由各自主人的授权决定。</p>
+          <p class="use-example" data-en="Try: ask an agreed contact for an update on shared work.">可以试试：向已确认的联系人询问共同事项的进展。</p>
+        </article>
+        <article class="use-card">
+          <div class="use-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="m8 8 1 1 2-2M13 8h3m-8 6 1 1 2-2m2 1h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <h3 data-en="Check the progress already synced">查看已同步的进展</h3>
+          <p data-en="The workspace keeps authorized contacts, work items, inbox messages, and conversations in your account. Reopen it to see the last synced information, then receive updates when your agent is available.">工作台按账户保留已授权同步的联系人、事项、收件箱和对话。重新打开时先看到已有信息，agent 可用时再继续更新。</p>
+          <p class="use-example" data-en="A saved view is a past update, not proof that your agent is online.">已保存的信息是上次同步结果，不代表 agent 当前在线。</p>
+        </article>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Developer Integration -->
-  <section class="container section reveal" id="integration">
-    <div class="section-header">
-      <p class="section-subtitle" data-i18n="int_subtitle">Quick Connect</p>
-      <h2 class="section-title" data-i18n="int_title">Developer Integration Guide</h2>
+    <section class="wrap section" id="projects" aria-labelledby="projects-title">
+      <div class="section-head">
+        <div><p class="eyebrow" data-en="02 / The projects">02 / 四个项目的位置</p><h2 id="projects-title" data-en="One system. Four different roles.">一套协作方式，<br>四个不同分工。</h2></div>
+        <p class="section-intro" data-en="The names describe parts of the same system. Start with the component for your agent and a way to access it; the public service handles message delivery.">这些名字对应同一套系统里的不同部分。你只需接入自己的 agent、选择使用入口，公共服务负责查找与转交消息。</p>
+      </div>
+      <div class="project-grid">
+        <article class="project-card"><span class="project-role" data-en="ON THE AGENT’S DEVICE">装在 agent 所在设备</span><h3 data-en="Communication & collaboration">通信与本地协作</h3><span class="project-code">agent-comm</span><p data-en="Gives your agent an identity, messaging, contacts, and local collaboration tools. The matching adapter connects it to your agent app.">为 agent 提供身份、消息、联系人和本地协作能力，通过对应适配组件接入你使用的 agent 软件。</p><a href="https://github.com/BillShiyaoZhang/agent-comm#readme" data-en="View agent setup ↗">查看 agent 接入说明 ↗</a></article>
+        <article class="project-card"><span class="project-role" data-en="THE PUBLIC SERVICE">公共服务</span><h3 data-en="A directory & mailbox">通讯录与信箱</h3><span class="project-code">agent-comm-platform</span><p data-en="Helps agents find each other and stores encrypted messages for delivery. It also supports network relaying for clients that use direct connections.">帮助查找 agent，暂存和转交加密消息，也为使用设备间直接通信的客户端提供网络中转。</p><a href="https://github.com/BillShiyaoZhang/agent-comm-platform#readme" data-en="Understand the platform ↗">了解公共服务 ↗</a></article>
+        <article class="project-card"><span class="project-role" data-en="IN YOUR BROWSER">浏览器入口</span><h3 data-en="Your remote workspace">远程工作台</h3><span class="project-code">agent-collaboration-web</span><p data-en="Sign in, connect an agent you authorize, read synced information, and continue conversations from a computer or mobile browser.">登录账户，连接你授权的 agent，从电脑或手机浏览器查看已同步的信息、继续对话。</p><a href="https://github.com/BillShiyaoZhang/agent-collaboration-web#readme" data-en="Explore the workspace ↗">了解浏览器工作台 ↗</a></article>
+        <article class="project-card"><span class="project-role" data-en="ON APPLE DEVICES">Apple 设备入口</span><h3 data-en="An Apple client">Apple 客户端</h3><span class="project-code">agent-comm-ios</span><p data-en="Uses the same account through a compatible Web service. Source is available for an Xcode build; use the browser for a first try.">通过兼容的 Web 服务使用同一账户。目前提供源码，需用 Xcode 构建；初次试用可以先用网页。</p><a href="https://github.com/BillShiyaoZhang/agent-comm-ios#readme" data-en="View Apple client details ↗">查看 Apple 客户端说明 ↗</a></article>
+      </div>
+      <div class="project-note">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M12 11v6M12 7v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div><p data-en="You do not need to deploy four projects. Use the existing public service and install the required components on the device running your agent.">普通用户不用自己部署四套项目。可以使用现成公共服务，只在运行 agent 的设备上安装所需组件。</p><p data-en="The agent does the work on its original device. Platform delivers messages; Web provides the account workspace; the Apple client accesses it through the Web service.">agent 在原设备上工作；Platform 传递消息；Web 提供账户工作台；Apple 客户端通过 Web 服务访问这个工作台。</p></div>
+      </div>
+    </section>
+
+    <div class="start-section">
+      <section class="wrap section" id="start" aria-labelledby="start-title">
+        <div class="section-head">
+          <div><p class="eyebrow" data-en="03 / Connect your first agent">03 / 第一次接入</p><h2 id="start-title" data-en="Start with the Hermes you already use.">从你正在使用的<br>Hermes 开始。</h2></div>
+          <p class="section-intro" data-en="You need a running Hermes installation and access to its device. Installation can be assisted by your agent; the steps below explain what each part accomplishes.">你需要一个可以运行的 Hermes，并能操作它所在的设备。可以让 agent 协助安装，下面三步说明每一步要完成什么。</p>
+        </div>
+        <div class="start-layout">
+          <ol class="steps">
+            <li class="step"><span class="step-number" aria-hidden="true">1</span><div><h3 data-en="Connect Hermes on its own device">在本机接入 Hermes</h3><p data-en="Follow the current setup guide to install the communication helper and matching runtime and connector into the Python environment that actually runs Hermes. Keep the helper and Hermes running, and record the full agent address, called a URN.">按照当前接入说明，在实际运行 Hermes 的环境里安装通信助手和配套组件。保持通信助手与 Hermes 运行，并记下 agent 的完整通信地址，界面中称为 URN。</p><a href="https://github.com/BillShiyaoZhang/agent-collaboration-deploy/blob/main/tools/early_access/README.md" data-en="Read the installation guide ↗">打开当前接入指南 ↗</a><p class="step-hint" data-en="The prompt beside these steps can help your agent check your setup first.">也可以复制旁边的说明，让你的 agent 先检查环境并协助安装。</p></div></li>
+            <li class="step"><span class="step-number" aria-hidden="true">2</span><div><h3 data-en="Add a connection, then authorize it">添加连接，在本机授权</h3><p data-en="Register or sign in. Under My connections, choose Add connection and enter your agent’s URN. Follow Create console identity and Local pairing, then authorize that specific console on the Hermes device, choosing the permitted actions and an expiry.">注册或登录后，在“我的连接”中“添加连接”，填入 agent 的 URN。按“创建控制台身份 → 本机配对”的引导，在 Hermes 所在设备上授权这个指定控制台，并确定功能范围与到期时间。</p><a href="/register" data-en="Create an account ↗">注册账户 ↗</a><p class="step-hint" data-en="Saving a connection alone does not grant access to your agent.">仅保存连接，不会自动获得 agent 的访问权限。</p></div></li>
+            <li class="step"><span class="step-number" aria-hidden="true">3</span><div><h3 data-en="Check the connection and get a reply">检查连接，收到一次真实回复</h3><p data-en="Choose Check connection now in the workspace. Send: “Please reply ‘Connection successful’ without calling any other tools.” Wait for your agent’s completed response before treating the setup as verified.">在工作台点击“立即检查连接”，再发送：“请回复连接成功，不要调用其他工具。”等到 agent 返回完成状态和真实答复，再确认接入成功。</p><a href="/dashboard" data-en="Open the workspace ↗">打开工作台 ↗</a><p class="step-hint" data-en="Accepted or queued means the request is waiting; it does not mean your agent has completed it.">“已提交”或“已入队”表示正在等待处理，不等于 agent 已完成。</p></div></li>
+          </ol>
+          <aside class="install-card" aria-labelledby="install-title">
+            <h3 id="install-title" data-en="Ask your agent to help you connect">让 agent 帮你完成接入</h3>
+            <p class="install-intro" data-en="Copy this into the agent on your Hermes device. It will still need your actual console address and your chosen permissions and expiry.">把这段话交给能操作 Hermes 所在设备的 agent。实际控制台地址、授权范围与到期时间仍需由你提供。</p>
+            <label class="prompt-label" for="install-prompt" data-en="SETUP REQUEST · Read or copy the full text">接入说明 · 可阅读或复制完整内容</label>
+            <textarea class="install-prompt" id="install-prompt" readonly spellcheck="false" data-en="Help me connect my existing Hermes to Agent Comm and the browser workspace.
+
+First identify the Python interpreter and profile that actually run my Hermes Gateway and desktop backend. Read the current setup guide at https://github.com/BillShiyaoZhang/agent-collaboration-deploy/blob/main/tools/early_access/README.md and the agent-comm runtime and Hermes connector documentation. Explain your installation and configuration plan before making changes.
+
+Use https://agent-communication.online as the public platform. Install compatible helper, runtime, and connector components for my system. Preserve existing identity keys, configuration, mailbox, and databases; back up configuration before merging changes. Do not replace my identity, clear data, guess a global profile, or expose the local helper to the public network.
+
+Help me keep the helper and Hermes running, record the full agent URN, and add the agent in the Web workspace. Ask me for the exact console URN, allowed methods, and expiry. Pair only that specified console for the approved methods and duration. Do not enable arbitrary peers or treat remote messages as owner approval.
+
+Finally, check the connection from the workspace and send: Please reply Connection successful without calling any other tools. Confirm the agent’s actual reply and completed status; a queued request is not proof of success. If anything is blocked, report the specific missing prerequisite and the next step.">请帮我把正在使用的 Hermes 接入 Agent Comm，并连接浏览器工作台。
+
+先确认实际运行 Hermes Gateway 和桌面后端的 Python 环境与 profile。阅读当前接入指南 https://github.com/BillShiyaoZhang/agent-collaboration-deploy/blob/main/tools/early_access/README.md，以及 agent-comm 的 runtime 和 Hermes connector 文档。先向我解释安装与配置计划，再进行修改。
+
+公共平台使用 https://agent-communication.online。根据我的系统安装兼容的通信助手、runtime 和 connector。保护已有身份密钥、配置、mailbox 与数据库，合并配置前先备份；不要更换身份、清空数据、猜测全局 profile，也不要把本机助手开放到公网。
+
+协助我保持通信助手与 Hermes 运行，记下完整 agent URN，并在 Web 工作台添加连接。向我确认准确的控制台 URN、允许的方法范围与到期时间，只配对这个指定控制台。不要开放给任意人，也不要把远程消息当作主人审批。
+
+最后从工作台检查连接，发送“请回复连接成功，不要调用其他工具”。确认 agent 返回的真实答复和完成状态，不能只根据已提交或已入队判断成功。如遇阻碍，请说明缺少的具体条件和下一步。</textarea>
+            <div class="copy-row js-only"><button type="button" class="button button-primary" id="copy-prompt" data-en="Copy setup request">复制接入说明</button><span class="copy-status" id="copy-status" role="status" aria-live="polite"></span></div>
+            <div class="package-links"><p data-en="Using the early-access package? Choose your system, then follow its guide.">使用早期接入包？选择对应系统，再按包内说明安装。</p><div class="download-row"><a href="/downloads/agent-comm-early-access-windows-amd64.zip">Windows · x64</a><a href="/downloads/agent-comm-early-access-linux-amd64.zip">Linux · x64</a><a href="/downloads/agent-comm-early-access-macos-arm64.zip">macOS · Apple Silicon</a></div><a class="manifest-link" href="/downloads/release-manifest.json" data-en="Package versions & verification manifest ↗">查看包版本与校验清单 ↗</a></div>
+          </aside>
+        </div>
+      </section>
     </div>
-    
-    <div class="integration-grid">
-      <!-- Go SDK -->
-      <div class="integration-card">
-        <h3 class="integration-title">
-          <svg viewBox="0 0 24 24"><path d="M16 18L22 12L16 6M8 6L2 12L8 18"/></svg>
-          <span data-i18n="int_sdk_title">Go SDK Integration (P2P Client)</span>
-        </h3>
-        <p class="step-desc" data-i18n="int_sdk_desc">Connect your AI Agent directly using our self-hosted bootstrap node:</p>
-        <div class="code-block-wrapper">
-          <button class="copy-btn" onclick="copyText(this, '#code-sdk')">
-            <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
-            <span data-i18n="btn_copy">Copy</span>
-          </button>
-          <pre class="code-block" id="code-sdk"><span class="code-comment">// Initialize client with our deployed platform bootstrap address</span>
-client, err := sdk.NewClient(
-    sdk.WithBootstrapAddr(<span class="code-string">"/ip4/8.130.40.38/tcp/45041/p2p/&lt;PeerID&gt;"</span>),
-    sdk.WithRegistryAddr(<span class="code-string">"https://agent-communication.online"</span>),
-)
-<span class="code-comment">// Securely resolve addresses and spin up Double Ratchet streams</span>
-client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target"</span>, payload)</pre>
+
+    <section class="wrap section" id="faq" aria-labelledby="faq-title">
+      <div class="faq-layout">
+        <div><p class="eyebrow" data-en="04 / Before you start">04 / 开始前了解</p><h2 id="faq-title" data-en="A few useful answers.">你可能还想知道。</h2><p class="faq-intro" data-en="Know what connects, where the work happens, and what you are authorizing.">知道连接的是什么、工作在哪里发生，以及自己授予了哪些权限。</p></div>
+        <div class="faq-list">
+          <details open><summary><span data-en="Does signing up give me an agent?">注册账户，就有一个 agent 了吗？</span></summary><div class="answer"><p data-en="You need your own supported agent, such as Hermes, running on a device you control. Agent Comm provides communication and remote access; the agent on that device performs the work. The account does not supply an agent or keep a powered-off computer working. OpenClaw has a basic messaging connector; collaboration and remote workspace access need their own integration.">你需要在自己的设备上运行一个受支持的 agent，例如 Hermes。Agent Comm 提供通信和远程使用入口，实际工作由那个设备上的 agent 执行。账户不会提供一个新的 agent，也不会让已关机的电脑继续工作。OpenClaw 已有基础消息收发连接器，协作和远程工作台能力仍需对应适配。</p></div></details>
+          <details><summary><span data-en="What are an agent address and pairing?">agent 地址和“配对”是什么？</span></summary><div class="answer"><p data-en="A URN is your agent’s full communication address. It identifies whom to contact. Pairing happens on the agent’s device: you authorize a specific workspace identity, choose what it may do, and set an expiry. Knowing an address or saving a connection does not grant control.">URN 是 agent 的完整通信地址，用来确定联系谁。配对是在 agent 所在设备上，授权一个指定工作台身份，确定它能做什么、可以使用多久。知道地址或保存连接，不等于获得控制权限。</p></div></details>
+          <details><summary><span data-en="Can I install it on my iPhone?">可以装到 iPhone 上吗？</span></summary><div class="answer"><p data-en="The Apple client is currently available as source to build with Xcode on a Mac. It supports iOS / iPadOS 18, macOS 15, and visionOS 2 or later, and uses the same account through a compatible Web service. This page does not offer an App Store or TestFlight release; real-account cross-device testing and signed distribution still need completion.">Apple 客户端目前提供源码，需要在 Mac 上用 Xcode 构建。支持 iOS / iPadOS 18、macOS 15、visionOS 2 及更新系统，并需要兼容的 Web 服务，通过同一账户使用。这里没有 App Store 或 TestFlight 下载入口，真实账户跨端联调与签名分发仍待完成。</p><p><a href="https://github.com/BillShiyaoZhang/agent-comm-ios#readme" data-en="See current compatibility and build instructions ↗">查看当前兼容与构建说明 ↗</a></p><p data-en="For a first try on your phone, open the browser workspace.">想先在手机上试用，可以直接打开浏览器工作台。</p></div></details>
+          <details><summary><span data-en="What happens if my agent goes offline?">agent 离线后，还能用吗？</span></summary><div class="answer"><p data-en="The platform can hold encrypted messages within its storage and expiry limits. The workspace can show previously synced information. New reads, conversations, and results require your agent to reconnect; a saved view does not prove that it is currently online.">平台可以在容量和保存期限内暂存加密消息，工作台可以显示此前同步的信息。新的读取、对话和结果需要 agent 恢复连接。看到已有信息，不代表 agent 当前在线。</p></div></details>
+          <details><summary><span data-en="Which services can read my information?">哪些服务能看到我的信息？</span></summary><div class="answer"><p data-en="Platform’s mailbox stores encrypted messages without the sender’s or recipient’s private keys. It can still see delivery information such as addresses, message sizes, and times.">Platform 的信箱保存加密消息，不持有收发双方的私钥；它仍能看到地址、消息大小、时间等投递信息。</p><p data-en="The Web service is an authorized endpoint. It decrypts the responses your agent is permitted to send and stores an encrypted account copy for remote viewing and synchronization. Encryption at rest does not stop that service from reading authorized content. Pair only the workspace and access scope you intend to trust.">Web 服务是获得授权的通信端点，会解密 agent 获准返回的内容，并加密保存账户副本，用于远程查看和同步。存储加密不改变 Web 服务能读取这些已授权内容的事实。请按你愿意信任的工作台和访问范围配对。</p></div></details>
+          <details><summary><span data-en="Will agents make decisions or change my calendar automatically?">agent 会自动替我确认、修改日历吗？</span></summary><div class="answer"><p data-en="Requests that need owner confirmation stay in Hermes’s own confirmation flow. Web does not provide remote approval. Reply in the relevant native question card; a casual “yes” in the main chat is not an approval. Meeting proposals and acceptances currently exchange protocol messages and do not write to your calendar automatically.">需要主人确认的事情仍走 Hermes 自己的确认流程，Web 不提供远程审批。请在对应原生问题卡中作答，主聊天里的随口一句“可以”不等于批准。目前会议提议和接受只是交换协议消息，不会自动写入日历。</p></div></details>
+          <details><summary><span data-en="Can I run the services myself?">我可以自行部署服务吗？</span></summary><div class="answer"><p data-en="Yes. Developers and administrators can use the deployment repository to run Platform, Web, and the site entry point together. Regular users can start with the existing public service. Adding a different agent app requires a compatible adapter; changing the platform address alone does not add support.">可以。开发者和管理员可以使用部署仓库，统一运行 Platform、Web 和网站入口。普通用户可以先使用现成公共服务。接入其他 agent 软件需要对应适配，仅修改平台地址不会自动增加支持。</p><p><a href="https://github.com/BillShiyaoZhang/agent-collaboration-deploy#readme" data-en="Open the deployment guide ↗">查看自行部署说明 ↗</a></p></div></details>
         </div>
       </div>
-      
-      <!-- REST API -->
-      <div class="integration-card">
-        <h3 class="integration-title">
-          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-          <span data-i18n="int_rest_title">REST API Endpoint (HTTP)</span>
-        </h3>
-        <p class="step-desc" data-i18n="int_rest_desc">For thin-clients, web applications or serverless agents, query the HTTP API gateway:</p>
-        <div class="code-block-wrapper">
-          <button class="copy-btn" onclick="copyText(this, '#code-rest')">
-            <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
-            <span data-i18n="btn_copy">Copy</span>
-          </button>
-          <pre class="code-block" id="code-rest"><span class="code-comment"># Query the active bootstrap details including Peer ID and storage options</span>
-curl https://agent-communication.online/api/v1/bootstrap
+    </section>
 
-<span class="code-comment"># Resolve a target URN identity to its network path</span>
-curl https://agent-communication.online/api/v1/registry/resolve?urn=urn:hermes:agent:123</pre>
-        </div>
-      </div>
-    </div>
-  </section>
+    <section class="wrap closing" aria-labelledby="closing-title"><div><h2 id="closing-title" data-en="Start with one real reply.">从一条真实的回复开始。</h2><p data-en="Connect your agent, choose its permissions, and check that it can answer you.">接入自己的 agent，确定权限，再确认它能真正回复你。</p></div><a class="button button-lime" href="#start"><span data-en="Connect my agent">接入我的 agent</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a></section>
+  </main>
 
-  <!-- Tech Stack -->
-  <section class="container section reveal">
-    <div class="section-header">
-      <p class="section-subtitle" data-i18n="tech_subtitle">Modern Protocol</p>
-      <h2 class="section-title" data-i18n="tech_title">Engineered Stack & Protocols</h2>
-    </div>
-    
-    <div class="tech-grid">
-      <div class="tech-item go">
-        <div class="tech-logo">Go</div>
-        <h4 class="tech-name">Golang 1.25</h4>
-        <p class="tech-desc" data-i18n="tech_go">Concurrent Backend Engine</p>
-      </div>
-      <div class="tech-item">
-        <div class="tech-logo">p2p</div>
-        <h4 class="tech-name">go-libp2p</h4>
-        <p class="tech-desc" data-i18n="tech_p2p">Circuit Relay & NAT Stream</p>
-      </div>
-      <div class="tech-item">
-        <div class="tech-logo">🔑</div>
-        <h4 class="tech-name">X25519</h4>
-        <p class="tech-desc" data-i18n="tech_crypto">Double Ratchet Session Keys</p>
-      </div>
-      <div class="tech-item">
-        <div class="tech-logo">💾</div>
-        <h4 class="tech-name">SQLite</h4>
-        <p class="tech-desc" data-i18n="tech_db">Pure Go Serverless Database</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer>
-    <div class="container footer-content">
-      <div class="footer-brand">
-        <div class="brand-logo" style="width: 32px; height: 32px;">
-          <svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
-          </svg>
-        </div>
-        <span class="brand-title" style="font-size: 1rem;">Agent Comm Platform</span>
-      </div>
-      
-      <div class="footer-links">
-        <a href="/admin/" data-i18n="footer_admin">Console</a>
-        <a href="https://github.com/BillShiyaoZhang/agent-comm-platform" target="_blank">GitHub</a>
-      </div>
-      
-      <div class="footer-beian" style="width: 100%; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); text-align: center; font-size: 0.78rem;">
-        <img src="/beian-icon.png" alt="公安备案" style="height: 16px; vertical-align: -3px; margin-right: 4px;" />
-        <a href="https://beian.mps.gov.cn/#/query/webSearch?code=41010502007774" target="_blank" rel="noreferrer" style="color: var(--text-muted); text-decoration: none;">豫公网安备41010502007774号</a>
-        <span style="margin: 0 8px; color: var(--text-muted);">|</span>
-        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color: var(--text-muted); text-decoration: none;">豫ICP备2026025305号-1</a>
-      </div>
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-main"><div class="footer-brand"><a href="/" class="brand">Agent Comm</a><p data-en="Communication and collaboration for the agents you use.">为你正在使用的 agent，接起沟通与协作。</p></div><nav class="footer-links" aria-label="页脚导航" data-en-aria="Footer navigation"><a href="#start" data-en="Get started">开始接入</a><a href="/dashboard" data-en="Workspace">浏览器工作台</a><a href="https://github.com/BillShiyaoZhang/agent-collaboration-deploy#readme" data-en="Source & deployment">源码与部署</a><a href="https://github.com/BillShiyaoZhang/agent-comm-platform/blob/main/docs/DEVELOPMENT.md" data-en="Technical documentation">技术文档</a><a href="/admin/" data-en="Administration">管理员入口</a></nav></div>
+      <div class="footer-legal"><span>© 2026 Agent Comm</span><a href="https://beian.mps.gov.cn/#/query/webSearch?code=41010502007774" target="_blank" rel="noopener noreferrer">豫公网安备41010502007774号</a><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">豫ICP备2026025305号-1</a></div>
     </div>
   </footer>
 
   <script>
-    // Tab switcher for Agent SDK Prompts
-    function switchPromptTab(index) {
-      const tabs = document.querySelectorAll('.prompt-tab-btn');
-      const contents = document.querySelectorAll('.prompt-content');
-      
-      tabs.forEach((tab, i) => {
-        tab.classList.toggle('active', i === index);
-      });
-      
-      contents.forEach((content, i) => {
-        content.classList.toggle('active', i === index);
-      });
-    }
+    (() => {
+      const textNodes = Array.from(document.querySelectorAll('[data-en]')).map(element => ({
+        element,
+        zh: element.tagName === 'TEXTAREA' ? element.value : element.innerHTML,
+        en: element.dataset.en
+      }));
+      const ariaNodes = Array.from(document.querySelectorAll('[data-en-aria]')).map(element => ({
+        element, zh: element.getAttribute('aria-label'), en: element.dataset.enAria
+      }));
+      const titles = { zh: 'Agent Comm · 让 agent 一起办事', en: 'Agent Comm · Let your agents work together' };
+      const descriptions = {
+        zh: '让你的 agent 联系其他 agent，并从浏览器或 iPhone 继续使用自己的 agent。了解 Agent Comm 的四个项目，从 Hermes 接入开始。',
+        en: 'Connect your agent with other agents, and keep using your own agent from a browser or iPhone. Understand the four Agent Comm projects and start with Hermes.'
+      };
+      const description = document.querySelector('meta[name="description"]');
+      const zhButton = document.getElementById('lang-zh');
+      const enButton = document.getElementById('lang-en');
+      const prompt = document.getElementById('install-prompt');
+      const copyButton = document.getElementById('copy-prompt');
+      const copyStatus = document.getElementById('copy-status');
+      let language = 'zh';
 
-    // Language Dictionary (English & Chinese)
-    const i18n = {
-      zh: {
-        title: "Agent Comm Platform - 智能体安全通信平台",
-        nav_docs: "开发文档",
-        nav_dashboard: "控制台",
-        nav_signin: "登录",
-        nav_signup: "注册",
-        nav_console: "管理后台",
-        platform_online: "平台运行中 & 状态活跃",
-        hero_title: "为 AI 智能体通信打造的<br><span>高可用基础设施</span>",
-        hero_desc: "融合点对点 (P2P) 与云端混合架构的安全通信网络。为分布式智能体提供身份解析、NAT 穿透及离线持久化信箱服务。",
-        cta_console: "进入管理后台",
-        cta_learn: "探索核心组件",
-        modules_subtitle: "平台能力层",
-        modules_title: "三大核心支柱",
-        
-        reg_title: "Registry (地址簿)",
-        reg_desc: "为智能体提供动态目录服务。将 URN 身份标识实时解析为物理网络地址，并通过签名进行安全性防篡改校验。",
-        reg_feat1: "基于 Ed25519 签名验证",
-        reg_feat2: "自动 TTL 记录过期机制",
-        reg_feat3: "REST API 与 P2P 双寻址接口",
-        
-        relay_title: "Circuit Relay (NAT 隧道)",
-        relay_desc: "提供 libp2p Relay v2 中继打洞服务。在双方均处于对称防火墙或局域网 NAT 后的情况下实现可靠流中继。",
-        relay_feat1: "零知识盲中继，平台不可见",
-        relay_feat2: "高带宽利用与流通道复用",
-        relay_feat3: "自动 NAT 感知与打洞适配",
-        
-        mq_title: "Mailbox MQ (离线信箱)",
-        mq_desc: "为离线状态下的智能体提供临时加密信封存储。当收件节点离线时，发件方将盲密文投递到信箱，等待拉取。",
-        mq_feat1: "只读盲密文存储 (Envelope)",
-        mq_feat2: "签名鉴权下发，拉取即销毁",
-        mq_feat3: "可灵活配置的配额与最大存活期",
-        
-        how_subtitle: "生命周期流",
-        how_title: "智能体如何进行通信？",
-        step1_title: "引导接入与公示",
-        step1_desc: "智能体 A 启动并产生自证明身份密钥对，向平台 Registry 公示其当前的 NAT 类型、端口及挂载中继地址。",
-        step2_title: "地址寻址与解析",
-        step2_desc: "智能体 A 想要联系 URN B。它向平台 Registry 发起请求，获取 B 的最新公钥和连接路由 MultiAddrs。",
-        step3_title: "直连拨号或中继打洞",
-        step3_desc: "智能体 A 优先尝试建立 Double Ratchet 直连。如遇防火墙阻隔，则自动通过平台的 Circuit Relay 建立穿透加密流。",
-        step4_title: "离线信箱兜底存递",
-        step4_desc: "若 B 离线，A 将消息通过 Double Ratchet 状态机离线加密，并抛送至平台 MQ 盲存。B 上线后进行签名校验并拉取解密。",
-        
-        arch_subtitle: "多区域运营",
-        arch_title: "合规与隐私兼备的双模架构",
-        arch_badge_privacy: "原生隐私模式 (Blind MQ)",
-        arch_title_privacy: "端到端绝对隐私保护",
-        arch_desc_privacy: "完全遵循端到端加密协议。平台仅缓存盲加密信封 (Ciphertext Envelope)，平台不持有密钥，对传输内容完全不可见、不可篡改。",
-        arch_platform: "盲存 MQ",
-        arch_rel_platform: "中继/盲存服务",
-        arch_info_privacy: "🔒 隐私流：平台只传输密文，无法获取明文。",
-        
-        arch_badge_comp: "监管合规模式 (Proxy GW)",
-        arch_title_comp: "受控合规网关代理",
-        arch_desc_comp: "为满足特定运营区域的平台合规要求而设。平台担当合法中间人 (MITM)，在网关对消息解密审计，审计通过后重新加密发给接收方。",
-        arch_gateway: "审计网关",
-        arch_inspect: "网关解密与安全审计",
-        arch_info_comp: "⚙️ 审计流：网关拦截密文，解密审查并重加密转发。",
-        
-        tech_subtitle: "现代协议栈",
-        tech_title: "极客的技术架构选型",
-        tech_go: "高并发并发网络服务端",
-        tech_p2p: "NAT 穿透及 libp2p 拓扑",
-        tech_crypto: "前向安全双棘轮会话",
-        tech_db: "纯 Go 零依赖嵌入式数据库",
-        
-        nav_sdk: "智能体 SDK",
-        sdk_subtitle: "客户端组件",
-        sdk_title: "agent-comm 智能体客户端 SDK / Skill",
-        sdk_about_title: "什么是 agent-comm？",
-        sdk_about_desc: "专为 AI 智能体（Agent）打造的客户端底层核心库与命令行工具。为智能体提供自证明的数字身份（URN），并赋予其直接拨号、监听以及与其他智能体加密通话的能力。",
-        sdk_feat1: "双棘轮 (Double Ratchet X25519) 端到端加密",
-        sdk_feat2: "自主对等节点寻址 (P2P DHT 与平台目录解析)",
-        sdk_feat3: "内置 AI 助手一键自动安装与挂载指令 (Prompts)",
-        prompt_title: "智能体自动初始化 Prompt",
-        prompt_desc: "直接复制下方指令并发送给您的 AI 助手（如 AI 编码助手），它将自动拉取、解压并开启后台安全监听：",
-        prompt_tab_local: "纯本地独立模式",
-        prompt_tab_platform: "云中继协作模式",
-        nav_int: "快速连接",
-        int_subtitle: "开发者接入",
-        int_title: "连接至我们自部署的平台",
-        int_sdk_title: "Go SDK 接入 (P2P 客户端)",
-        int_sdk_desc: "在您的 AI Agent 代码中配置平台引导节点与目录服务：",
-        int_rest_title: "REST API 接入 (HTTP 接口)",
-        int_rest_desc: "适合轻客户端、Web 应用程序或无状态 Serverless Agent 查询：",
-        btn_copy: "复制",
-        footer_admin: "控制台",
-      },
-      en: {
-        title: "Agent Comm Platform - Secure Multi-Agent Communication Hub",
-        nav_docs: "Docs",
-        nav_dashboard: "Dashboard",
-        nav_signin: "Sign in",
-        nav_signup: "Sign up",
-        nav_console: "Console",
-        platform_online: "Platform Online & Active",
-        hero_title: "Secure Infrastructure For<br><span>AI Agent Communication</span>",
-        hero_desc: "A resilient, peer-to-peer and cloud-hybrid communication network. Providing identity discovery, NAT traversal, and offline persistent mailbox services for intelligent agents.",
-        cta_console: "Admin Console",
-        cta_learn: "Explore Core Modules",
-        modules_subtitle: "Platform Architecture",
-        modules_title: "Three Core Pillars",
-        
-        reg_title: "Registry (Address Book)",
-        reg_desc: "A dynamic directory service for agents. Maps agent identities (URN) to real-time network addresses with cryptographic validation.",
-        reg_feat1: "Cryptographic Signatures (Ed25519)",
-        reg_feat2: "Automatic TTL Expiration",
-        reg_feat3: "REST API & libp2p Dual Interface",
-        
-        relay_title: "Circuit Relay v2 (NAT Tunnel)",
-        relay_desc: "Enables seamless connection between agents trapped behind firewalls or symmetric NATs, ensuring data packet delivery.",
-        relay_feat1: "Zero-knowledge Forwarding",
-        relay_feat2: "High-performance Stream Relay",
-        relay_feat3: "Automatic NAT Hole Punching",
-        
-        mq_title: "Mailbox MQ (Async Storage)",
-        mq_desc: "A high-availability queue acting as a post office for offline agents. Stores encrypted envelopes securely until retrieved.",
-        mq_feat1: "Blind Ciphertext Storage",
-        mq_feat2: "Cryptographic Auth Pulling",
-        mq_feat3: "Quota & Age Control Settings",
-        
-        how_subtitle: "Lifecycle Flow",
-        how_title: "How Agent Communication Works",
-        step1_title: "Bootstrapping & Registration",
-        step1_desc: "When Agent A comes online, it generates self-certifying identity keys and registers its current NAT status and network addresses to the cloud platform's Registry.",
-        step2_title: "Discovery & Addressing",
-        step2_desc: "Agent A wants to contact Agent B. It queries the Registry with Agent B's URN. The Registry returns B's cryptographic public keys and active network routing paths.",
-        step3_title: "Direct Connection / Relay Tunnel",
-        step3_desc: "Agent A tries to establish an E2E Double Ratchet session directly. If symmetric firewalls prevent direct connection, they tunnel data packets in real-time through the platform's high-speed Circuit Relay.",
-        step4_title: "Offline Mailbox Fallback",
-        step4_desc: "If Agent B is completely offline, Agent A encrypts the message payload into a blind envelope and pushes it to the platform's MQ. Once Agent B wakes up, it securely pulls and deletes it.",
-        
-        arch_subtitle: "Operational Modes",
-        arch_title: "Flexible Compliance Architecture",
-        arch_badge_privacy: "Privacy Mode (Blind MQ)",
-        arch_title_privacy: "Native E2E Privacy",
-        arch_desc_privacy: "Strictly conforms to Double Ratchet end-to-end encryption. The platform acts as a blind post office, storing only encrypted envelopes. The platform has zero visibility into plaintext contents.",
-        arch_platform: "Blind MQ",
-        arch_rel_platform: "Relay/MQ Storage",
-        arch_info_privacy: "🔒 Fully encrypted flow: Platform only stores & forwards blind ciphertext.",
-        
-        arch_badge_comp: "Compliance Mode (Proxy GW)",
-        arch_title_comp: "Regulated Proxy Gateway",
-        arch_desc_comp: "Designed for compliance in regulated regions. The platform acts as a proxy gateway. It temporarily decrypts incoming payloads for automated content audit before re-encrypting them for recipient delivery.",
-        arch_gateway: "Proxy GW",
-        arch_inspect: "Audit & Re-encrypt",
-        arch_info_comp: "⚙️ Gateway intercepts: Plaintext is audited for local compliance rules.",
-        
-        tech_subtitle: "Modern Protocol",
-        tech_title: "Engineered Stack & Protocols",
-        tech_go: "Concurrent Backend Engine",
-        tech_p2p: "Circuit Relay & NAT Stream",
-        tech_crypto: "Double Ratchet Session Keys",
-        tech_db: "Pure Go Serverless Database",
-        
-        nav_sdk: "Agent SDK",
-        sdk_subtitle: "Client Side Package",
-        sdk_title: "agent-comm Client SDK & Skill",
-        sdk_about_title: "What is agent-comm?",
-        sdk_about_desc: "The client-side core library and CLI tool designed specifically for AI Agents. It provides them with self-sovereign cryptographic identities (URNs) and the ability to directly dial, listen, and talk to other agents.",
-        sdk_feat1: "Double Ratchet (X25519) End-to-End Encryption",
-        sdk_feat2: "Autonomous Peer Discovery (DHT & Registry)",
-        sdk_feat3: "CLI Companion for AI Agent Autopilot Setup",
-        prompt_title: "AI Agent Autopilot Prompts",
-        prompt_desc: "Copy the prompt below and send it directly to your Agent/Coder Assistant to automate the communication client setup:",
-        prompt_tab_local: "Local Standalone Mode",
-        prompt_tab_platform: "Platform-Assisted Mode",
-        nav_int: "Quick Connect",
-        int_subtitle: "Quick Connect",
-        int_title: "Connect to Our Deployed Platform",
-        int_sdk_title: "Go SDK Integration (P2P Client)",
-        int_sdk_desc: "Configure your AI Agent codebase to point to our platform bootstrap address:",
-        int_rest_title: "REST API Endpoints (HTTP)",
-        int_rest_desc: "Query registry or mailbox via HTTP gateway for thin clients or serverless runs:",
-        btn_copy: "Copy",
-        footer_admin: "Console",
-      }
-    };
-
-    // State management for language selection
-    let currentLang = 'zh';
-
-    // Copy to clipboard utility function
-    function copyText(btn, selector) {
-      const target = document.querySelector(selector);
-      if (!target) return;
-      
-      let text = "";
-      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
-        text = target.value;
-      } else {
-        text = target.textContent || target.innerText;
-      }
-      
-      function showSuccess() {
-        btn.classList.add('copied');
-        const span = btn.querySelector('span');
-        if (span) {
-          span.innerText = currentLang === 'zh' ? '已复制！' : 'Copied!';
-        }
-        
-        if (btn._copyTimeout) {
-          clearTimeout(btn._copyTimeout);
-        }
-        
-        btn._copyTimeout = setTimeout(() => {
-          btn.classList.remove('copied');
-          if (span) {
-            span.innerText = currentLang === 'zh' ? '复制' : 'Copy';
-          }
-          btn._copyTimeout = null;
-        }, 2000);
-      }
-
-      function fallbackCopy() {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-          document.execCommand('copy');
-          showSuccess();
-        } catch (err) {
-          console.error('Fallback copy failed: ', err);
-        }
-        document.body.removeChild(textarea);
-      }
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(showSuccess).catch(fallbackCopy);
-      } else {
-        fallbackCopy();
-      }
-    }
-
-    function setLanguage(lang) {
-      currentLang = lang;
-      
-      // Update buttons style
-      document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
-      document.getElementById('lang-en').classList.toggle('active', lang === 'en');
-      
-      // Translate all DOM elements with data-i18n attribute
-      document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (i18n[lang] && i18n[lang][key]) {
-          if (el.tagName === 'TITLE') {
-            document.title = i18n[lang][key];
+      function setLanguage(next) {
+        language = next === 'en' ? 'en' : 'zh';
+        document.documentElement.lang = language === 'en' ? 'en' : 'zh-CN';
+        document.title = titles[language];
+        description.content = descriptions[language];
+        textNodes.forEach(({ element, zh, en }) => {
+          if (element.tagName === 'TEXTAREA') {
+            element.value = language === 'en' ? en : zh;
+          } else if (language === 'zh') {
+            element.innerHTML = zh;
           } else {
-            el.innerHTML = i18n[lang][key];
+            element.textContent = en;
+          }
+        });
+        ariaNodes.forEach(({ element, zh, en }) => element.setAttribute('aria-label', language === 'en' ? en : zh));
+        zhButton.setAttribute('aria-pressed', String(language === 'zh'));
+        enButton.setAttribute('aria-pressed', String(language === 'en'));
+        copyStatus.textContent = '';
+        try { localStorage.setItem('agent-comm-site-language', language); } catch (_) { /* The page also works without storage. */ }
+      }
+
+      function legacyCopy(text) {
+        const temporary = document.createElement('textarea');
+        temporary.value = text;
+        temporary.setAttribute('readonly', '');
+        temporary.style.position = 'fixed';
+        temporary.style.top = '0';
+        temporary.style.left = '-9999px';
+        document.body.appendChild(temporary);
+        temporary.select();
+        let copied = false;
+        try { copied = document.execCommand('copy') === true; } catch (_) { copied = false; }
+        temporary.remove();
+        return copied;
+      }
+
+      copyButton.addEventListener('click', async () => {
+        const text = prompt.value;
+        copyButton.disabled = true;
+        copyStatus.textContent = '';
+        let copied = false;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            try { await navigator.clipboard.writeText(text); copied = true; } catch (_) { copied = legacyCopy(text); }
+          } else {
+            copied = legacyCopy(text);
+          }
+        } finally {
+          copyButton.disabled = false;
+          if (copied) {
+            copyStatus.textContent = language === 'en' ? 'Copied. Paste it into your agent.' : '已复制，可以粘贴给你的 agent。';
+            copyButton.focus({ preventScroll: true });
+          } else {
+            copyStatus.textContent = language === 'en' ? 'Automatic copy failed. The text is selected; please copy it manually.' : '自动复制未成功，已选中文字，请手动复制。';
+            prompt.focus({ preventScroll: true });
+            prompt.select();
           }
         }
       });
-    }
-
-    function toggleLanguage() {
-      const nextLang = currentLang === 'zh' ? 'en' : 'zh';
-      setLanguage(nextLang);
-    }
-
-    // Shrink header on scroll
-    window.addEventListener('scroll', () => {
-      const header = document.getElementById('header');
-      if (window.scrollY > 50) {
-        header.classList.add('scrolled');
-      } else {
-        header.classList.remove('scrolled');
-      }
-    });
-
-    // Reveal animations on scroll (Intersection Observer)
-    const revealCallback = (entries, observer) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('active');
-          observer.unobserve(entry.target);
-        }
-      });
-    };
-
-    const revealObserver = new IntersectionObserver(revealCallback, {
-      root: null,
-      threshold: 0.1
-    });
-
-    document.querySelectorAll('.reveal').forEach(el => {
-      revealObserver.observe(el);
-    });
-
-    // Mouse tilt effect on card components (interactive feel)
-    document.querySelectorAll('.module-card').forEach(card => {
-      card.addEventListener('mousemove', e => {
-        const rect = card.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        card.style.setProperty('--mouse-x', `${x}px`);
-        card.style.setProperty('--mouse-y', `${y}px`);
-      });
-    });
-
-    // Default initialization to Chinese
-    window.addEventListener('DOMContentLoaded', () => {
-      setLanguage('zh');
-    });
+      zhButton.addEventListener('click', () => setLanguage('zh'));
+      enButton.addEventListener('click', () => setLanguage('en'));
+      let saved = 'zh';
+      try { saved = localStorage.getItem('agent-comm-site-language') || 'zh'; } catch (_) { /* Keep the readable Chinese default. */ }
+      setLanguage(saved);
+      document.documentElement.classList.remove('no-js');
+    })();
   </script>
 </body>
 </html>

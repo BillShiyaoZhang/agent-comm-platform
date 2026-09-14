@@ -1,104 +1,82 @@
 # Agent Comm Platform
 
-> Infrastructure Services for the Agent Comm Ecosystem
+**为 agent 提供查找和消息转交服务，让不同设备上的 agent 能联系彼此。**
 
-The **Agent Comm Platform** is the backend infrastructure that powers the `agent-comm` P2P network. It provides essential services like identity discovery (Registry), NAT traversal (Relay), and offline message storage (MQ) to ensure that AI agents can communicate reliably, securely, and seamlessly across different network environments.
+Agent Comm 这一组项目，想让你正在使用的 agent 不只与你对话，也能联系其他 agent、接收协作请求，并让你从浏览器或 iPhone 查看和使用自己的 agent。具体能做哪些事，取决于你接入的 agent 和你授予的权限。
 
-## 🌟 Why do we need this platform?
+比如，你希望自己的 agent 联系一位同事的 agent，询问一项工作的进展。双方需要先接入通信组件、交换联系方式，再由各自的 agent 按已授权的范围处理请求。你也可以在离开电脑后，通过远程入口查看自己的 agent 返回的信息。
 
-In a pure Peer-to-Peer (P2P) network, two agents try to connect directly to each other. However, the real internet is messy:
-1. **NAT/Firewalls:** Agents are often behind home routers or corporate firewalls and don't have public IP addresses, making direct connections impossible.
-2. **Offline Status:** An agent might be temporarily offline, asleep, or restarting when another agent wants to send a message.
-3. **Discovery:** Agents need a way to find each other's current network location (IP/Port) using a stable identifier (URN).
+**Platform 是这套系统背后的“通讯录和信箱”。普通用户可以使用现成服务，不需要下载这个仓库或自己租服务器。**
 
-This platform acts as a highly-available, always-on "lighthouse and post office" in the cloud to solve these exact problems, while maintaining the end-to-end encryption and privacy guarantees of the `agent-comm` protocol.
+[了解整体与开始使用](https://agent-communication.online) · [打开浏览器工作台](https://agent-communication.online/dashboard) · [注册账户](https://agent-communication.online/register)
 
----
+## 四个项目，各自做什么？
 
-## 🔗 Relationship with the `agent-comm` SDK/Repository
+| 项目 | 它负责什么？ | 什么时候需要看它？ |
+| --- | --- | --- |
+| [agent-comm](https://github.com/BillShiyaoZhang/agent-comm) | 装在运行 agent 的设备上的通信与协作组件，帮助它收发消息、管理联系人和处理协作请求 | 想把自己的 agent 接入，或为新的 agent 软件做适配 |
+| **agent-comm-platform（本仓库）** | 公共通讯录与信箱，帮助查找 agent，并暂存、转交加密消息 | 想运行自己的公共服务，或开发服务端功能 |
+| [agent-collaboration-web](https://github.com/BillShiyaoZhang/agent-collaboration-web) | 浏览器里的远程工作台，连接你授权的 agent，查看已同步的信息并与它对话 | 想从电脑或手机浏览器使用自己的 agent |
+| [agent-comm-ios](https://github.com/BillShiyaoZhang/agent-comm-ios) | 搭配兼容的 Web 服务，使用同一账户在 iPhone 等 Apple 设备查看信息、继续对话 | 想自行构建 Apple 客户端；目前需 Xcode，先试用可直接用网页 |
 
-The **Agent Comm Platform** does not work in isolation. It is the infrastructure companion to the [agent-comm](https://github.com/BillShiyaoZhang/agent-comm) core SDK and client library.
+这些项目配合使用，不需要每个人都安装四个项目。运行 agent 的设备负责实际工作；Platform 负责通信；Web 和 iOS 提供面向人的入口。iOS 通过 Web 服务访问同一账户的数据。
 
-### What is the `agent-comm` Repository?
-The [agent-comm](https://github.com/BillShiyaoZhang/agent-comm) repository hosts the core client library, protocol specifications, and developer CLI tools. It enables AI agents to run as standalone P2P nodes, manage cryptographic identities locally, and establish end-to-end encrypted direct channels.
+## 我只是想用，从哪里开始？
 
-Key features of the core SDK include:
-- **Local Cryptographic Identity:** Automatically generates Ed25519 keys and stable `urn:hermes:agent:...` identifiers.
-- **End-to-End Encryption:** Encrypts communications using a Double Ratchet crypto protocol to guarantee forward secrecy and privacy.
-- **P2P Direct Dialing:** Connects agents directly via libp2p streams when they share a LAN or have public IPs, bypassing any intermediary platform.
-- **Contact Cards:** Standardizes agent communications templates, allowing agents to import/export and manage contacts inside a local SQLite database.
+1. **先接入自己的 agent。** 从 [agent-comm 的使用说明](https://github.com/BillShiyaoZhang/agent-comm) 查看你的 agent 软件对应的接入方式，在运行它的设备上安装所需组件。当前优先阅读 Hermes 接入路径；其他软件需要对应适配，不能只填一个网址就接入。
+2. **打开浏览器工作台。** 先[注册账户](https://agent-communication.online/register)，再进入[工作台](https://agent-communication.online/dashboard)。想用 Apple 客户端，可另看 [iOS 项目的构建说明](https://github.com/BillShiyaoZhang/agent-comm-ios)。
+3. **连接并授权。** 在“我的连接”里点击“添加连接”，填写 agent 的完整通信地址（界面中称为 URN），再按“创建控制台身份 → 本机配对”的引导，在 agent 所在设备上授予这个工作台访问权限。添加连接和登录账户本身不会授予权限。
+4. **确认连接后再开始。** 点击“立即检查连接”，查看可用功能，再尝试查看联系人或发送一条对话。让 agent 所在设备保持运行和联网，才能及时收到新的结果。
 
-### Integration & Code Reuse
-- **Shared Codebase:** The platform directly imports protocol and crypto primitives from `agent-comm` (such as `registry.Server`, `mq.Server`, and the Protobuf wire-format definitions).
-- **Development Dependency:** The platform relies on a local relative path replacement in its `go.mod` (using `replace github.com/BillShiyaoZhang/agent-comm => ./agent-comm` because it is set up as a git submodule nested inside the platform repository), meaning the two repositories are developed and built side-by-side.
+如果你只想让两个 agent 互相联系，可以按 [agent-comm 的说明](https://github.com/BillShiyaoZhang/agent-comm) 完成双方接入与联系方式交换；浏览器工作台是额外的远程使用入口。
 
----
+## Platform 在一次通信中做了什么？
 
-## 🏗️ Core Modules & Architecture
+以当前本机通信助手（helper）的可靠消息路径为例：
 
-The platform consists of three main modules, all running within a single unified service:
+```text
+你的 agent
+    ↓ 本机组件保存待发消息，并加密
+Platform 查找收件人、保存待转交的加密消息
+    ↓ 收件设备联网后取回
+对方设备上的组件验证、解密并保存消息
+    ↓
+对方在自己的 agent 中查看并处理来信，再通过同样的方式回复
+```
 
-### 1. Registry (The Address Book)
-**Problem:** How does Agent A know where Agent B is right now?
-**Solution:** The Registry acts as a dynamic DNS for agents. 
-- When an agent comes online, it registers its current libp2p addresses against its stable identity URN (e.g., `urn:hermes:agent:1234`).
-- Other agents can query the Registry to resolve a URN to an IP address and public key.
-- **Security:** Registrations are secured using Ed25519 cryptographic signatures to prevent impersonation. Records automatically expire (TTL) to ensure the directory stays fresh.
+- **帮忙找人：** 按 agent 的稳定通信地址，查找对应的身份和连接信息。
+- **代收消息：** 对方暂时离线时，保存等待它取回的加密消息；消息有保存期限和容量限制。
+- **帮助连接：** 对使用设备间直接通信的客户端，提供必要的网络中转服务。
 
-Both first registration and updates require a self-certifying owner URN, a PeerID derived from that owner's Ed25519 key, and a fresh owner signature over `registry.BuildSignedMsg`. Unsigned registration APIs are disabled; migrate callers to `RegisterWithSignature` (the SDK HTTP client already signs registrations). Existing unsigned or ownership-invalid rows are excluded from registry results until the owner registers again with the original keys. The platform signs its own entry at startup and renews it before expiry. See the SDK's [registration migration details](agent-comm/README.md#registry-注册兼容性).
+“本机已接受发送”“平台已收下消息”“对方已完成工作”是不同的状态。Platform 收下消息，说明它进入了转交流程；任务有没有完成，要以对方 agent 返回的结果为准。
 
-### 2. Circuit Relay (The Tunnel)
-**Problem:** Agent A and Agent B are both behind strict firewalls and cannot connect directly.
-**Solution:** The platform runs a `Circuit Relay v2` service.
-- Agents maintain a lightweight connection to the platform.
-- When they need to communicate, they can route their encrypted traffic *through* the platform's public IP address.
-- The platform merely acts as a dumb pipe forwarding encrypted bytes; it cannot read the contents of the communication.
+当前 Hermes 的个人协作来信不会自动唤醒私人对话。对方需要在自己的 agent 中查看并继续处理，不能把消息送达理解为已经开始自动协商。
 
-### 3. MQ / Mailbox (The Post Office)
-**Problem:** Agent A wants to send a message to Agent B, but Agent B is currently offline.
-**Solution:** The MQ (Message Queue) provides temporary, async storage.
-- If a direct connection fails, Agent A drops an `EncryptedEnvelope` into the platform's MQ, tagged for Agent B.
-- When Agent B comes back online, it connects to the MQ, authenticates using its private key signature, and retrieves its pending envelopes.
-- **Security:** The platform stores *blind* ciphertext. It does not hold the private keys necessary to decrypt the envelopes. It also enforces storage quotas per URN to prevent abuse.
+## 使用前最容易混淆的几件事
 
----
+**平台会替我运行 agent 吗？**
 
-## 🔄 How the Pieces Fit Together
+实际工作仍由你接入的 agent 软件执行。注册账户不会自动得到一台替你工作的 agent，也不会让已关机的电脑继续处理任务。
 
-Here is the typical lifecycle of agent communication using the platform:
+**离线后还能用吗？**
 
-1. **Bootstrapping:** Both Agent A and Agent B connect to the Platform and register their current network addresses in the **Registry**.
-2. **Addressing:** Agent A wants to message Agent B. It asks the **Registry** for Agent B's details.
-3. **Attempt 1 (Direct/Relay):** Agent A tries to connect to Agent B. If they are behind firewalls, the connection automatically routes through the Platform's **Relay**.
-4. **Attempt 2 (Offline Fallback):** If Agent B is entirely offline, the connection fails. Agent A encrypts the message and leaves it in the Platform's **MQ**.
-5. **Retrieval:** Later, Agent B wakes up, connects to the **MQ**, downloads the envelope, and decrypts the message locally.
+Platform 可以暂存未过期的消息。Web 可以展示此前已同步的信息；新的读取、对话和结果需要 agent 恢复连接。旧信息不代表 agent 现在在线。
 
----
+**平台能看到聊天内容吗？**
 
-## 🚀 Dual Interface: Libp2p & REST API
+通信信箱保存的是设备端加密后的消息，没有收发双方的私钥；它仍能看到用于转交的地址、消息大小和时间等信息。Web 是另一个服务：为提供远程工作台，它会解密你授权 agent 返回的内容，并保存到账户中。两者的数据范围不同。
 
-To maximize compatibility and performance, the platform exposes its services via two interfaces simultaneously:
+**别人知道我的 agent 地址，就能控制它吗？**
 
-- **Libp2p Streams:** The native language of the `agent-comm` SDK. Agents communicate with the platform using exactly the same multiplexed, secure streams they use to talk to each other.
-- **HTTP REST API:** A lightweight alternative side-channel. Agents can optionally use standard HTTP requests for Registry lookups or MQ operations. This is particularly useful for reducing the overhead of spinning up a full libp2p host just to check for new messages, or for web-based clients.
+地址用于联系；能读取哪些信息、执行哪些操作，由 agent 侧的配对和授权决定。需要主人确认的事情，仍由 agent 所在软件的确认流程处理。
 
-## 🛠️ Tech Stack
-- **Language:** Go 1.22+
-- **P2P Networking:** `libp2p` (Circuit Relay v2, multiplexing)
-- **Serialization:** Protobuf & JSON
-- **Storage:** SQLite (`modernc.org/sqlite` - no CGO required)
-- **Cryptography:** Ed25519 (Identity/Signatures) & X25519 (Key Exchange)
+## 给维护者和开发者
 
-## 📦 Running the Platform
+本仓库实现 Go 服务端，包含 Registry（身份目录）、MQ（消息信箱）、Circuit Relay（网络中转）、HTTP API、官网介绍页和管理界面。账户登录与远程工作台由独立的 Web 项目提供。
 
-1. Copy the example configuration:
-   ```bash
-   cp config.example.yaml config.yaml
-   ```
-2. Run via Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
-   *(Or build manually: `go build -o platform ./cmd/platform && ./platform`)*
+- **部署整套服务：** 使用 [agent-collaboration-deploy](https://github.com/BillShiyaoZhang/agent-collaboration-deploy)，它统一部署 Platform、Web 和网站入口。
+- **本地构建与服务端原理：** 阅读 [开发指南](docs/DEVELOPMENT.md)，包含子模块、启动、接口、两类通信路径、加密范围和测试命令。
+- **已有服务升级：** 阅读 [Registry 身份校验与迁移](REGISTRY_SECURITY.md)及 [Hermes 接入前的平台升级](HERMES_UPGRADE.md)，按目标版本同时更新配套 SDK/helper。
+- **单独部署 Platform 的历史环境参考：** [ECS 部署说明](DEPLOYMENT.md)；它只覆盖服务端，不包含 Web 工作台。
 
-The platform will automatically generate its persistent cryptographic identity (`identity/keys_dir`) and initialize the SQLite databases in the configured `data_dir` on first boot.
+客户端身份、加解密、联系人和本地协作逻辑位于 [agent-comm](https://github.com/BillShiyaoZhang/agent-comm)。如果目的是接入一个新的 agent 软件，应从客户端组件和适配文档开始。
