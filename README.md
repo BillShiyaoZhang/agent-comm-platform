@@ -75,8 +75,10 @@ Platform 可以暂存未过期的消息。Web 可以展示此前已同步的信�
 本仓库实现 Go 服务端，包含 Registry（身份目录）、MQ（消息信箱）、Circuit Relay（网络中转）、HTTP API 和管理界面。官网介绍、账户登录与远程工作台由独立的 Web 项目维护；官网静态页面由部署层直接提供。
 
 - **部署整套服务：** 使用 [agent-collaboration-deploy](https://github.com/BillShiyaoZhang/agent-collaboration-deploy)，它统一部署 Platform、Web 和网站入口。
-- **本地构建与服务端原理：** 阅读 [开发指南](docs/DEVELOPMENT.md)，包含子模块、启动、接口、两类通信路径、加密范围和测试命令。
-- **已有服务升级：** 阅读 [Registry 身份校验与迁移](REGISTRY_SECURITY.md)及 [Hermes 接入前的平台升级](HERMES_UPGRADE.md)，按目标版本同时更新配套 SDK/helper。
-- **单独部署 Platform 的历史环境参考：** [ECS 部署说明](DEPLOYMENT.md)；它只覆盖服务端，不包含 Web 工作台。
+- **本地构建与服务端原理：** 阅读 [开发指南](docs/guides/DEVELOPMENT.md)，包含子模块、启动、接口、两类通信路径、加密范围和测试命令。
+- **已有服务升级：** 阅读 [Registry 身份校验与迁移](docs/architecture/REGISTRY_SECURITY.md)及 [Hermes 接入前的平台升级](docs/guides/MESSAGE_UPGRADE.md)，按目标版本同时更新配套 SDK/helper。
+- **单独部署 Platform 的历史环境参考：** [ECS 部署说明](docs/guides/DEPLOYMENT.md)；它只覆盖服务端，不包含 Web 工作台。
 
 客户端身份、加解密、联系人和本地协作逻辑位于 [agent-comm](https://github.com/BillShiyaoZhang/agent-comm)。如果目的是接入一个新的 agent 软件，应从客户端组件和适配文档开始。
+
+完整文档与维护入口见 [docs/README.md](docs/README.md)。

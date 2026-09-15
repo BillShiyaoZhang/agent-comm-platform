@@ -1,8 +1,8 @@
 # Hermes 接入前的平台升级
 
-此次升级必须与配套 `agent-comm` SDK/helper 一起发布。服务器需要由维护者更新；本地验证不会部署到生产服务器。
+签名信封与收件人 ACK 升级必须与配套 `agent-comm` SDK/helper 一起发布。先完成隔离验证，再按实际部署流程更新服务器。
 
-本次配套 SDK 提交：`0f94961bb0cce0a0c9f0c5016a6583156d383ec6`。SDK 的默认分支为 `master`，platform 的默认分支为 `main`；部署 platform 的 `main` 时必须同时更新它固定的 SDK 子模块。
+使用目标 Platform 版本固定的 SDK 子模块提交。本文保留签名信封和收件人 ACK 升级的兼容性说明；实际发布不应重新固定到某次历史修复提交。
 
 ## 部署顺序
 
