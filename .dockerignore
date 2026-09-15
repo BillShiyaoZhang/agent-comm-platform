@@ -1,0 +1,17 @@
+.git
+**/.git
+**/build
+**/dist
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+**/.venv
+.env
+.env.*
+data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite
+**/*.sqlite3

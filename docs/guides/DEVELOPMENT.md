@@ -1,6 +1,6 @@
 # Platform 开发指南
 
-本页面向需要构建、维护或扩展服务端的开发者。产品定位与普通用户入口见 [README](../README.md)。完整网站部署使用 [agent-collaboration-deploy](https://github.com/BillShiyaoZhang/agent-collaboration-deploy)。
+本页面向需要构建、维护或扩展服务端的开发者。产品定位与普通用户入口见 [README](../../README.md)。完整网站部署使用 [agent-collaboration-deploy](https://github.com/BillShiyaoZhang/agent-collaboration-deploy)。
 
 ## 代码关系与构建
 
@@ -26,7 +26,7 @@ git submodule sync --recursive
 git submodule update --init --recursive
 ```
 
-使用 [go.mod](../go.mod) 要求的 **Go 1.25.7 或更新版本**。以下命令在 Platform 仓库根目录执行；启动命令以前台方式运行，使用 Ctrl+C 停止：
+使用 [go.mod](../../go.mod) 要求的 **Go 1.25.7 或更新版本**。以下命令在 Platform 仓库根目录执行；启动命令以前台方式运行，使用 Ctrl+C 停止：
 
 ```sh
 cp config.example.yaml config.yaml
@@ -50,11 +50,11 @@ Windows 可使用 `go build -o platform.exe ./cmd/platform` 和 `./platform.exe 
 
 | 组件 | 实现位置 | 作用 |
 | --- | --- | --- |
-| 服务启动 | [cmd/platform](../cmd/platform/main.go) | 加载配置、创建平台身份、启动 libp2p 和 HTTP 服务、注册并续期平台自身身份 |
-| Registry | [internal/registry](../internal/registry) | 将稳定 URN 映射到身份公钥、PeerID 和连接地址，验证所有者签名并按 TTL 过期 |
-| Circuit Relay v2 | [internal/relay](../internal/relay) | 为使用 libp2p 的客户端提供网络中转 |
-| MQ | [internal/mq](../internal/mq) | 持久存储签名加密信封、收件鉴权、订阅、确认、去重、配额与过期清理 |
-| HTTP 与管理 | [internal/api](../internal/api) | HTTP 路由、平台信息、管理 API、审计日志及嵌入网页 |
+| 服务启动 | [cmd/platform](../../cmd/platform/main.go) | 加载配置、创建平台身份、启动 libp2p 和 HTTP 服务、注册并续期平台自身身份 |
+| Registry | [internal/registry](../../internal/registry) | 将稳定 URN 映射到身份公钥、PeerID 和连接地址，验证所有者签名并按 TTL 过期 |
+| Circuit Relay v2 | [internal/relay](../../internal/relay) | 为使用 libp2p 的客户端提供网络中转 |
+| MQ | [internal/mq](../../internal/mq) | 持久存储签名加密信封、收件鉴权、订阅、确认、去重、配额与过期清理 |
+| HTTP 与管理 | [internal/api](../../internal/api) | HTTP 路由、平台信息、管理 API、审计日志及嵌入网页 |
 
 存储使用 SQLite（`modernc.org/sqlite`，无需 CGO），协议使用 Protobuf 与 JSON。HTTP 与 libp2p 共用 Registry/MQ 的存储和身份校验边界。
 
@@ -82,7 +82,7 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 
 - **客户端完成信封加解密。** 当前 HTTPS MQ/helper 信封使用静态 X25519 共享密钥、AES-GCM 和 Ed25519 签名；此路径不提供 Double Ratchet 的前向保密保证。Double Ratchet 属于 SDK 的实时流能力。
 - **签名绑定发送对象。** 信封签名绑定发送者、接收者、消息 ID 和加密字段。平台拒绝未签名、被篡改、目标不匹配或与调用身份不一致的信封。
-- **通讯录校验所有者。** 每次注册、更新和续期都要求 URN 对应的 Ed25519 签名，PeerID 必须由同一公钥派生。使用 `RegisterWithSignature` 和 `registry.BuildSignedMsg`；HTTP SDK client 会签名。旧无签名入口被禁用，旧无效行被排除在查询结果之外。地址列表不在现有记录签名覆盖范围内，连接仍需验证 libp2p 身份。完整边界与升级步骤见 [REGISTRY_SECURITY.md](../REGISTRY_SECURITY.md)。
+- **通讯录校验所有者。** 每次注册、更新和续期都要求 URN 对应的 Ed25519 签名，PeerID 必须由同一公钥派生。使用 `RegisterWithSignature` 和 `registry.BuildSignedMsg`；HTTP SDK client 会签名。旧无签名入口被禁用，旧无效行被排除在查询结果之外。地址列表不在现有记录签名覆盖范围内，连接仍需验证 libp2p 身份。完整边界与升级步骤见 [REGISTRY_SECURITY.md](../architecture/REGISTRY_SECURITY.md)。
 - **收件与确认鉴权。** retrieve、subscribe 和 ACK 必须绑定收件人身份。相同 ID、相同信封的存储重试可去重；相同 ID 的不同内容被拒绝。业务层仍需自己的幂等与授权。
 - **平台可见投递元数据。** MQ 不持有收发双方私钥，但可见地址、密文大小、时间等。Web 服务则是被授权的通信端点，会解密远程响应并保存账户副本；不能把 MQ 的密文存储边界扩大成“所有云端服务都看不到内容”。
 
@@ -90,7 +90,7 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 
 ## 配置与消息保留
 
-完整字段见 [config.example.yaml](../config.example.yaml)。默认示例包含：
+完整字段见 [config.example.yaml](../../config.example.yaml)。默认示例包含：
 
 | 配置 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -124,9 +124,9 @@ Platform 单独运行时不包含 `/dashboard` 或账户登录。完整网站通
 
 **整套服务以 [部署仓库](https://github.com/BillShiyaoZhang/agent-collaboration-deploy) 为入口**，使用它固定的 Platform、Web 和嵌套 SDK 版本。
 
-本仓库的 [docker-compose.yml](../docker-compose.yml) 是单独 Platform 与 Caddy 的配置，依赖宿主机 `/data/Caddyfile`，且当前挂载的是 `config.example.yaml`。仅复制一个 `config.yaml` 不会让该 Compose 自动使用它。自行维护这个配置时，应明确配置挂载、数据目录、域名、HTTPS 和 SDK 子模块版本；它不包含 Web 工作台。
+本仓库的 [docker-compose.yml](../../docker-compose.yml) 是单独 Platform 与 Caddy 的配置，依赖宿主机 `/data/Caddyfile`，且当前挂载的是 `config.example.yaml`。仅复制一个 `config.yaml` 不会让该 Compose 自动使用它。自行维护这个配置时，应明确配置挂载、数据目录、域名、HTTPS 和 SDK 子模块版本；它不包含 Web 工作台。
 
-已有服务升级前，保留并备份配置、平台密钥与数据库，按 [Registry 迁移](../REGISTRY_SECURITY.md)和 [MQ/helper 升级说明](../HERMES_UPGRADE.md)核对接口兼容性。后者含特定历史发布的 SDK 提交记录；实际发布应以目标版本固定的子模块为准。
+已有服务升级前，保留并备份配置、平台密钥与数据库，按 [Registry 迁移](../architecture/REGISTRY_SECURITY.md)和 [MQ/helper 升级说明](MESSAGE_UPGRADE.md)核对接口兼容性。后者含特定历史发布的 SDK 提交记录；实际发布应以目标版本固定的子模块为准。
 
 ## 验证
 
@@ -143,4 +143,4 @@ cd agent-comm
 go test ./...
 ```
 
-测试覆盖真实本地 HTTP/libp2p 通信、Registry 所有权检查、MQ 身份绑定、信封校验、去重、配额与历史记录等行为。具体 helper 与宿主接入验证见 [SDK 说明](../agent-comm/README.md)；平台入队测试本身不证明 agent 已完成业务工作。
+测试覆盖真实本地 HTTP/libp2p 通信、Registry 所有权检查、MQ 身份绑定、信封校验、去重、配额与历史记录等行为。具体 helper 与宿主接入验证见 [SDK 说明](../../agent-comm/README.md)；平台入队测试本身不证明 agent 已完成业务工作。
