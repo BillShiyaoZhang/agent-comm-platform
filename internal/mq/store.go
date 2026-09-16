@@ -42,15 +42,26 @@ type Store struct {
 	maxPerURN            int
 	historyRetentionDays int32
 
-	mu             sync.RWMutex
-	subscribers    map[string][]chan *proto.EncryptedEnvelope
-	storeAllowed   func() bool
-	forwardAllowed func(string) bool
+	mu              sync.RWMutex
+	subscribers     map[string][]chan *proto.EncryptedEnvelope
+	storeAllowed    func() bool
+	forwardAllowed  func(string) bool
+	subscriberCount int
 }
 
 var _ mq.Store = (*Store)(nil)
 
 var ErrQueueFull = errors.New("recipient mailbox is full; retry later")
+var ErrSubscriberLimit = errors.New("subscriber limit reached; retry later")
+var ErrInvalidMessage = errors.New("invalid message")
+
+const (
+	maxEnvelopeBytes     = 1 << 20
+	maxRetrieveBytes     = 4 << 20
+	maxSubscribersPerURN = 4
+	maxSubscribers       = 1024
+	maxAckIDs            = 1000
+)
 
 // NewStore opens (or creates) the MQ database.
 func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
@@ -86,6 +97,9 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 // StoreEnvelope saves an EncryptedEnvelope for a recipient. Full queues reject
 // new messages so their senders can retain them in durable outboxes for retry.
 func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *proto.EncryptedEnvelope, expiryUnix int64) (string, error) {
+	if env == nil || len(env.MessageId) > 256 || goproto.Size(env) > maxEnvelopeBytes {
+		return "", fmt.Errorf("%w: envelope exceeds size limit", ErrInvalidMessage)
+	}
 	s.mu.RLock()
 	storeAllowed, forwardAllowed := s.storeAllowed, s.forwardAllowed
 	s.mu.RUnlock()
@@ -102,8 +116,13 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 		return "", err
 	}
 	msgID := env.MessageId
-	if expiryUnix == 0 {
-		expiryUnix = time.Now().Add(s.defaultTTL).Unix()
+	now := time.Now()
+	maxExpiry := now.Add(s.defaultTTL).Unix()
+	if expiryUnix < 0 || (expiryUnix != 0 && expiryUnix <= now.Unix()) {
+		return "", fmt.Errorf("%w: expiry must be in the future", ErrInvalidMessage)
+	}
+	if expiryUnix == 0 || expiryUnix > maxExpiry {
+		expiryUnix = maxExpiry
 	}
 	payload, err := goproto.Marshal(env)
 	if err != nil {
@@ -171,7 +190,11 @@ func (s *Store) RegisterSubscriber(ctx context.Context, urn string, ch chan *pro
 	if s.subscribers == nil {
 		s.subscribers = make(map[string][]chan *proto.EncryptedEnvelope)
 	}
+	if len(s.subscribers[urn]) >= maxSubscribersPerURN || s.subscriberCount >= maxSubscribers {
+		return ErrSubscriberLimit
+	}
 	s.subscribers[urn] = append(s.subscribers[urn], ch)
+	s.subscriberCount++
 	return nil
 }
 
@@ -186,6 +209,7 @@ func (s *Store) UnregisterSubscriber(urn string, ch chan *proto.EncryptedEnvelop
 	for i, c := range chans {
 		if c == ch {
 			s.subscribers[urn] = append(chans[:i], chans[i+1:]...)
+			s.subscriberCount--
 			break
 		}
 	}
@@ -221,13 +245,14 @@ func (s *Store) Retrieve(ctx context.Context, recipientURN string) ([]*proto.Enc
 	return envs, err
 }
 
-// RetrieveEntry returns all pending envelopes and their database IDs for a recipient (oldest first).
+// RetrieveEntry returns a bounded batch of pending envelopes and their IDs
+// (oldest first). ACK this batch before retrieving the next one.
 func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*proto.EncryptedEnvelope, []string, error) {
 	if err := mq.AuthorizeRecipient(ctx, recipientURN); err != nil {
 		return nil, nil, err
 	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, payload FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC",
+		"SELECT id, payload FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC LIMIT 500",
 		recipientURN, time.Now().Unix())
 	if err != nil {
 		return nil, nil, err
@@ -236,12 +261,17 @@ func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*prot
 
 	var envs []*proto.EncryptedEnvelope
 	var ids []string
+	totalBytes := 0
 	for rows.Next() {
 		var id string
 		var data []byte
 		if err := rows.Scan(&id, &data); err != nil {
 			continue
 		}
+		if totalBytes+len(data) > maxRetrieveBytes && len(envs) > 0 {
+			break
+		}
+		totalBytes += len(data)
 		var env proto.EncryptedEnvelope
 		if err := goproto.Unmarshal(data, &env); err != nil {
 			continue
@@ -249,7 +279,7 @@ func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*prot
 		envs = append(envs, &env)
 		ids = append(ids, id)
 	}
-	return envs, ids, nil
+	return envs, ids, rows.Err()
 }
 
 // Ack updates read_at for the given message IDs, marking them as read history.
@@ -259,6 +289,9 @@ func (s *Store) Ack(ctx context.Context, recipientURN string, ids []string) (int
 	}
 	if len(ids) == 0 {
 		return 0, nil
+	}
+	if len(ids) > maxAckIDs {
+		return 0, fmt.Errorf("%w: too many ACK IDs", ErrInvalidMessage)
 	}
 	args := make([]interface{}, len(ids)+2)
 	args[0], args[1] = time.Now().Unix(), recipientURN

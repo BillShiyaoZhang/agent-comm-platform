@@ -45,3 +45,24 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("expected 5MB bytes, got %d", cfg.MaxCircuitBytes)
 	}
 }
+
+func TestRelayEnforcesConfiguredCircuitLimits(t *testing.T) {
+	cfg := Config{MaxReservations: 1000, MaxCircuitDuration: time.Second, MaxCircuitBytes: 1024}
+	resources, err := relayResources(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resources.Limit.Duration != cfg.MaxCircuitDuration || resources.Limit.Data != 1024 {
+		t.Fatalf("circuit limits ignored: %+v", resources.Limit)
+	}
+	if resources.ReservationTTL != time.Hour {
+		t.Fatal("circuit duration changed reservation TTL")
+	}
+	if resources.MaxCircuits > 16 {
+		t.Fatal("global reservation quota expanded per-peer circuit quota")
+	}
+	cfg.MaxCircuitBytes = ^uint64(0)
+	if _, err := relayResources(cfg); err == nil {
+		t.Fatal("overflowed byte limit accepted")
+	}
+}

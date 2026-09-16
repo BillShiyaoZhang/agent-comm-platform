@@ -3,23 +3,24 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Platform PlatformConfig  `yaml:"platform"`
-	Identity IdentityConfig  `yaml:"identity"`
-	Libp2p   Libp2pConfig    `yaml:"libp2p"`
-	Registry RegistryConfig  `yaml:"registry"`
-	Relay    RelayConfig     `yaml:"relay"`
-	MQ       MQConfig        `yaml:"mq"`
-	API      APIConfig       `yaml:"api"`
+	Platform PlatformConfig `yaml:"platform"`
+	Identity IdentityConfig `yaml:"identity"`
+	Libp2p   Libp2pConfig   `yaml:"libp2p"`
+	Registry RegistryConfig `yaml:"registry"`
+	Relay    RelayConfig    `yaml:"relay"`
+	MQ       MQConfig       `yaml:"mq"`
+	API      APIConfig      `yaml:"api"`
 }
 
 type PlatformConfig struct {
-	Mode                      string `yaml:"mode"`     // "privacy" | "compliance"
+	Mode                      string `yaml:"mode"` // "privacy" | "compliance"
 	DataDir                   string `yaml:"data_dir"`
 	StoreUserData             bool   `yaml:"store_user_data"`
 	ForwardToStoragePlatforms bool   `yaml:"forward_to_storage_platforms"`
@@ -36,9 +37,9 @@ type Libp2pConfig struct {
 }
 
 type RegistryConfig struct {
-	PersistDB  string `yaml:"persist_db"`
-	TTLHours   int    `yaml:"ttl_hours"`
-	HTTPEnabled bool  `yaml:"http_enabled"`
+	PersistDB   string `yaml:"persist_db"`
+	TTLHours    int    `yaml:"ttl_hours"`
+	HTTPEnabled bool   `yaml:"http_enabled"`
 }
 
 type RelayConfig struct {
@@ -55,12 +56,13 @@ type MQConfig struct {
 }
 
 type APIConfig struct {
-	ListenAddr     string  `yaml:"listen_addr"`
-	TLSCert        string  `yaml:"tls_cert"`
-	TLSKey         string  `yaml:"tls_key"`
-	AdminToken     string  `yaml:"admin_token"`
-	RateLimitRate  float64 `yaml:"rate_limit_rate"`  // requests per second per IP (0 to disable)
-	RateLimitBurst int     `yaml:"rate_limit_burst"` // burst size
+	ListenAddr        string   `yaml:"listen_addr"`
+	TLSCert           string   `yaml:"tls_cert"`
+	TLSKey            string   `yaml:"tls_key"`
+	AdminToken        string   `yaml:"admin_token"`
+	RateLimitRate     float64  `yaml:"rate_limit_rate"`     // requests per second per IP (0 to disable)
+	RateLimitBurst    int      `yaml:"rate_limit_burst"`    // burst size
+	TrustedProxyCIDRs []string `yaml:"trusted_proxy_cidrs"` // Only these socket peers may supply X-Real-IP.
 }
 
 func DefaultConfig() *Config {
@@ -108,6 +110,14 @@ func Load(path string) (*Config, error) {
 	if v := os.Getenv("PLATFORM_ADMIN_TOKEN"); v != "" {
 		cfg.API.AdminToken = v
 	}
+	if (cfg.API.TLSCert == "") != (cfg.API.TLSKey == "") {
+		return nil, fmt.Errorf("tls_cert and tls_key must be configured together")
+	}
+	for _, cidr := range cfg.API.TrustedProxyCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return nil, fmt.Errorf("invalid trusted_proxy_cidrs entry %q: %w", cidr, err)
+		}
+	}
 	return cfg, nil
 }
 
@@ -116,7 +126,12 @@ func Save(path string, cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	// WriteFile's mode only applies when creating a file. Protect existing
+	// configuration before persisting a token inherited from the environment.
+	if err := os.Chmod(path, 0600); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("secure config permissions: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 	return nil

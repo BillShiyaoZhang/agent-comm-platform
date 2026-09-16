@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,6 +63,7 @@ func NewStore(dbPath string, ttlHours int) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+	db.SetMaxOpenConns(1)
 	// Enable WAL journal mode and busy timeout to avoid database locks (SQLITE_BUSY) under concurrent loads
 	_, _ = db.Exec("PRAGMA journal_mode=WAL;")
 	_, _ = db.Exec("PRAGMA busy_timeout=5000;")
@@ -113,6 +115,16 @@ func (s *Store) RegisterWithSignature(urn, peerID string, addrs, relayAddrs []st
 	if err := registry.ValidateRegistration(urn, peerID, x25519PK, ed25519PK, signature, storesUserData, timestamp); err != nil {
 		return err
 	}
+	for _, list := range [][]string{addrs, relayAddrs} {
+		if len(list) > 64 {
+			return fmt.Errorf("too many registration addresses")
+		}
+		for _, addr := range list {
+			if len(addr) > 2048 {
+				return fmt.Errorf("registration address too long")
+			}
+		}
+	}
 
 	now := time.Now().Unix()
 	addrsJSON := encodeStringSlice(addrs)
@@ -125,7 +137,18 @@ func (s *Store) RegisterWithSignature(urn, peerID string, addrs, relayAddrs []st
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, err := s.db.Exec(`
+	var old Entry
+	err := s.db.QueryRow(`SELECT urn, peer_id, x25519_pubkey, ed25519_pubkey, signature, stores_user_data, timestamp FROM registry WHERE urn=?`, urn).
+		Scan(&old.URN, &old.PeerID, &old.X25519Pubkey, &old.Ed25519Pubkey, &old.Signature, &old.StoresUserData, &old.Timestamp)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	// Ignore poisoned legacy rows for owner recovery, but never roll back a
+	// newer authentic registration with a captured, still-fresh signature.
+	if err == nil && timestamp < old.Timestamp && authenticatedEntry(&old) {
+		return fmt.Errorf("registration timestamp is older than current record")
+	}
+	_, err = s.db.Exec(`
 		INSERT INTO registry (urn, peer_id, addrs, relay_addrs, x25519_pubkey, ed25519_pubkey, stores_user_data, signature, timestamp, expires_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(urn) DO UPDATE SET
@@ -248,14 +271,14 @@ func (s *Store) cleanupLoop() {
 
 // encodeStringSlice encodes a string slice as a simple hex-delimited string for SQLite storage.
 func encodeStringSlice(ss []string) string {
-	result := ""
+	var result strings.Builder
 	for i, s := range ss {
 		if i > 0 {
-			result += ","
+			result.WriteByte(',')
 		}
-		result += hex.EncodeToString([]byte(s))
+		result.WriteString(hex.EncodeToString([]byte(s)))
 	}
-	return result
+	return result.String()
 }
 
 func decodeStringSlice(s string) []string {

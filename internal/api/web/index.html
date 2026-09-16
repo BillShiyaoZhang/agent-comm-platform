@@ -2666,6 +2666,17 @@
     }
 
     // Inline Toast notifications
+    // Untrusted peer metadata must never become markup or executable handlers.
+    function escapeHTML(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char]);
+    }
+
+    function jsArg(value) {
+      return escapeHTML(JSON.stringify(String(value ?? '')));
+    }
+
     function showToast(text, type = 'success') {
       const container = document.getElementById('toastContainer');
       const t = document.createElement('div');
@@ -2674,7 +2685,7 @@
       const successIcon = `<svg style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
       const errorIcon = `<svg style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
       
-      t.innerHTML = `${type === 'success' ? successIcon : errorIcon} <span>${text}</span>`;
+      t.innerHTML = `${type === 'success' ? successIcon : errorIcon} <span>${escapeHTML(text)}</span>`;
       container.appendChild(t);
       
       setTimeout(() => {
@@ -2906,8 +2917,8 @@
           const div = document.createElement('div');
           div.className = 'addr-item';
           div.innerHTML = `
-            <span>${addr}</span>
-            <button class="copy-btn-inline" onclick="copyText('${addr}')" title="Copy address">
+            <span>${escapeHTML(addr)}</span>
+            <button class="copy-btn-inline" onclick="copyText(${jsArg(addr)})" title="Copy address">
               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             </button>
           `;
@@ -3113,20 +3124,20 @@
         // Address tags format
         const addrs = e.Addrs || [];
         const relayAddrs = e.RelayAddrs || [];
-        let addrsHTML = addrs.slice(0, 2).map(a => `<div style="font-family: monospace; font-size:0.8rem; color:var(--text-muted);">${a}</div>`).join('');
+        let addrsHTML = addrs.slice(0, 2).map(a => `<div style="font-family: monospace; font-size:0.8rem; color:var(--text-muted);">${escapeHTML(a)}</div>`).join('');
         if (addrs.length > 2) addrsHTML += `<div style="font-size:0.75rem; color:var(--text-dim);">+ ${addrs.length - 2} more addresses</div>`;
         if (relayAddrs.length > 0) addrsHTML += `<div style="font-family: monospace; font-size:0.8rem; color:var(--accent-cyan); font-weight:500;">[Relayed via ${relayAddrs.length} paths]</div>`;
 
         tr.innerHTML = `
           <td class="checkbox-cell" onclick="event.stopPropagation()">
-            <input type="checkbox" class="reg-select-box" value="${e.URN}" ${checked} onchange="toggleSelectReg('${e.URN}', this)">
+            <input type="checkbox" class="reg-select-box" value="${escapeHTML(e.URN)}" ${checked} onchange="toggleSelectReg(${jsArg(e.URN)}, this)">
           </td>
-          <td style="font-weight:700; color:var(--primary);" onclick="showNodeDetails('${e.URN}')">${e.URN}</td>
-          <td style="font-family: monospace; font-size:0.85rem;" onclick="showNodeDetails('${e.URN}')">${e.PeerID}</td>
-          <td onclick="showNodeDetails('${e.URN}')">${addrsHTML || `<span style="color:var(--text-dim);">[Native Loopback / Indirect]</span>`}</td>
-          <td onclick="showNodeDetails('${e.URN}')">${ttlHTML}</td>
+          <td style="font-weight:700; color:var(--primary);" onclick="showNodeDetails(${jsArg(e.URN)})">${escapeHTML(e.URN)}</td>
+          <td style="font-family: monospace; font-size:0.85rem;" onclick="showNodeDetails(${jsArg(e.URN)})">${escapeHTML(e.PeerID)}</td>
+          <td onclick="showNodeDetails(${jsArg(e.URN)})">${addrsHTML || `<span style="color:var(--text-dim);">[Native Loopback / Indirect]</span>`}</td>
+          <td onclick="showNodeDetails(${jsArg(e.URN)})">${ttlHTML}</td>
           <td style="text-align: center;" onclick="event.stopPropagation()">
-            <button class="btn btn-danger-outline btn-sm" onclick="evictNode('${e.URN}')">${i18n[state.lang].evict}</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="evictNode(${jsArg(e.URN)})">${i18n[state.lang].evict}</button>
           </td>
         `;
         body.appendChild(tr);
@@ -3209,8 +3220,8 @@
       
       const addresses = (entry.Addrs || []).map(a => `
         <div class="addr-item">
-          <span>${a}</span>
-          <button class="copy-btn-inline" onclick="copyText('${a}')" title="Copy URN address">
+          <span>${escapeHTML(a)}</span>
+          <button class="copy-btn-inline" onclick="copyText(${jsArg(a)})" title="Copy URN address">
             <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           </button>
         </div>
@@ -3218,8 +3229,8 @@
 
       const relayAddresses = (entry.RelayAddrs || []).map(a => `
         <div class="addr-item" style="border-left-color: var(--accent-cyan);">
-          <span>${a}</span>
-          <button class="copy-btn-inline" onclick="copyText('${a}')" title="Copy relay path">
+          <span>${escapeHTML(a)}</span>
+          <button class="copy-btn-inline" onclick="copyText(${jsArg(a)})" title="Copy relay path">
             <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           </button>
         </div>
@@ -3228,14 +3239,14 @@
       let contentHTML = `
         <div class="drawer-section">
           <div class="drawer-section-title">URN Identity</div>
-          <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom:4px;">${entry.URN}</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom:4px;">${escapeHTML(entry.URN)}</div>
         </div>
 
         <div class="drawer-section">
           <div class="drawer-section-title">Associated Peer ID</div>
           <div style="font-family: monospace; font-size: 0.85rem; background: rgba(0,0,0,0.2); padding: 8px; border-radius:6px; word-break:break-all; display:flex; justify-content:space-between; align-items:center;">
-            <span>${entry.PeerID}</span>
-            <button class="copy-btn-inline" style="opacity:1;" onclick="copyText('${entry.PeerID}')">
+            <span>${escapeHTML(entry.PeerID)}</span>
+            <button class="copy-btn-inline" style="opacity:1;" onclick="copyText(${jsArg(entry.PeerID)})">
               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             </button>
           </div>
@@ -3335,11 +3346,11 @@
         else dirHTML = `<span style="color:var(--success); font-weight:700;">↔ Bidirectional</span>`;
 
         const addrs = e.addrs || [];
-        let addrsHTML = addrs.slice(0, 1).map(a => `<div style="font-family: monospace; font-size:0.8rem;">${a}</div>`).join('');
+        let addrsHTML = addrs.slice(0, 1).map(a => `<div style="font-family: monospace; font-size:0.8rem;">${escapeHTML(a)}</div>`).join('');
         if (addrs.length > 1) addrsHTML += `<div style="font-size:0.75rem; color:var(--text-dim);">+ ${addrs.length - 1} more physical multiaddresses</div>`;
 
         const protos = e.protocols || [];
-        let protosHTML = protos.slice(0, 3).map(p => `<span style="display:inline-block; font-size:0.75rem; background:rgba(255,255,255,0.05); padding: 2px 6px; border-radius:4px; margin-right:4px; margin-bottom:4px; font-family:monospace;">${p}</span>`).join('');
+        let protosHTML = protos.slice(0, 3).map(p => `<span style="display:inline-block; font-size:0.75rem; background:rgba(255,255,255,0.05); padding: 2px 6px; border-radius:4px; margin-right:4px; margin-bottom:4px; font-family:monospace;">${escapeHTML(p)}</span>`).join('');
         if (protos.length > 3) protosHTML += `<span style="font-size:0.75rem; color:var(--text-dim);">+${protos.length - 3}</span>`;
 
         let selfBadge = '';
@@ -3360,11 +3371,11 @@
         }
 
         tr.innerHTML = `
-          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails('${e.peer_id}')">${e.peer_id}${selfBadge}${storageBadge}</td>
-          <td onclick="showPeerDetails('${e.peer_id}')">${dirHTML}</td>
-          <td style="font-weight:700;" onclick="showPeerDetails('${e.peer_id}')">${e.conn_count}</td>
-          <td onclick="showPeerDetails('${e.peer_id}')">${addrsHTML || `<span style="color:var(--text-dim);">[Internal Node Loopback]</span>`}</td>
-          <td onclick="showPeerDetails('${e.peer_id}')">${protosHTML || `<span style="color:var(--text-dim);">--</span>`}</td>
+          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails(${jsArg(e.peer_id)})">${escapeHTML(e.peer_id)}${selfBadge}${storageBadge}</td>
+          <td onclick="showPeerDetails(${jsArg(e.peer_id)})">${dirHTML}</td>
+          <td style="font-weight:700;" onclick="showPeerDetails(${jsArg(e.peer_id)})">${e.conn_count}</td>
+          <td onclick="showPeerDetails(${jsArg(e.peer_id)})">${addrsHTML || `<span style="color:var(--text-dim);">[Internal Node Loopback]</span>`}</td>
+          <td onclick="showPeerDetails(${jsArg(e.peer_id)})">${protosHTML || `<span style="color:var(--text-dim);">--</span>`}</td>
         `;
         body.appendChild(tr);
       });
@@ -3378,8 +3389,8 @@
       
       const addresses = (peer.addrs || []).map(a => `
         <div class="addr-item">
-          <span>${a}</span>
-          <button class="copy-btn-inline" onclick="copyText('${a}')" title="Copy Multiaddress">
+          <span>${escapeHTML(a)}</span>
+          <button class="copy-btn-inline" onclick="copyText(${jsArg(a)})" title="Copy Multiaddress">
             <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           </button>
         </div>
@@ -3387,7 +3398,7 @@
 
       const protocols = (peer.protocols || []).map(p => `
         <div style="font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--accent-cyan); word-break:break-all;">
-          ${p}
+          ${escapeHTML(p)}
         </div>
       `).join('');
 
@@ -3399,8 +3410,8 @@
         <div class="drawer-section">
           <div class="drawer-section-title">Peer Connection ID</div>
           <div style="font-family: monospace; font-size: 0.9rem; font-weight: 700; color: var(--primary); word-break:break-all; display:flex; justify-content:space-between; align-items:center;">
-            <span>${peer.peer_id}${selfLabel}</span>
-            <button class="copy-btn-inline" style="opacity:1;" onclick="copyText('${peer.peer_id}')">
+            <span>${escapeHTML(peer.peer_id)}${selfLabel}</span>
+            <button class="copy-btn-inline" style="opacity:1;" onclick="copyText(${jsArg(peer.peer_id)})">
               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             </button>
           </div>
@@ -3411,7 +3422,7 @@
           <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
             <div class="info-item">
               <span class="info-label">Direction</span>
-              <span class="info-value" style="text-transform: capitalize;">${peer.direction}</span>
+              <span class="info-value" style="text-transform: capitalize;">${escapeHTML(peer.direction)}</span>
             </div>
             <div class="info-item">
               <span class="info-label">Active Connection Count</span>
@@ -3549,15 +3560,15 @@
 
         tr.innerHTML = `
           <td class="checkbox-cell" onclick="event.stopPropagation()">
-            <input type="checkbox" class="mq-select-box" value="${e.recipient}" ${checked} onchange="toggleSelectMQ('${e.recipient}', this)">
+            <input type="checkbox" class="mq-select-box" value="${escapeHTML(e.recipient)}" ${checked} onchange="toggleSelectMQ(${jsArg(e.recipient)}, this)">
           </td>
-          <td style="font-weight:700; color:var(--primary);" onclick="showMQDetails('${e.recipient}')">${e.recipient}</td>
-          <td onclick="showMQDetails('${e.recipient}')">${quotaHTML}</td>
-          <td onclick="showMQDetails('${e.recipient}')">${formatBytes(e.total_size)}</td>
-          <td style="font-size:0.85rem;" onclick="showMQDetails('${e.recipient}')">${formatTime(e.oldest_at)}</td>
-          <td style="font-size:0.85rem;" onclick="showMQDetails('${e.recipient}')">${formatTime(e.newest_at)}</td>
+          <td style="font-weight:700; color:var(--primary);" onclick="showMQDetails(${jsArg(e.recipient)})">${escapeHTML(e.recipient)}</td>
+          <td onclick="showMQDetails(${jsArg(e.recipient)})">${quotaHTML}</td>
+          <td onclick="showMQDetails(${jsArg(e.recipient)})">${formatBytes(e.total_size)}</td>
+          <td style="font-size:0.85rem;" onclick="showMQDetails(${jsArg(e.recipient)})">${formatTime(e.oldest_at)}</td>
+          <td style="font-size:0.85rem;" onclick="showMQDetails(${jsArg(e.recipient)})">${formatTime(e.newest_at)}</td>
           <td style="text-align: center;" onclick="event.stopPropagation()">
-            <button class="btn btn-danger-outline btn-sm" onclick="clearQueue('${e.recipient}')">${i18n[state.lang].clear}</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="clearQueue(${jsArg(e.recipient)})">${i18n[state.lang].clear}</button>
           </td>
         `;
         body.appendChild(tr);
@@ -3643,7 +3654,7 @@
       const contentHTML = `
         <div class="drawer-section">
           <div class="drawer-section-title" data-i18n="recipient">接收方 URN</div>
-          <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary); word-break:break-all; margin-bottom:16px;">${urn}</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--primary); word-break:break-all; margin-bottom:16px;">${escapeHTML(urn)}</div>
         </div>
 
         <!-- Tab controllers -->
@@ -3718,11 +3729,11 @@
           card.innerHTML = `
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="msg_id">消息 ID</span>
-              <span style="font-family:monospace; color:#fff; word-break:break-all;">${msg.id}</span>
+              <span style="font-family:monospace; color:#fff; word-break:break-all;">${escapeHTML(msg.id)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="sender">发送方</span>
-              <span style="font-family:monospace; color:#fff; word-break:break-all;">${msg.sender || '--'}</span>
+              <span style="font-family:monospace; color:#fff; word-break:break-all;">${escapeHTML(msg.sender || '--')}</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="size">大小</span>
@@ -3740,9 +3751,9 @@
             <div style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; margin-top:4px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="color:var(--text-muted);" data-i18n="payload">加密载荷 (Payload Hex)</span>
-                <button onclick="copyText('${msg.payload}')" style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-size:0.75rem;">Copy</button>
+                <button onclick="copyText(${jsArg(msg.payload)})" style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-size:0.75rem;">Copy</button>
               </div>
-              <textarea readonly style="width:100%; height:60px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:6px; color:var(--text-muted); font-family:monospace; font-size:0.75rem; padding:6px; resize:none; outline:none; word-break:break-all;">${msg.payload}</textarea>
+              <textarea readonly style="width:100%; height:60px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:6px; color:var(--text-muted); font-family:monospace; font-size:0.75rem; padding:6px; resize:none; outline:none; word-break:break-all;">${escapeHTML(msg.payload)}</textarea>
             </div>
           `;
           container.appendChild(card);
@@ -3750,7 +3761,7 @@
         updateUILanguage();
       })
       .catch(err => {
-        container.innerHTML = `<div style="text-align: center; color: var(--accent-rose); padding: 20px;">Error: ${err.message}</div>`;
+        container.innerHTML = `<div style="text-align: center; color: var(--accent-rose); padding: 20px;">Error: ${escapeHTML(err.message)}</div>`;
       });
     }
 
@@ -3803,10 +3814,10 @@
         
         row.innerHTML = `
           <span class="log-ts" title="${absoluteTime}">${relativeTime}</span>
-          <span class="log-level ${l.level.toLowerCase()}">${l.level}</span>
-          <span class="log-src">[${l.source}]</span>
-          <span class="log-msg">${l.message}</span>
-          <span class="log-details" title="${l.details}">${l.details}</span>
+          <span class="log-level ${escapeHTML(l.level.toLowerCase())}">${escapeHTML(l.level)}</span>
+          <span class="log-src">[${escapeHTML(l.source)}]</span>
+          <span class="log-msg">${escapeHTML(l.message)}</span>
+          <span class="log-details" title="${escapeHTML(l.details)}">${escapeHTML(l.details)}</span>
         `;
         container.appendChild(row);
       });

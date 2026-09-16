@@ -110,15 +110,15 @@ func TestRateLimiter(t *testing.T) {
 		req4.Header.Set("X-Real-IP", "10.0.0.2")
 		w4 := httptest.NewRecorder()
 		handler.ServeHTTP(w4, req4)
-		if w4.Code != http.StatusOK {
-			t.Errorf("expected 200 for IP-B, got %d", w4.Code)
+		if w4.Code != http.StatusTooManyRequests {
+			t.Errorf("spoofed X-Real-IP must not reset quota, got %d", w4.Code)
 		}
 	})
 
 	t.Run("Client IP - X-Forwarded-For header support", func(t *testing.T) {
 		// Test multiple IPs in X-Forwarded-For (we should take the first one)
 		req1 := httptest.NewRequest("GET", "/healthz", nil)
-		req1.RemoteAddr = "8.8.8.8:1234"
+		req1.RemoteAddr = "8.8.4.4:1234"
 		req1.Header.Set("X-Forwarded-For", "192.168.1.1, 10.0.0.1")
 		w1 := httptest.NewRecorder()
 		handler.ServeHTTP(w1, req1)
@@ -127,7 +127,7 @@ func TestRateLimiter(t *testing.T) {
 		}
 
 		req2 := httptest.NewRequest("GET", "/healthz", nil)
-		req2.RemoteAddr = "8.8.8.8:1234"
+		req2.RemoteAddr = "8.8.4.4:1234"
 		req2.Header.Set("X-Forwarded-For", "192.168.1.1, 10.0.0.1")
 		w2 := httptest.NewRecorder()
 		handler.ServeHTTP(w2, req2)
@@ -136,7 +136,7 @@ func TestRateLimiter(t *testing.T) {
 		}
 
 		req3 := httptest.NewRequest("GET", "/healthz", nil)
-		req3.RemoteAddr = "8.8.8.8:1234"
+		req3.RemoteAddr = "8.8.4.4:1234"
 		req3.Header.Set("X-Forwarded-For", "192.168.1.1, 10.0.0.1")
 		w3 := httptest.NewRecorder()
 		handler.ServeHTTP(w3, req3)
@@ -191,25 +191,25 @@ func TestClientIPExtractorHelper(t *testing.T) {
 			name:       "X-Real-IP override",
 			remoteAddr: "1.2.3.4:5678",
 			headers:    map[string]string{"X-Real-IP": "5.6.7.8"},
-			expected:   "5.6.7.8",
+			expected:   "1.2.3.4",
 		},
 		{
 			name:       "X-Forwarded-For simple",
 			remoteAddr: "1.2.3.4:5678",
 			headers:    map[string]string{"X-Forwarded-For": "9.9.9.9"},
-			expected:   "9.9.9.9",
+			expected:   "1.2.3.4",
 		},
 		{
 			name:       "X-Forwarded-For list with spaces",
 			remoteAddr: "1.2.3.4:5678",
 			headers:    map[string]string{"X-Forwarded-For": " 10.0.0.1, 10.0.0.2, 10.0.0.3 "},
-			expected:   "10.0.0.1",
+			expected:   "1.2.3.4",
 		},
 		{
 			name:       "X-Real-IP takes precedence over X-Forwarded-For",
 			remoteAddr: "1.2.3.4:5678",
 			headers:    map[string]string{"X-Real-IP": "10.0.0.1", "X-Forwarded-For": "10.0.0.2"},
-			expected:   "10.0.0.1",
+			expected:   "1.2.3.4",
 		},
 	}
 

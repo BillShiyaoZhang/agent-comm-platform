@@ -59,7 +59,7 @@ func TestAdminAPIs(t *testing.T) {
 	}
 	defer auditLog.Close()
 
-	policies := &SecurityPolicies{}
+	policies := &SecurityPolicies{restart: func() {}}
 	policies.StoreUserData.Store(true)
 	policies.ForwardToStoragePlatforms.Store(true)
 

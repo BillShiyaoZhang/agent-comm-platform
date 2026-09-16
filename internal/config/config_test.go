@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -22,6 +23,40 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.API.RateLimitBurst != 20 {
 		t.Errorf("expected API.RateLimitBurst 20, got %d", cfg.API.RateLimitBurst)
+	}
+}
+
+func TestSaveRestrictsExistingConfigPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not enforced on Windows")
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("api: {}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := DefaultConfig()
+	cfg.API.AdminToken = "test-secret"
+	if err := Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("secret remains readable by others: %o", info.Mode().Perm())
+	}
+}
+
+func TestLoadRejectsInvalidTrustAndPartialTLS(t *testing.T) {
+	for _, data := range []string{"api:\n  trusted_proxy_cidrs: [not-a-cidr]\n", "api:\n  tls_cert: cert.pem\n"} {
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(path); err == nil {
+			t.Fatal("invalid security configuration accepted")
+		}
 	}
 }
 

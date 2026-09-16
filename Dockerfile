@@ -1,4 +1,4 @@
-FROM golang:1.25.0 AS builder
+FROM golang:1.26.8 AS builder
 ENV GOPROXY=https://goproxy.cn,direct
 ENV GOTOOLCHAIN=auto
 WORKDIR /src/agent-comm-platform
@@ -15,9 +15,8 @@ COPY . ./
 
 RUN CGO_ENABLED=0 go build -o /platform ./cmd/platform
 
-FROM alpine:3.21.3
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
-    apk --no-cache add ca-certificates && \
+FROM alpine:3.24.1
+RUN apk --no-cache add ca-certificates && \
     adduser -D -u 10001 platformuser && \
     mkdir -p /data /etc/platform && \
     chown -R platformuser:platformuser /data /etc/platform

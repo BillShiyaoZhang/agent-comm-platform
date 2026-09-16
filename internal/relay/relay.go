@@ -3,6 +3,7 @@ package relay
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -32,18 +33,27 @@ func DefaultConfig() Config {
 
 // Start enables the Circuit Relay v2 service on the given host.
 func Start(h host.Host, cfg Config) (*Service, error) {
-	resources := relayv2.DefaultResources()
-	resources.MaxReservations = cfg.MaxReservations
-	resources.MaxCircuits = cfg.MaxReservations * 2
-	if cfg.MaxCircuitDuration > 0 {
-		resources.ReservationTTL = cfg.MaxCircuitDuration
+	resources, err := relayResources(cfg)
+	if err != nil {
+		return nil, err
 	}
-
 	r, err := relayv2.New(h, relayv2.WithResources(resources))
 	if err != nil {
 		return nil, fmt.Errorf("start relay v2: %w", err)
 	}
 	return &Service{relay: r}, nil
+}
+
+func relayResources(cfg Config) (relayv2.Resources, error) {
+	resources := relayv2.DefaultResources()
+	if cfg.MaxReservations <= 0 || cfg.MaxCircuitDuration <= 0 || cfg.MaxCircuitBytes == 0 || cfg.MaxCircuitBytes > math.MaxInt64 {
+		return resources, fmt.Errorf("relay resource limits must be positive and fit in int64")
+	}
+	resources.MaxReservations = cfg.MaxReservations
+	// MaxCircuits is per peer, not global. Preserve libp2p's bounded default.
+	resources.Limit.Duration = cfg.MaxCircuitDuration
+	resources.Limit.Data = int64(cfg.MaxCircuitBytes)
+	return resources, nil
 }
 
 // Close stops the relay service.

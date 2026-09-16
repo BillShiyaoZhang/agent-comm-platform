@@ -3,7 +3,9 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"embed"
+	"fmt"
 	"io/fs"
 	"log"
 	"net"
@@ -26,6 +28,7 @@ var webAssets embed.FS
 type SecurityPolicies struct {
 	StoreUserData             atomic.Bool
 	ForwardToStoragePlatforms atomic.Bool
+	restart                   func()
 }
 
 // Server is the HTTP API server.
@@ -34,6 +37,8 @@ type Server struct {
 	AuditLog   *AuditLog
 	Policies   *SecurityPolicies
 	ConfigPath string
+	tlsCert    string
+	tlsKey     string
 }
 
 // New creates and configures the HTTP server with all API routes mounted.
@@ -147,25 +152,43 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 			}
 		}
 		limiter := NewIPRateLimiter(rate.Limit(cfg.API.RateLimitRate), burst)
+		for _, cidr := range cfg.API.TrustedProxyCIDRs {
+			if _, network, err := net.ParseCIDR(cidr); err == nil {
+				limiter.trustedProxies = append(limiter.trustedProxies, network)
+			}
+		}
 		handler = limitMiddleware(limiter, handler)
 	}
 
 	return &Server{
 		srv: &http.Server{
-			Addr:         cfg.API.ListenAddr,
-			Handler:      handler,
-			ReadTimeout:  15 * time.Second,
-			WriteTimeout: 30 * time.Second,
-			IdleTimeout:  60 * time.Second,
+			Addr:              cfg.API.ListenAddr,
+			Handler:           handler,
+			ReadTimeout:       15 * time.Second,
+			ReadHeaderTimeout: 5 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       60 * time.Second,
 		},
 		AuditLog:   auditLog,
 		Policies:   policies,
 		ConfigPath: cfgPath,
+		tlsCert:    cfg.API.TLSCert,
+		tlsKey:     cfg.API.TLSKey,
 	}
 }
 
 // Start starts listening. Blocks until ctx is cancelled.
 func (s *Server) Start(ctx context.Context) error {
+	if (s.tlsCert == "") != (s.tlsKey == "") {
+		return fmt.Errorf("tls_cert and tls_key must be configured together")
+	}
+	if s.tlsCert != "" {
+		cert, err := tls.LoadX509KeyPair(s.tlsCert, s.tlsKey)
+		if err != nil {
+			return fmt.Errorf("load TLS certificate: %w", err)
+		}
+		s.srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}
+	}
 	ln, err := net.Listen("tcp", s.srv.Addr)
 	if err != nil {
 		return err
@@ -177,8 +200,14 @@ func (s *Server) Start(ctx context.Context) error {
 		defer cancel()
 		s.srv.Shutdown(shutCtx)
 	}()
-	if err := s.srv.Serve(ln); err != http.ErrServerClosed {
-		return err
+	var serveErr error
+	if s.tlsCert != "" {
+		serveErr = s.srv.ServeTLS(ln, "", "")
+	} else {
+		serveErr = s.srv.Serve(ln)
+	}
+	if serveErr != http.ErrServerClosed {
+		return serveErr
 	}
 	return nil
 }
@@ -205,18 +234,24 @@ func itoa(n int) string {
 
 // IPRateLimiter is a thread-safe registry of rate limiters per IP.
 type IPRateLimiter struct {
-	ips map[string]*rate.Limiter
-	mu  sync.Mutex
-	r   rate.Limit
-	b   int
+	ips            map[string]*rate.Limiter
+	lastSeen       map[string]time.Time
+	nextCleanup    time.Time
+	overflow       *rate.Limiter
+	trustedProxies []*net.IPNet
+	mu             sync.Mutex
+	r              rate.Limit
+	b              int
 }
 
 // NewIPRateLimiter creates a new rate limiter registry.
 func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
 	return &IPRateLimiter{
-		ips: make(map[string]*rate.Limiter),
-		r:   r,
-		b:   b,
+		ips:      make(map[string]*rate.Limiter),
+		lastSeen: make(map[string]time.Time),
+		overflow: rate.NewLimiter(r, b),
+		r:        r,
+		b:        b,
 	}
 }
 
@@ -224,19 +259,45 @@ func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
 func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	now := time.Now()
+	if !now.Before(i.nextCleanup) {
+		for key, seen := range i.lastSeen {
+			if now.Sub(seen) > 10*time.Minute {
+				delete(i.ips, key)
+				delete(i.lastSeen, key)
+			}
+		}
+		i.nextCleanup = now.Add(time.Minute)
+	}
 
 	limiter, exists := i.ips[ip]
 	if !exists {
+		// Never evict active buckets: rotating IPs must not reset their quota.
+		if len(i.ips) >= maxTrackedIPs {
+			return i.overflow
+		}
 		limiter = rate.NewLimiter(i.r, i.b)
 		i.ips[ip] = limiter
 	}
+	i.lastSeen[ip] = now
 	return limiter
 }
+
+const maxTrackedIPs = 10000
 
 // limitMiddleware intercepts requests and restricts client IP request rates.
 func limitMiddleware(limiter *IPRateLimiter, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := getClientIP(r)
+		for _, network := range limiter.trustedProxies {
+			if network.Contains(net.ParseIP(ip)) {
+				// The edge proxy must overwrite this header with the actual client IP.
+				if forwarded := net.ParseIP(r.Header.Get("X-Real-IP")); forwarded != nil {
+					ip = forwarded.String()
+				}
+				break
+			}
+		}
 
 		if !limiter.GetLimiter(ip).Allow() {
 			w.Header().Set("Content-Type", "application/json")
@@ -248,17 +309,8 @@ func limitMiddleware(limiter *IPRateLimiter, next http.Handler) http.Handler {
 	})
 }
 
-// getClientIP extracts client IP address, supporting standard reverse proxy headers.
+// getClientIP uses the socket peer; arbitrary forwarded headers are not identity.
 func getClientIP(r *http.Request) string {
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		return realIP
-	}
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		if idx := indexOfComma(forwarded); idx != -1 {
-			return trimSpace(forwarded[:idx])
-		}
-		return trimSpace(forwarded)
-	}
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr

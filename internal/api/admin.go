@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -43,6 +45,7 @@ func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpk
 func adminAuth(adminToken string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
 		if adminToken == "" {
 			w.WriteHeader(http.StatusForbidden)
 			w.Write([]byte(`{"error":"Admin interface disabled: admin_token not configured in config.yaml"}`))
@@ -50,12 +53,9 @@ func adminAuth(adminToken string, next http.Handler) http.Handler {
 		}
 
 		token := r.Header.Get("X-Admin-Token")
-		if token == "" {
-			// Fallback: check query parameter for visual interface convenience
-			token = r.URL.Query().Get("token")
-		}
-
-		if token != adminToken {
+		provided := sha256.Sum256([]byte(token))
+		expected := sha256.Sum256([]byte(adminToken))
+		if subtle.ConstantTimeCompare(provided[:], expected[:]) != 1 {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(`{"error":"Unauthorized"}`))
 			return
@@ -260,10 +260,14 @@ func handleToggleStorage(cfg *config.Config, regStore *registrypkg.Store, polici
 		}
 
 		// Gracefully restart the platform in 500ms (Docker compose unless-stopped will pull it back up)
+		restart := policies.restart
+		if restart == nil {
+			restart = func() { os.Exit(0) }
+		}
 		go func() {
 			time.Sleep(500 * time.Millisecond)
 			log.Printf("[api] rebooting platform for security policy change...")
-			os.Exit(0)
+			restart()
 		}()
 
 		w.Header().Set("Content-Type", "application/json")
@@ -457,4 +461,3 @@ func handleAdminMQMessages(mqStore *mqpkg.Store) http.HandlerFunc {
 		json.NewEncoder(w).Encode(details)
 	}
 }
-

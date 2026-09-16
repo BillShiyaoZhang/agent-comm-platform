@@ -138,7 +138,7 @@ func registryProtoRequest(req registerReq) *pb.URNRegistryRequest {
 }
 
 // Use real loopback libp2p hosts and protobuf streams, including authenticated
-// transport identities. A publisher can carry another owner's signed record.
+// transport identities. Registration must be carried by the record owner.
 func newRegistryTestPeer(t *testing.T, store *Store, publisher *registryTestIdentity) func(*testing.T, *pb.URNRegistryRequest) *pb.URNRegistryResponse {
 	t.Helper()
 	server, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
@@ -239,8 +239,13 @@ func TestRegistryOwnershipAcrossWritePaths(t *testing.T) {
 					return postRegistryRecord(t, server, signer, req)
 				}
 			} else if transport == "libp2p" {
-				exchange := newRegistryTestPeer(t, store, attacker)
+				ownerExchange := newRegistryTestPeer(t, store, owner)
+				attackerExchange := newRegistryTestPeer(t, store, attacker)
 				submit = func(t *testing.T, signer *registryTestIdentity, req registerReq) error {
+					exchange := ownerExchange
+					if signer == attacker {
+						exchange = attackerExchange
+					}
 					response := exchange(t, registryProtoRequest(req)).GetRegister()
 					if response == nil {
 						t.Fatal("missing register response")

@@ -86,6 +86,10 @@ func handleStore(store *Store, isStoreAllowed func() bool, isForwardAllowed func
 		}
 		id, err := store.StoreEnvelope(coremq.WithAuthenticatedPublicKey(r.Context(), authPubkey), req.RecipientURN, &env, req.ExpiryUnix)
 		if err != nil {
+			if errors.Is(err, ErrInvalidMessage) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			if errors.Is(err, ErrQueueFull) {
 				w.Header().Set("Retry-After", "5")
 				http.Error(w, err.Error(), http.StatusTooManyRequests)
@@ -135,6 +139,10 @@ func handleRetrieve(store *Store) http.HandlerFunc {
 
 		envs, ids, err := store.RetrieveEntry(ctx, urn)
 		if err != nil {
+			if errors.Is(err, ErrInvalidMessage) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -181,6 +189,10 @@ func handleAck(store *Store) http.HandlerFunc {
 		ctx := coremq.WithAuthenticatedPublicKey(r.Context(), publicKey)
 		n, err := store.Ack(ctx, req.RecipientURN, req.MessageIDs)
 		if err != nil {
+			if errors.Is(err, ErrInvalidMessage) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -286,9 +298,14 @@ func handleSubscribe(store *Store) http.HandlerFunc {
 		w.Header().Set("X-Accel-Buffering", "no")
 
 		// Create subscriber channel
-		ch := make(chan *proto.EncryptedEnvelope, 100)
+		ch := make(chan *proto.EncryptedEnvelope, 4)
 		publicKey, _ := hexDecode(pubkeyHex)
 		if err := store.RegisterSubscriber(coremq.WithAuthenticatedPublicKey(r.Context(), publicKey), urn, ch); err != nil {
+			if errors.Is(err, ErrSubscriberLimit) {
+				w.Header().Set("Retry-After", "5")
+				http.Error(w, err.Error(), http.StatusTooManyRequests)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
