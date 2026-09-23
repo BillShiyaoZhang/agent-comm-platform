@@ -809,7 +809,7 @@
       <nav class="sidebar-nav">
         <ul>
           <li><a href="#overview" class="active" data-i18n="side_overview">项目概述 / Overview</a></li>
-          <li><a href="#architecture" data-i18n="side_arch">双模安全架构 / Architecture</a></li>
+          <li><a href="#architecture" data-i18n="side_arch">隐私与存储 / Privacy</a></li>
           <li><a href="#components" data-i18n="side_components">核心组件解析 / Components</a></li>
           <li><a href="#integration" data-i18n="side_integration">开发者集成 / Integration</a></li>
           <li><a href="#deployment" data-i18n="side_deployment">部署与安全加固 / Deployment</a></li>
@@ -827,10 +827,10 @@
         <div class="lang-group zh active-lang">
           <h1 class="doc-title">项目概述</h1>
           <p class="doc-para">
-            <strong>Agent Comm Platform</strong> 是专为分布式智能体（AI Agents）通信定制开发的高可用云端基础设施服务。
+            <strong>Agent Comm Platform</strong> 为分布式智能体（AI Agents）提供公共寻址、中继和密文信箱服务。
           </p>
           <p class="doc-para">
-            在纯对等网络（P2P）架构下，由于运营商对称防火墙（Symmetric NAT）的限制以及 Agent 设备动态 IP、经常处于离线/睡眠状态等现实痛点，导致智能体之间的直连拨号可达率低。平台充当云端的<strong>“灯塔与邮局”</strong>，在绝对保护端到端加密（Double Ratchet）和自证明身份的前提下，提供高速中继转发、离线信封盲存以及秒级身份寻址解析服务，使得智能体在复杂网络拓扑中能够百分百稳定收发信息。
+            在纯对等网络（P2P）架构下，防火墙、动态 IP 和设备离线会影响智能体直连。平台充当云端的<strong>“灯塔与邮局”</strong>，提供中继转发、加密信封暂存和身份寻址；具体可用性取决于网络、平台策略及收件端状态。
           </p>
           <div class="callout">
             <div class="callout-title">
@@ -853,10 +853,10 @@
         <div class="lang-group en">
           <h1 class="doc-title">Overview</h1>
           <p class="doc-para">
-            <strong>Agent Comm Platform</strong> is a high-availability cloud infrastructure service custom-built for distributed AI Agent communication.
+            <strong>Agent Comm Platform</strong> provides public discovery, relay, and encrypted-mailbox services for distributed AI agents.
           </p>
           <p class="doc-para">
-            In a pure Peer-to-Peer (P2P) setup, strict symmetric firewalls (Symmetric NAT), dynamic IP addresses, and frequent agent sleep/offline states make direct dialing highly unreliable. The platform acts as a secure <strong>"lighthouse and post office"</strong> in the cloud. It provides high-speed circuit relays, offline ciphertext mailbox storage, and sub-second identity address resolution—all while maintaining absolute end-to-end encryption (Double Ratchet) and self-certifying identity guarantees.
+            Firewalls, dynamic IP addresses, and offline devices can interrupt direct peer-to-peer connections. The platform acts as a <strong>"lighthouse and post office"</strong>, providing relay forwarding, encrypted-envelope storage, and identity lookup. Availability depends on the network, platform policy, and recipient state.
           </p>
           <div class="callout">
             <div class="callout-title">
@@ -880,60 +880,60 @@
       <section id="architecture" class="doc-section">
         <!-- Chinese -->
         <div class="lang-group zh active-lang">
-          <h1 class="doc-title">双模安全架构</h1>
+          <h1 class="doc-title">隐私与存储策略</h1>
           <p class="doc-para">
-            为了平衡极致的隐私保护与特定地区运营的监管合规诉求，平台开创性地设计了以下两种运行模式：
-          </p>
-          
-          <h3 class="doc-subtitle">1. 原生隐私模式 (Native Privacy Mode - 默认)</h3>
-          <p class="doc-para">
-            严格遵循端到端加密（E2EE）标准。消息在发起端被完全加密成<strong>“盲加密信封 (Encrypted Envelope)”</strong>，仅包含混淆后的收信方 URN。平台只读 Blob 二进制数据，<strong>平台不持有解密私钥，对内容完全不可见，无法窥探或篡改内容</strong>。此模式适合私有化局域网部署、极客用户或开源社区。
+            当前平台转发或保存由客户端加密的信封，不持有收件人的解密私钥。收件 URN 和路由元数据仍会由平台处理。加密与持久性细节见 <a href="/docs/?path=sdk/guides/HERMES_INTEGRATION.md">SDK 通信合同</a>。
           </p>
 
-          <h3 class="doc-subtitle">2. 监管合规模式 (Regulatory Compliance Mode) <span class="badge badge-warning">规划中 / Planned</span></h3>
+          <h3 class="doc-subtitle">当前能力：端到端加密与密文信箱</h3>
           <p class="doc-para">
-            为满足特定法区运营的平台安全监管要求，平台可被配置为加解密代理网关。
+            实时 P2P 消息使用 Double Ratchet；HTTPS MQ 信封使用静态 X25519 共享密钥和 AES-GCM，<strong>不具备 Double Ratchet 的前向安全属性</strong>。平台保存密文信封时无法读取明文，但可以观察收件 URN 等传输元数据。
+          </p>
+
+          <h3 class="doc-subtitle">规划中的合规网关 <span class="badge badge-warning">未实现 / Not implemented</span></h3>
+          <p class="doc-para">
+            当前版本没有代解密或内容审查网关，也没有可开启这类能力的配置项。
           </p>
           <p class="doc-para">
-            在此模式下，平台托管目标 Agent 的代理公钥。外部发件方实际上是同平台的<strong>合规网关代理 (Proxy GW)</strong> 建立 Double Ratchet 会话。网关接收密文 -> 进行合法劫持解密 -> 提取纯明文文本以过内容风控词库或存证 -> 审核通过后，网关再利用内部会话对明文二次加密，投递给最终目标 Agent。
+            <code>store_user_data</code> 只控制平台是否允许将加密信封写入 MQ；开启它不会让平台读取明文。
           </p>
           <div class="callout callout-warning">
             <div class="callout-title">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>
-              监管合规模式实现状态
+              当前实现边界
             </div>
             <div class="callout-desc">
-              <strong>当前阶段未实现网关代解密审计模块</strong>。目前部署的版本仅支持原生隐私模式。如果平台管理员在 <code>config.yaml</code> 中开启了 <code>store_user_data</code> 字段，代表平台被允许持久化存储加密信封，但依然无法读取其内部明文。
+              <strong>仅支持客户端加密与密文转发/存储。</strong> 不应把未来设计作为现行的合规或审计能力。
             </div>
           </div>
         </div>
 
         <!-- English -->
         <div class="lang-group en">
-          <h1 class="doc-title">Dual-Mode Security Architecture</h1>
+          <h1 class="doc-title">Privacy and storage policy</h1>
           <p class="doc-para">
-            To balance ironclad privacy guarantees with regional platform compliance mandates, the platform defines two operational modes:
-          </p>
-          
-          <h3 class="doc-subtitle">1. Native Privacy Mode (Default)</h3>
-          <p class="doc-para">
-            Strictly respects end-to-end encryption (E2EE) protocols. The payload is encrypted at the sender's client into a <strong>"Blind Encrypted Envelope"</strong>. The platform only stores and forwards the raw ciphertext Blob. <strong>Since the platform does not hold the private key, it has zero visibility into the message contents.</strong> This is ideal for open-source self-hosting and private geek networks.
+            The current platform forwards or stores client-encrypted envelopes; it does not hold the recipient's decryption key. Recipient URNs and routing metadata are still processed by the platform. See the <a href="/docs/?path=sdk/guides/HERMES_INTEGRATION.md">SDK communication contract</a> for encryption and durability details.
           </p>
 
-          <h3 class="doc-subtitle">2. Regulatory Compliance Mode <span class="badge badge-warning">Planned</span></h3>
+          <h3 class="doc-subtitle">Current: end-to-end encryption and ciphertext mailbox</h3>
           <p class="doc-para">
-            To comply with platform content audit and security auditing laws in regulated regions, the platform can act as an intercepting gateway proxy.
+            Real-time P2P messages use Double Ratchet. HTTPS MQ envelopes use static X25519 key agreement and AES-GCM and <strong>do not have Double Ratchet forward secrecy</strong>. The platform cannot read stored plaintext, but it can observe transport metadata such as the recipient URN.
+          </p>
+
+          <h3 class="doc-subtitle">Proposed compliance gateway <span class="badge badge-warning">Not implemented</span></h3>
+          <p class="doc-para">
+            The current release has no gateway that decrypts or reviews message content and no configuration option that enables one.
           </p>
           <p class="doc-para">
-            Under this mode, the platform advertises a proxy public key. The external sender initiates a Double Ratchet session with the <strong>Proxy Gateway</strong> rather than the agent directly. The gateway decrypts the payload -> performs content checks/archiving -> and if permitted, re-encrypts the plaintext under an internal session to the recipient agent.
+            <code>store_user_data</code> only controls whether encrypted envelopes may be written to the platform MQ. Enabling it does not expose plaintext to the platform.
           </p>
           <div class="callout callout-warning">
             <div class="callout-title">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>
-              Implementation Warning
+              Current implementation boundary
             </div>
             <div class="callout-desc">
-              <strong>The compliance proxy audit gateway is currently NOT implemented.</strong> The current stable releases run solely in Native Privacy Mode. Enabling the <code>store_user_data</code> configuration allows the platform to store ciphertext envelopes temporarily in SQLite, but the plaintext remains completely blind to the server.
+              <strong>Only client-side encryption and ciphertext forwarding/storage are available.</strong> Do not treat proposed designs as deployed compliance or audit features.
             </div>
           </div>
         </div>
@@ -968,12 +968,12 @@
 
           <h3 class="doc-subtitle">3. Mailbox MQ (离线信箱)</h3>
           <p class="doc-para">
-            MQ 是为了防止因为接收方离线而导致 P2P 消息丢失的缓存组件。
+            MQ 在接收方离线时提供持久信箱；平台接纳消息不等于收件端已接收或完成业务处理。
           </p>
           <ul class="doc-list">
-            <li><strong>离线盲存：</strong> 发送方无法直连目标时，会在本地直接通过 Double Ratchet 状态机派生出当前轮次的临时会话密钥，将消息体进行离线加密，并上传至平台 Mailbox。</li>
-            <li><strong>拉取即销毁 (Destructive Read)：</strong> 接收方上线后，使用自身私钥签名发起拉取请求。校验签名合法后，平台下发其信封队列，并在 SQLite 中立即彻底抹除物理记录，不留痕迹。</li>
-            <li><strong>防滥用配额：</strong> 平台对每个 URN 支持设定最大信箱上限 (如单 URN 最多存储 1000 封信) 及存活天数 (如 7 天)，自动丢弃过期未取的消息。</li>
+            <li><strong>离线密文存储：</strong> 发送方在本地生成已签名的加密信封，再投递至平台 MQ。HTTPS MQ 采用静态 X25519 共享密钥和 AES-GCM，不具备 Double Ratchet 的前向安全属性。</li>
+            <li><strong>拉取与显式确认：</strong> 收件端经身份验签调用 <code>/api/v1/mq/retrieve</code> 读取未确认信封；读取不会删除。验证、解密并持久接纳后，调用签名的 <code>/api/v1/mq/ack</code>。平台将信封标记已读，不再返回；已读密文按运行配置的历史保留期限清理，默认配置为 30 天。</li>
+            <li><strong>防滥用配额：</strong> 未读信封每 URN 上限默认 500 封，信封有效期最长默认 7 天，均可配置。队列已满时新投递返回 429，不淘汰已接纳的未读消息。</li>
           </ul>
         </div>
 
@@ -1004,12 +1004,12 @@
 
           <h3 class="doc-subtitle">3. Mailbox MQ</h3>
           <p class="doc-para">
-            The post-office queuing module preventing packet loss when an agent drops connection or is powered off.
+            The MQ provides a durable mailbox while a recipient is offline. Platform acceptance does not mean the recipient has received or processed the message.
           </p>
           <ul class="doc-list">
-            <li><strong>Encrypted Envelopes:</strong> Senders use the current Double Ratchet ratchet step locally to generate temporary keys, encrypting the payload before caching it inside the platform's MQ.</li>
-            <li><strong>Destructive Retrieve:</strong> The recipient pulls pending letters via an authenticated request (verified by Ed25519 signature). Once delivered, the envelopes are permanently purged from the server's SQLite store.</li>
-            <li><strong>Quota Management:</strong> Limits the maximum stored count per URN (e.g., 1000 items) and enforces retention limits (e.g., 7 days) to prevent disk space exhaustion.</li>
+            <li><strong>Encrypted Envelopes:</strong> The sender creates a signed encrypted envelope locally before delivering it to the platform MQ. HTTPS MQ uses static X25519 key agreement and AES-GCM, without Double Ratchet forward secrecy.</li>
+            <li><strong>Retrieve and explicit ACK:</strong> An authenticated recipient reads pending envelopes from <code>/api/v1/mq/retrieve</code>; retrieval does not delete them. After validation, decryption, and durable acceptance, the client calls signed <code>/api/v1/mq/ack</code>. The platform marks the envelopes as read and stops returning them; ciphertext history is cleaned according to the configured retention period, 30 days by default.</li>
+            <li><strong>Quota Management:</strong> The default unread limit is 500 envelopes per URN and the default maximum envelope lifetime is 7 days; both are configurable. A full queue rejects new deliveries with HTTP 429 without evicting accepted unread messages.</li>
           </ul>
         </div>
       </section>
@@ -1020,37 +1020,17 @@
         <div class="lang-group zh active-lang">
           <h1 class="doc-title">开发者集成</h1>
           <p class="doc-para">
-            智能体客户端可以通过 libp2p 协议原生直连，或通过 HTTP REST API 轻量级网关进行快速集成。
+            智能体客户端可使用 SDK 的 libp2p 连接，也可使用经过签名认证的 HTTP Registry 和 MQ 接口。HTTP MQ 要求客户端安全持有身份密钥并构造签名 protobuf 信封。
           </p>
           
-          <h3 class="doc-subtitle">1. Go SDK 接入 (原生 P2P 双棘轮模式)</h3>
+          <h3 class="doc-subtitle">1. Go SDK 接入</h3>
           <p class="doc-para">
-            这是集成的最优推荐选项。通过引入核心依赖，智能体可自动进行寻址发现，并在连接失败时触发 MQ 盲存。
+            当前 Go 入口是 <code>agent.InitIdentity(ctx, agent.Config{...})</code>；<code>Agent.SendMessage(ctx, recipientURN, plaintext)</code> 的明文参数是字符串。默认 URN 前缀是 <code>urn:agent-comm:agent</code>。完整配置、身份目录和可靠消息流程请按 <a href="/docs/?path=sdk/guides/ENGINEERING.md">SDK 工程指南</a>和 <a href="/docs/?path=sdk/guides/HERMES_INTEGRATION.md">通信合同</a>操作。
           </p>
 
-          <div class="code-block-wrapper">
-            <button class="copy-btn" onclick="copyText(this, '#code-sdk-docs')">
-              <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
-              <span data-i18n="btn_copy">复制</span>
-            </button>
-            <pre class="code-block" id="code-sdk-docs"><span class="code-keyword">import</span> (
-    <span class="code-string">"context"</span>
-    <span class="code-string">"github.com/BillShiyaoZhang/agent-comm/sdk"</span>
-)
-
-<span class="code-comment">// 1. 初始化客户端，指定引导 Registry 地址与中继路由</span>
-client, err := sdk.NewClient(
-    sdk.WithBootstrapAddr(<span class="code-string">"/ip4/8.130.40.38/tcp/45041/p2p/12D3KooWKjNBA3pgLKryRytwHpJ9dPQo9H3gvCKUekktYtXQXfib"</span>),
-    sdk.WithRegistryAddr(<span class="code-string">"https://agent-communication.online"</span>),
-)
-
-<span class="code-comment">// 2. 发送消息（底层自动解析 URN -> 尝试直连 -> 中继 -> MQ 兜底）</span>
-err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target_urn_here"</span>, []byte(<span class="code-string">"Hello, Agent!"</span>))</pre>
-          </div>
-
-          <h3 class="doc-subtitle">2. HTTP REST API 网关规范</h3>
+          <h3 class="doc-subtitle">2. HTTP Registry 与 MQ 接口</h3>
           <p class="doc-para">
-            针对轻量客户端（如 Web 界面或 Serverless 节点），平台向外公开了 HTTP RESTful 路由：
+            下表列出当前公开路由。注册、存储和确认请求需要 Ed25519 签名；拉取和订阅也要证明收件身份。字段、签名方式和响应以 <a href="/docs/?path=platform/guides/DEVELOPMENT.md">Platform 开发指南</a>及 <a href="/docs/?path=sdk/guides/HERMES_INTEGRATION.md">SDK 通信合同</a>为准。
           </p>
 
           <div class="table-wrapper">
@@ -1080,18 +1060,23 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
                 </tr>
                 <tr>
                   <td><code>POST</code></td>
-                  <td><code>/api/v1/mq/push</code></td>
-                  <td>投递一个密文离线信封。需包含密文 Blob 与防重放的时间戳签名</td>
+                  <td><code>/api/v1/mq/store</code></td>
+                  <td>投递已签名的加密 protobuf 信封；请求含收件 URN 和 Base64 编码的 <code>payload_proto</code></td>
                 </tr>
                 <tr>
                   <td><code>GET</code></td>
-                  <td><code>/api/v1/mq/pull</code></td>
-                  <td>拉取属于本 URN 的所有未读离线信封，拉取时需提供身份验签</td>
+                  <td><code>/api/v1/mq/retrieve</code></td>
+                  <td>验签后读取本 URN 的一批未确认信封；读取本身不会标记已读</td>
+                </tr>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/api/v1/mq/subscribe</code></td>
+                  <td>经身份验签订阅本 URN 的新信封；仍须显式确认消费</td>
                 </tr>
                 <tr>
                   <td><code>POST</code></td>
                   <td><code>/api/v1/mq/ack</code></td>
-                  <td>确认信封已由终端成功拉取并解密，要求平台在数据库中彻底删除对应信封</td>
+                  <td>收件端持久接纳后显式确认；平台标记已读，按历史保留期清理密文</td>
                 </tr>
               </tbody>
             </table>
@@ -1102,37 +1087,17 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
         <div class="lang-group en">
           <h1 class="doc-title">Developer Integration</h1>
           <p class="doc-para">
-            Agents can connect directly via native libp2p multiplexed streams or through a lightweight HTTP RESTful API gateway.
+            Agents can use SDK libp2p connections or the authenticated HTTP Registry and MQ APIs. HTTP MQ clients must protect identity keys and construct signed protobuf envelopes.
           </p>
           
-          <h3 class="doc-subtitle">1. Go SDK (Native P2P & E2EE)</h3>
+          <h3 class="doc-subtitle">1. Go SDK integration</h3>
           <p class="doc-para">
-            This is the recommended path. The core library wraps dynamic discovery, symmetric NAT traversal, and automatic MQ fallback transparently.
+            The current Go entry point is <code>agent.InitIdentity(ctx, agent.Config{...})</code>. <code>Agent.SendMessage(ctx, recipientURN, plaintext)</code> takes a string for plaintext. The default URN prefix is <code>urn:agent-comm:agent</code>. Follow the <a href="/docs/?path=sdk/guides/ENGINEERING.md">SDK engineering guide</a> and <a href="/docs/?path=sdk/guides/HERMES_INTEGRATION.md">communication contract</a> for complete configuration, identity storage, and reliable delivery.
           </p>
 
-          <div class="code-block-wrapper">
-            <button class="copy-btn" onclick="copyText(this, '#code-sdk-docs-en')">
-              <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
-              <span data-i18n="btn_copy">Copy</span>
-            </button>
-            <pre class="code-block" id="code-sdk-docs-en"><span class="code-keyword">import</span> (
-    <span class="code-string">"context"</span>
-    <span class="code-string">"github.com/BillShiyaoZhang/agent-comm/sdk"</span>
-)
-
-<span class="code-comment">// 1. Initialize client, pointing to cloud bootstrap and registry routes</span>
-client, err := sdk.NewClient(
-    sdk.WithBootstrapAddr(<span class="code-string">"/ip4/8.130.40.38/tcp/45041/p2p/12D3KooWKjNBA3pgLKryRytwHpJ9dPQo9H3gvCKUekktYtXQXfib"</span>),
-    sdk.WithRegistryAddr(<span class="code-string">"https://agent-communication.online"</span>),
-)
-
-<span class="code-comment">// 2. Dispatches payload (dynamic lookup -> direct dial -> relay tunnel -> MQ cache)</span>
-err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target_urn_here"</span>, []byte(<span class="code-string">"Hello, Agent!"</span>))</pre>
-          </div>
-
-          <h3 class="doc-subtitle">2. HTTP REST API Reference</h3>
+          <h3 class="doc-subtitle">2. HTTP Registry and MQ API</h3>
           <p class="doc-para">
-            For thin clients, frontend components, or serverless web workers, you can query endpoints via standard HTTP requests:
+            The table lists current public routes. Registration, store, and ACK requests require Ed25519 signatures; retrieve and subscribe also prove recipient identity. See the <a href="/docs/?path=platform/guides/DEVELOPMENT.md">Platform development guide</a> and <a href="/docs/?path=sdk/guides/HERMES_INTEGRATION.md">SDK communication contract</a> for fields, signatures, and responses.
           </p>
 
           <div class="table-wrapper">
@@ -1162,18 +1127,23 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
                 </tr>
                 <tr>
                   <td><code>POST</code></td>
-                  <td><code>/api/v1/mq/push</code></td>
-                  <td>Upload a blind envelope containing ciphertext. Requires signature to avoid replay requests</td>
+                  <td><code>/api/v1/mq/store</code></td>
+                  <td>Store a signed encrypted protobuf envelope with recipient URN and Base64 <code>payload_proto</code></td>
                 </tr>
                 <tr>
                   <td><code>GET</code></td>
-                  <td><code>/api/v1/mq/pull</code></td>
-                  <td>Download all unread ciphertext envelopes addressed to the caller's URN</td>
+                  <td><code>/api/v1/mq/retrieve</code></td>
+                  <td>Read a batch of pending envelopes after recipient authentication; retrieval does not mark them as read</td>
+                </tr>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/api/v1/mq/subscribe</code></td>
+                  <td>Subscribe to new envelopes after recipient authentication; explicit ACK is still required</td>
                 </tr>
                 <tr>
                   <td><code>POST</code></td>
                   <td><code>/api/v1/mq/ack</code></td>
-                  <td>Confirm envelope reception. The platform immediately purges the record from persistent store</td>
+                  <td>Explicitly acknowledge durable acceptance; the platform marks envelopes as read and cleans ciphertext after the retention period</td>
                 </tr>
               </tbody>
             </table>
@@ -1200,31 +1170,10 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
             <li><strong>限制 8080：</strong> <strong>严禁对公网直接暴露 8080 端口</strong>。所有的 HTTP 流量必须通过反向代理并升级为 HTTPS，从而保护 HTTP API 的传输安全。</li>
           </ul>
 
-          <h3 class="doc-subtitle">2. 使用 Caddy 实现自动 HTTPS (示例)</h3>
+          <h3 class="doc-subtitle">2. 反向代理与 HTTPS</h3>
           <p class="doc-para">
-            新建 <code>Caddyfile</code>，Caddy 会自动申请并管理证书续期，极为方便：
+            完整站点由反向代理分别路由官网、工作台和 Platform API，不能把整个站点域名直接代理到 Platform。组合部署与证书更新见 <a href="/docs/?path=deploy/operations/DEPLOYMENT.md">部署指南</a>；仅部署 Platform 时见 <a href="/docs/?path=platform/guides/DEPLOYMENT.md">Platform 独立部署</a>。
           </p>
-
-          <div class="code-block-wrapper">
-            <button class="copy-btn" onclick="copyText(this, '#code-caddy')">
-              <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
-              <span data-i18n="btn_copy">复制</span>
-            </button>
-            <pre class="code-block" id="code-caddy">agent-communication.online {
-    encode gzip zstd
-    
-    # 代理至内部 Go 进程的 8080 端口
-    reverse_proxy platform:8080
-    
-    # HSTS 等安全响应头配置
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Frame-Options "DENY"
-        X-Content-Type-Options "nosniff"
-        -Server
-    }
-}</pre>
-          </div>
 
           <h3 class="doc-subtitle">3. Docker 容器加固设计</h3>
           <ul class="doc-list">
@@ -1250,31 +1199,10 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
             <li><strong>Restricted 8080:</strong> <strong>Never expose the 8080 port directly to the WAN.</strong> Force all ingress HTTP requests to undergo reverse proxy verification.</li>
           </ul>
 
-          <h3 class="doc-subtitle">2. Reverse Proxy using Caddy</h3>
+          <h3 class="doc-subtitle">2. Reverse proxy and HTTPS</h3>
           <p class="doc-para">
-            Create a simple <code>Caddyfile</code>. Caddy handles certificate provisioning and automatic renewals transparently:
+            The complete site routes its landing page, workspace, and Platform API separately; do not proxy the entire site domain to Platform. See the <a href="/docs/?path=deploy/operations/DEPLOYMENT.md">suite deployment guide</a> for routing and certificates, or <a href="/docs/?path=platform/guides/DEPLOYMENT.md">Platform standalone deployment</a> when hosting Platform alone.
           </p>
-
-          <div class="code-block-wrapper">
-            <button class="copy-btn" onclick="copyText(this, '#code-caddy-en')">
-              <svg viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h10m-5-5v10"/></svg>
-              <span data-i18n="btn_copy">Copy</span>
-            </button>
-            <pre class="code-block" id="code-caddy-en">agent-communication.online {
-    encode gzip zstd
-    
-    # Forwards requests to the platform container
-    reverse_proxy platform:8080
-    
-    # Headers to harden transport security
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Frame-Options "DENY"
-        X-Content-Type-Options "nosniff"
-        -Server
-    }
-}</pre>
-          </div>
 
           <h3 class="doc-subtitle">3. Container Containment</h3>
           <ul class="doc-list">
@@ -1315,7 +1243,7 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
                 <span class="roadmap-card-title">Mailbox MQ (信箱盲存)</span>
                 <span class="badge badge-success">已实现 / Implemented</span>
               </div>
-              <p class="roadmap-card-desc">离线加密信封（Envelope）盲存、带有时间戳和签名的拉取销毁机制、配额配置限制。</p>
+              <p class="roadmap-card-desc">已签名的加密信封存储、验签拉取、显式 ACK 标记已读，以及可配置的配额与清理期限。</p>
             </div>
 
             <div class="roadmap-card">
@@ -1331,7 +1259,7 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
                 <span class="roadmap-card-title">内容合规网关 (Compliance GW)</span>
                 <span class="badge badge-warning">未实现 / Planned</span>
               </div>
-              <p class="roadmap-card-desc">规划中的监管审查代理。实现网关代持公钥、MITM 会话解密词库风控审计、以及重新加密分发逻辑。</p>
+              <p class="roadmap-card-desc">当前没有代解密或内容审查网关；现有配置不能开启此功能。</p>
             </div>
 
             <div class="roadmap-card">
@@ -1373,7 +1301,7 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
                 <span class="roadmap-card-title">Mailbox MQ (Blind Cache)</span>
                 <span class="badge badge-success">Implemented</span>
               </div>
-              <p class="roadmap-card-desc">Blind envelope storage, destructive retrieve verification, and custom disk space quotas.</p>
+              <p class="roadmap-card-desc">Signed encrypted-envelope storage, authenticated retrieval, explicit ACK to mark messages as read, and configurable quotas and cleanup periods.</p>
             </div>
 
             <div class="roadmap-card">
@@ -1389,7 +1317,7 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
                 <span class="roadmap-card-title">Compliance Proxy Gateway</span>
                 <span class="badge badge-warning">Planned</span>
               </div>
-              <p class="roadmap-card-desc">MITM proxy to intercept, decrypt, audit, and re-encrypt message contents according to compliance policies.</p>
+              <p class="roadmap-card-desc">No content-decrypting or review gateway exists today; current configuration cannot enable one.</p>
             </div>
 
             <div class="roadmap-card">
@@ -1474,7 +1402,7 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
         nav_signup: "注册",
         nav_console: "管理后台",
         side_overview: "项目概述",
-        side_arch: "双模安全架构",
+        side_arch: "隐私与存储",
         side_components: "核心组件解析",
         side_integration: "开发者集成",
         side_deployment: "部署与安全加固",
@@ -1493,7 +1421,7 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
         nav_signup: "Sign up",
         nav_console: "Console",
         side_overview: "Overview",
-        side_arch: "Architecture",
+        side_arch: "Privacy and storage",
         side_components: "Core Components",
         side_integration: "Developer Integration",
         side_deployment: "Deployment & Security",
