@@ -779,7 +779,8 @@
       <div class="nav-actions">
         <ul class="nav-links">
           <li><a href="/" data-i18n="nav_home">首页</a></li>
-          <li><a href="/docs/" data-i18n="nav_docs" class="active-nav">开发文档</a></li>
+          <li><a href="/docs/" data-i18n="nav_all_docs">全部文档</a></li>
+          <li><a href="/docs/api/" data-i18n="nav_docs" class="active-nav">API 文档</a></li>
           <li><a href="/dashboard" data-i18n="nav_dashboard">控制台</a></li>
         </ul>
         
@@ -1464,9 +1465,10 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
     // Language Dictionary (English & Chinese)
     const i18n = {
       zh: {
-        title: "Agent Comm Platform - 开发文档",
+        title: "Agent Comm Platform - API 文档",
         nav_home: "首页",
-        nav_docs: "开发文档",
+        nav_all_docs: "全部文档",
+        nav_docs: "API 文档",
         nav_dashboard: "控制台",
         nav_signin: "登录",
         nav_signup: "注册",
@@ -1482,9 +1484,10 @@ err = client.SendMessage(ctx, <span class="code-string">"urn:hermes:agent:target
         footer_admin: "控制台"
       },
       en: {
-        title: "Agent Comm Platform - Developer Docs",
+        title: "Agent Comm Platform - API Reference",
         nav_home: "Home",
-        nav_docs: "Docs",
+        nav_all_docs: "All documentation",
+        nav_docs: "API reference",
         nav_dashboard: "Dashboard",
         nav_signin: "Sign in",
         nav_signup: "Sign up",

@@ -2,6 +2,8 @@
 
 产品说明与使用入口见 [项目 README](../README.md)。本仓库维护公共 Registry、加密信箱与 libp2p Relay；部署整套服务使用独立的 [部署仓库](https://github.com/BillShiyaoZhang/agent-collaboration-deploy)。
 
+官网的 [统一文档入口](https://agent-communication.online/docs/) 收录现行的跨组件指南；[Platform API 文档](https://agent-communication.online/docs/api/) 从同一入口打开。
+
 ## 开发与运行
 
 - [开发指南](guides/DEVELOPMENT.md)：初始化子模块、构建、接口和验证。
