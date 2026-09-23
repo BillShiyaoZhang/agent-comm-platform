@@ -341,32 +341,20 @@ func TestBootstrapAndStatusEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("/docs redirect", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/docs", nil)
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
+	for _, path := range []string{"/docs", "/docs/"} {
+		t.Run(path+" redirect", func(t *testing.T) {
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
 
-		if w.Code != http.StatusMovedPermanently {
-			t.Fatalf("expected 301, got %d", w.Code)
-		}
-		if w.Header().Get("Location") != "/docs/" {
-			t.Errorf("expected redirect to '/docs/', got %q", w.Header().Get("Location"))
-		}
-	})
-
-	t.Run("/docs/ content", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/docs/", nil)
-		w := httptest.NewRecorder()
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Fatalf("expected 200, got %d", w.Code)
-		}
-		contentType := w.Header().Get("Content-Type")
-		if contentType != "text/html; charset=utf-8" {
-			t.Errorf("expected Content-Type 'text/html; charset=utf-8', got %q", contentType)
-		}
-	})
+			if w.Code != http.StatusPermanentRedirect {
+				t.Fatalf("expected 308, got %d", w.Code)
+			}
+			const want = "https://agent-communication.online/docs/?path=platform/guides/API.md"
+			if got := w.Header().Get("Location"); got != want {
+				t.Errorf("expected redirect to %q, got %q", want, got)
+			}
+		})
+	}
 }
 
 // TestItoaHelper exercises the itoa helper function directly, covering all branches.

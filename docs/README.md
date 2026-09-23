@@ -2,7 +2,12 @@
 
 产品说明与使用入口见 [项目 README](../README.md)。本仓库维护公共 Registry、加密信箱与 libp2p Relay；部署整套服务使用独立的 [部署仓库](https://github.com/BillShiyaoZhang/agent-collaboration-deploy)。
 
-官网的 [统一文档入口](https://agent-communication.online/docs/) 收录现行的跨组件指南；[Platform API 文档](https://agent-communication.online/docs/api/) 从同一入口打开。
+官网的 [统一文档入口](https://agent-communication.online/docs/) 收录现行的跨组件指南。
+
+## HTTP API
+
+- [云端 Platform HTTP API（中文）](guides/API.md)（[官网阅读](https://agent-communication.online/docs/?path=platform/guides/API.md)）：Registry、MQ 与管理员接口的认证、字段、响应和状态语义。
+- [Platform HTTP API (English)](guides/API_EN.md) ([read on the website](https://agent-communication.online/docs/?path=platform/guides/API_EN.md))：同一云端接口的英文参考。
 
 ## 开发与运行
 

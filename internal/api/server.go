@@ -127,17 +127,12 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 		mux.HandleFunc("GET /admin", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/admin/", http.StatusMovedPermanently)
 		})
+		const apiDocsURL = "https://agent-communication.online/docs/?path=platform/guides/API.md"
 		mux.HandleFunc("GET /docs", func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, "/docs/", http.StatusMovedPermanently)
+			http.Redirect(w, r, apiDocsURL, http.StatusPermanentRedirect)
 		})
 		mux.HandleFunc("GET /docs/", func(w http.ResponseWriter, r *http.Request) {
-			data, err := fs.ReadFile(subFS, "docs.html")
-			if err != nil {
-				http.Error(w, "Documentation not found", http.StatusNotFound)
-				return
-			}
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Write(data)
+			http.Redirect(w, r, apiDocsURL, http.StatusPermanentRedirect)
 		})
 	}
 
