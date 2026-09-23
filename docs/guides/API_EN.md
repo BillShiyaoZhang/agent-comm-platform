@@ -87,20 +87,20 @@ Every `/api/v1/admin/...` request requires `X-Admin-Token: <configured token>`. 
 
 | Method and path | Parameters | Result/effect |
 | --- | --- | --- |
-| `GET /api/v1/admin/overview` | None | Runtime, memory, connections, Registry/MQ and policies |
+| `GET /api/v1/admin/overview` | None | Runtime, memory, connections, Registry/MQ and policies; `registry_ttl_hours` and `mq_max_msgs_per_urn` expose configured capacities for the console |
 | `GET /api/v1/admin/registry` | None | `entries`, `count` |
 | `DELETE /api/v1/admin/registry` | Required `urn` query | Remove a registration; `{"ok":true}` |
 | `GET /api/v1/admin/mq` | None | Unread `queues`, `count` |
 | `GET /api/v1/admin/mq/messages` | Required `urn`; `status` is `pending` or `history` | Message details array; other status values default to pending |
-| `DELETE /api/v1/admin/mq/clear` | Required `urn` | Remove a recipient queue; `deleted` count |
+| `DELETE /api/v1/admin/mq/clear` | Required `urn` | Remove both pending and read-history messages for a recipient; `deleted` count |
 | `GET /api/v1/admin/config` | None | Config with admin token redacted as `******` |
 | `POST /api/v1/admin/config/toggle-storage` | None | Toggle storage, clear Registry and restart Platform |
 | `POST /api/v1/admin/config/toggle-forwarding` | None | Toggle forwarding policy in this process |
-| `POST /api/v1/admin/config/set-retention` | Positive integer `days` | Set read-history retention days |
-| `GET /api/v1/admin/peers` | None | Connected Platform peers |
+| `POST /api/v1/admin/config/set-retention` | Integer `days` from 0 to 36500 | Set read-history retention days; `0` removes history on the next cleanup |
+| `GET /api/v1/admin/peers` | None | Connected non-Registry peers; no remote storage-policy claim |
 | `GET /api/v1/admin/logs` | Optional `limit` (1–500, default 100), `offset` (non-negative, default 0), `level`, `source`, `search` | `entries`, `total`, `limit`, `offset`; search matches message text |
 
-Storage policy changes, queue deletion and Registry eviction change live state; follow the [deployment and backup guide](DEPLOYMENT.md). `toggle-forwarding` currently changes only process memory; do not assume it persists to the config file.
+Storage policy changes, queue deletion and Registry eviction change live state; follow the [deployment and backup guide](DEPLOYMENT.md). `toggle-storage` and `set-retention` atomically write the two managed settings to `platform.data_dir/admin-policies.yaml`; that file overrides those fields from the main config on restart. A failed write returns `500` without reporting success. Further `toggle-storage` or `set-retention` requests before the storage-policy restart completes return `409` with `restart_pending: true` and do not overwrite the pending change. `toggle-forwarding` currently changes only process memory; do not assume it persists to the config file.
 
 ## Common responses and troubleshooting
 

@@ -120,20 +120,20 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 
 | 方法与路径 | 查询参数 | 返回或作用 |
 | --- | --- | --- |
-| `GET /api/v1/admin/overview` | 无 | 运行时间、内存、连接、Registry、MQ、存储策略等概览 |
+| `GET /api/v1/admin/overview` | 无 | 运行时间、内存、连接、Registry、MQ、存储策略等概览；`registry_ttl_hours` 和 `mq_max_msgs_per_urn` 供管理台准确显示配置容量 |
 | `GET /api/v1/admin/registry` | 无 | `entries`、`count` |
 | `DELETE /api/v1/admin/registry` | `urn` 必填 | 删除指定注册记录；`{"ok":true}` |
 | `GET /api/v1/admin/mq` | 无 | `queues`、`count`，只统计未读队列 |
 | `GET /api/v1/admin/mq/messages` | `urn` 必填；`status` 为 `pending` 或 `history` | 返回指定队列的消息详情数组；其他 `status` 按 `pending` 处理 |
-| `DELETE /api/v1/admin/mq/clear` | `urn` 必填 | 清空指定收件人队列，返回 `deleted` 数量 |
+| `DELETE /api/v1/admin/mq/clear` | `urn` 必填 | 删除指定收件人的未读与已读历史消息，返回 `deleted` 数量 |
 | `GET /api/v1/admin/config` | 无 | 脱敏配置，管理令牌显示为 `******` |
 | `POST /api/v1/admin/config/toggle-storage` | 无 | 切换 `store_user_data`，清空 Registry 并触发 Platform 重启 |
 | `POST /api/v1/admin/config/toggle-forwarding` | 无 | 切换当前进程的转发策略 |
-| `POST /api/v1/admin/config/set-retention` | `days` 为正整数 | 设置已读历史保留天数 |
-| `GET /api/v1/admin/peers` | 无 | 连接中的其他 Platform peer |
+| `POST /api/v1/admin/config/set-retention` | `days` 为 0–36500 的整数 | 设置已读历史保留天数；`0` 表示下一次清理时移除历史 |
+| `GET /api/v1/admin/peers` | 无 | 连接中的非 Registry peer；不提供远端存储策略判定 |
 | `GET /api/v1/admin/logs` | 可选 `limit`（1–500，默认 100）、`offset`（非负，默认 0）、`level`、`source`、`search` | `entries`、`total`、`limit`、`offset`；`search` 匹配消息文本 |
 
-变更存储策略、清空队列及驱逐 Registry 记录会影响线上状态，按[部署和备份指南](DEPLOYMENT.md)操作。`toggle-forwarding` 当前只改进程内策略；不要假定它已持久化到配置文件。
+变更存储策略、清空队列及驱逐 Registry 记录会影响线上状态，按[部署和备份指南](DEPLOYMENT.md)操作。`toggle-storage` 和 `set-retention` 将两项策略原子写入 `platform.data_dir/admin-policies.yaml`，重启时覆盖主配置的对应字段；若写入失败，返回 `500`，不会声称更改成功。存储策略切换成功后，重启完成前再次调用 `toggle-storage` 或 `set-retention` 返回 `409` 与 `restart_pending: true`，不会覆盖待恢复的策略。`toggle-forwarding` 当前只改进程内策略；不要假定它已持久化到配置文件。
 
 ## 通用响应与排错
 

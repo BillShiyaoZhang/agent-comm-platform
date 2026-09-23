@@ -26,7 +26,7 @@ git submodule sync --recursive
 git submodule update --init --recursive
 ```
 
-使用 [go.mod](../../go.mod) 要求的 **Go 1.25.7 或更新版本**。以下命令在 Platform 仓库根目录执行；启动命令以前台方式运行，使用 Ctrl+C 停止：
+使用 [go.mod](../../go.mod) 要求的 **Go 1.26.8 或更新版本**。以下命令在 Platform 仓库根目录执行；启动命令以前台方式运行，使用 Ctrl+C 停止：
 
 ```sh
 cp config.example.yaml config.yaml
@@ -103,6 +103,8 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 | `api.admin_token` | 空 | 空值关闭管理 API；也可由 `PLATFORM_ADMIN_TOKEN` 环境变量设置 |
 
 ACK 将消息标记为已确认，之后不再作为待收消息返回；并不保证立即物理删除。清理任务定期删除过期记录与超出历史保留期的记录。`history_retention_days: 0` 也在清理任务执行时移除历史。记录清理后不能依赖平台永久去重。
+
+管理台更改 `store_user_data` 或 `history_retention_days` 时，将覆盖值写入 `platform.data_dir/admin-policies.yaml`。启动时只覆盖主配置的这两个策略字段，原有安装没有此文件时仍使用 `config.yaml` 的值。存储策略切换还写入内部 `registry_reset_pending` 标记；重启时先完成 Registry 清理，再清除标记和对外提供服务，防止进程中断留下旧路由。数据目录须可写；初始持久化失败会返回错误，不会执行 Registry 清理或重启。更改主配置的这两个字段前，先检查是否有现存覆盖文件。
 
 未读队列满时拒绝新入队消息，HTTP 返回 429 和 `Retry-After: 5`，已入队消息保留。发送方应保留本地 outbox 并按策略重试；消息过期、容量限制或收件设备长期离线都可能影响最终送达。
 

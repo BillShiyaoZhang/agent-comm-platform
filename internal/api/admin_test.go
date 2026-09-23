@@ -50,6 +50,8 @@ func TestAdminAPIs(t *testing.T) {
 
 	cfg := &config.Config{
 		Platform: config.PlatformConfig{Mode: "privacy", DataDir: tempDir},
+		Registry: config.RegistryConfig{TTLHours: 24},
+		MQ:       config.MQConfig{MaxMsgsPerURN: 100},
 		API:      config.APIConfig{AdminToken: "test-secret-token"},
 	}
 
@@ -114,6 +116,9 @@ func TestAdminAPIs(t *testing.T) {
 		}
 		if resp["platform_mode"] != "privacy" {
 			t.Errorf("expected platform_mode 'privacy', got %v", resp["platform_mode"])
+		}
+		if resp["registry_ttl_hours"] != float64(24) || resp["mq_max_msgs_per_urn"] != float64(100) {
+			t.Errorf("expected configured registry TTL and MQ limit, got %v", resp)
 		}
 	})
 
@@ -257,6 +262,12 @@ func TestAdminAPIs(t *testing.T) {
 		if _, ok := resp["count"]; !ok {
 			t.Errorf("expected 'count' key in response")
 		}
+		for _, rawPeer := range resp["peers"].([]interface{}) {
+			peer := rawPeer.(map[string]interface{})
+			if _, ok := peer["stores_user_data"]; ok {
+				t.Error("peer connection must not imply an unverified storage policy")
+			}
+		}
 	})
 
 	t.Run("Authorized - Logs", func(t *testing.T) {
@@ -348,15 +359,56 @@ func TestAdminAPIs(t *testing.T) {
 		if resp3["stores_user_data"] != false || resp3["forward_to_storage_platforms"] != false {
 			t.Errorf("expected overview to show false policies, got: %+v", resp3)
 		}
+		configReq := httptest.NewRequest("GET", "/api/v1/admin/config", nil)
+		configReq.Header.Set("X-Admin-Token", "test-secret-token")
+		configResp := httptest.NewRecorder()
+		adminHandler.ServeHTTP(configResp, configReq)
+		var runtimeConfig config.Config
+		if err := json.NewDecoder(configResp.Body).Decode(&runtimeConfig); err != nil {
+			t.Fatal(err)
+		}
+		if runtimeConfig.Platform.StoreUserData || runtimeConfig.Platform.ForwardToStoragePlatforms {
+			t.Errorf("config endpoint must report current runtime policies: %+v", runtimeConfig.Platform)
+		}
 
-		// 4. Toggle back
+		// 4. A second request before restart must not reverse the policy.
 		w4 := httptest.NewRecorder()
 		adminHandler.ServeHTTP(w4, reqToggleStorage)
 		var resp4 map[string]interface{}
 		json.NewDecoder(w4.Body).Decode(&resp4)
-		if resp4["store_user_data"] != true {
-			t.Errorf("expected store_user_data toggle back to return true, got %v", resp4)
+		if w4.Code != http.StatusConflict || resp4["restart_pending"] != true {
+			t.Errorf("expected restart-pending conflict, got status %d body %v", w4.Code, resp4)
 		}
+		if policies.StoreUserData.Load() || !policies.RegistryResetPending.Load() {
+			t.Fatal("second toggle changed policy while restart was pending")
+		}
+		reloaded, err := config.Load(cfgPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.Platform.StoreUserData || !reloaded.AdminRegistryResetPending {
+			t.Errorf("second toggle changed persisted policy: %+v", reloaded)
+		}
+		retentionDuringRestart := httptest.NewRequest("POST", "/api/v1/admin/config/set-retention?days=45", nil)
+		retentionDuringRestart.Header.Set("X-Admin-Token", "test-secret-token")
+		retentionResp := httptest.NewRecorder()
+		adminHandler.ServeHTTP(retentionResp, retentionDuringRestart)
+		if retentionResp.Code != http.StatusConflict {
+			t.Errorf("retention update during pending storage restart returned %d", retentionResp.Code)
+		}
+		reloadedAfterConflict, err := config.Load(cfgPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reloadedAfterConflict.Platform.HistoryRetentionDays != reloaded.Platform.HistoryRetentionDays || !reloadedAfterConflict.AdminRegistryResetPending {
+			t.Fatal("retention conflict overwrote pending storage transition")
+		}
+		// Simulate completion of the startup recovery before following subtests.
+		reloaded.AdminRegistryResetPending = false
+		if err := config.SaveAdminPolicies(reloaded); err != nil {
+			t.Fatal(err)
+		}
+		policies.RegistryResetPending.Store(false)
 	})
 
 	t.Run("Authorized - Set Retention Days", func(t *testing.T) {
@@ -387,6 +439,22 @@ func TestAdminAPIs(t *testing.T) {
 		}
 		if reloaded.Platform.HistoryRetentionDays != 45 {
 			t.Errorf("expected platform history_retention_days to be 45, got %d", reloaded.Platform.HistoryRetentionDays)
+		}
+		for _, invalid := range []string{"-1", "36501", "1.9", "1e3"} {
+			req := httptest.NewRequest("POST", "/api/v1/admin/config/set-retention?days="+url.QueryEscape(invalid), nil)
+			req.Header.Set("X-Admin-Token", "test-secret-token")
+			w := httptest.NewRecorder()
+			adminHandler.ServeHTTP(w, req)
+			if w.Code != http.StatusBadRequest || mqStore.GetHistoryRetentionDays() != 45 {
+				t.Errorf("invalid days %q changed retention or returned %d", invalid, w.Code)
+			}
+		}
+		zeroReq := httptest.NewRequest("POST", "/api/v1/admin/config/set-retention?days=0", nil)
+		zeroReq.Header.Set("X-Admin-Token", "test-secret-token")
+		zeroResp := httptest.NewRecorder()
+		adminHandler.ServeHTTP(zeroResp, zeroReq)
+		if zeroResp.Code != http.StatusOK || mqStore.GetHistoryRetentionDays() != 0 {
+			t.Errorf("zero-day retention rejected: %d %s", zeroResp.Code, zeroResp.Body.String())
 		}
 	})
 
@@ -577,6 +645,66 @@ func TestAdminFiltering(t *testing.T) {
 			t.Errorf("expected registry_count to be 1 (only Normal Agent), got %d", regCount)
 		}
 	})
+}
+
+func TestAdminPolicyWriteFailureDoesNotChangeLiveState(t *testing.T) {
+	dataDir := t.TempDir()
+	regStore, err := registrypkg.NewStore(filepath.Join(dataDir, "registry.db"), 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer regStore.Close()
+	mqStore, err := mqpkg.NewStore(filepath.Join(dataDir, "mq.db"), 7, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mqStore.Close()
+	h, err := golibp2p.New(golibp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	key, err := crypto.GenerateIdentityKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerAdminTestIdentity(t, regStore, key)
+
+	blockedDir := filepath.Join(dataDir, "not-a-directory")
+	if err := os.WriteFile(blockedDir, []byte("occupied"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.DefaultConfig()
+	cfg.Platform.DataDir = blockedDir
+	cfg.Platform.HistoryRetentionDays = 30
+	cfg.API.AdminToken = "test-secret-token"
+	policies := &SecurityPolicies{restart: func() { t.Error("restart on failed policy write") }}
+	policies.StoreUserData.Store(true)
+	mqStore.SetHistoryRetentionDays(30)
+	handler := AdminHandler(cfg, regStore, mqStore, h, nil, policies, "")
+
+	for _, endpoint := range []string{
+		"/api/v1/admin/config/toggle-storage",
+		"/api/v1/admin/config/set-retention?days=0",
+	} {
+		req := httptest.NewRequest(http.MethodPost, endpoint, nil)
+		req.Header.Set("X-Admin-Token", cfg.API.AdminToken)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusInternalServerError {
+			t.Fatalf("%s: expected persistence error, got %d: %s", endpoint, w.Code, w.Body.String())
+		}
+	}
+	if !policies.StoreUserData.Load() || !cfg.Platform.StoreUserData {
+		t.Fatal("storage policy changed despite persistence failure")
+	}
+	if cfg.Platform.HistoryRetentionDays != 30 || mqStore.GetHistoryRetentionDays() != 30 {
+		t.Fatal("retention changed despite persistence failure")
+	}
+	entry, err := regStore.ResolveEntry(key.URN())
+	if err != nil || entry == nil {
+		t.Fatalf("registry was cleared despite persistence failure: entry=%v err=%v", entry, err)
+	}
 }
 
 func registerAdminTestIdentity(t *testing.T, store registry.Store, key *crypto.IdentityKeyPair) {

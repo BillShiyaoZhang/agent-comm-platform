@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -120,5 +121,73 @@ api:
 	}
 	if cfg.Platform.DataDir != "/tmp/env_data" {
 		t.Errorf("expected overridden Platform.DataDir '/tmp/env_data', got %q", cfg.Platform.DataDir)
+	}
+}
+
+func TestAdminPolicyOverridesWithReadOnlyMainConfig(t *testing.T) {
+	dataDir := t.TempDir()
+	cfgPath := filepath.Join(dataDir, "config.yaml")
+	base := DefaultConfig()
+	base.Platform.DataDir = dataDir
+	if err := Save(cfgPath, base); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(cfgPath, 0400); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded.Platform.StoreUserData = false
+	loaded.Platform.HistoryRetentionDays = 0
+	loaded.API.AdminToken = "environment-secret"
+	if err := SaveAdminPolicies(loaded); err != nil {
+		t.Fatalf("read-only main config must not block policy persistence: %v", err)
+	}
+	override, err := os.ReadFile(filepath.Join(dataDir, adminPoliciesFilename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(override, []byte("environment-secret")) {
+		t.Fatal("admin token written to policy override")
+	}
+	reloaded, err := Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Platform.StoreUserData || reloaded.Platform.HistoryRetentionDays != 0 {
+		t.Fatalf("policy override not applied after restart: %+v", reloaded.Platform)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(filepath.Join(dataDir, adminPoliciesFilename))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0600 {
+			t.Fatalf("policy override permissions: %o", info.Mode().Perm())
+		}
+	}
+}
+
+func TestLoadRejectsInvalidAdminPolicyOverride(t *testing.T) {
+	for _, override := range []string{
+		"history_retention_days: -1\n",
+		"unknown_policy: true\n",
+		"history_retention_days: nope\n",
+	} {
+		dataDir := t.TempDir()
+		cfgPath := filepath.Join(dataDir, "config.yaml")
+		base := DefaultConfig()
+		base.Platform.DataDir = dataDir
+		if err := Save(cfgPath, base); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dataDir, adminPoliciesFilename), []byte(override), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(cfgPath); err == nil {
+			t.Fatalf("invalid admin policy override accepted: %q", override)
+		}
 	}
 }

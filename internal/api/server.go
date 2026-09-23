@@ -28,6 +28,7 @@ var webAssets embed.FS
 type SecurityPolicies struct {
 	StoreUserData             atomic.Bool
 	ForwardToStoragePlatforms atomic.Bool
+	RegistryResetPending      atomic.Bool
 	restart                   func()
 }
 
@@ -48,6 +49,7 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 	policies := &SecurityPolicies{}
 	policies.StoreUserData.Store(cfg.Platform.StoreUserData)
 	policies.ForwardToStoragePlatforms.Store(cfg.Platform.ForwardToStoragePlatforms)
+	policies.RegistryResetPending.Store(cfg.AdminRegistryResetPending)
 
 	// Set retention days on MQ Store
 	mqStore.SetHistoryRetentionDays(cfg.Platform.HistoryRetentionDays)

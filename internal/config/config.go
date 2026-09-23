@@ -2,9 +2,11 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -17,7 +19,19 @@ type Config struct {
 	Relay    RelayConfig    `yaml:"relay"`
 	MQ       MQConfig       `yaml:"mq"`
 	API      APIConfig      `yaml:"api"`
+	// AdminRegistryResetPending is an internal recovery marker, never part of config.yaml.
+	AdminRegistryResetPending bool `yaml:"-" json:"-"`
 }
+
+// adminPolicyOverrides contains only the settings the admin console may persist.
+// It lives in platform.data_dir so deployments can keep the main config read-only.
+type adminPolicyOverrides struct {
+	StoreUserData        *bool `yaml:"store_user_data"`
+	HistoryRetentionDays *int  `yaml:"history_retention_days"`
+	RegistryResetPending bool  `yaml:"registry_reset_pending"`
+}
+
+const adminPoliciesFilename = "admin-policies.yaml"
 
 type PlatformConfig struct {
 	Mode                      string `yaml:"mode"` // "privacy" | "compliance"
@@ -118,7 +132,82 @@ func Load(path string) (*Config, error) {
 			return nil, fmt.Errorf("invalid trusted_proxy_cidrs entry %q: %w", cidr, err)
 		}
 	}
+	if err := LoadAdminPolicies(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
+}
+
+// LoadAdminPolicies overlays console-managed settings on the base configuration.
+// A missing override file preserves the original configuration.
+func LoadAdminPolicies(cfg *Config) error {
+	path := filepath.Join(cfg.Platform.DataDir, adminPoliciesFilename)
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read admin policies: %w", err)
+	}
+	var overrides adminPolicyOverrides
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&overrides); err != nil {
+		return fmt.Errorf("parse admin policies: %w", err)
+	}
+	if overrides.HistoryRetentionDays != nil && *overrides.HistoryRetentionDays < 0 {
+		return fmt.Errorf("admin policies history_retention_days must be nonnegative")
+	}
+	if overrides.StoreUserData != nil {
+		cfg.Platform.StoreUserData = *overrides.StoreUserData
+	}
+	if overrides.HistoryRetentionDays != nil {
+		cfg.Platform.HistoryRetentionDays = *overrides.HistoryRetentionDays
+	}
+	cfg.AdminRegistryResetPending = overrides.RegistryResetPending
+	return nil
+}
+
+// SaveAdminPolicies atomically persists only console-managed settings. The main
+// config and environment-provided admin token are never rewritten by the console.
+func SaveAdminPolicies(cfg *Config) error {
+	storeUserData := cfg.Platform.StoreUserData
+	historyRetentionDays := cfg.Platform.HistoryRetentionDays
+	if historyRetentionDays < 0 {
+		return fmt.Errorf("history_retention_days must be nonnegative")
+	}
+	data, err := yaml.Marshal(adminPolicyOverrides{
+		StoreUserData:        &storeUserData,
+		HistoryRetentionDays: &historyRetentionDays,
+		RegistryResetPending: cfg.AdminRegistryResetPending,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal admin policies: %w", err)
+	}
+	tmp, err := os.CreateTemp(cfg.Platform.DataDir, ".admin-policies-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create admin policies temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		return fmt.Errorf("secure admin policies temp file: %w", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write admin policies temp file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("sync admin policies temp file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close admin policies temp file: %w", err)
+	}
+	if err := os.Rename(tmp.Name(), filepath.Join(cfg.Platform.DataDir, adminPoliciesFilename)); err != nil {
+		return fmt.Errorf("replace admin policies: %w", err)
+	}
+	return nil
 }
 
 func Save(path string, cfg *Config) error {

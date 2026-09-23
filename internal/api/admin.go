@@ -11,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/BillShiyaoZhang/agent-comm-platform/internal/config"
@@ -23,8 +24,9 @@ import (
 var startTime = time.Now()
 
 // AdminHandler returns an http.Handler serving all admin APIs, wrapped with token auth.
-func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog, policies *SecurityPolicies, cfgPath string) http.Handler {
+func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog, policies *SecurityPolicies, _ string) http.Handler {
 	mux := http.NewServeMux()
+	policyMu := &sync.Mutex{}
 
 	mux.HandleFunc("GET /api/v1/admin/overview", handleOverview(cfg, regStore, mqStore, h, policies))
 	mux.HandleFunc("GET /api/v1/admin/registry", handleAdminRegistryList(h, regStore))
@@ -32,10 +34,10 @@ func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpk
 	mux.HandleFunc("GET /api/v1/admin/mq", handleAdminMQList(mqStore))
 	mux.HandleFunc("DELETE /api/v1/admin/mq/clear", handleAdminMQClear(mqStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/mq/messages", handleAdminMQMessages(mqStore))
-	mux.HandleFunc("GET /api/v1/admin/config", handleAdminConfig(cfg))
-	mux.HandleFunc("POST /api/v1/admin/config/toggle-storage", handleToggleStorage(cfg, regStore, policies, auditLog, cfgPath))
+	mux.HandleFunc("GET /api/v1/admin/config", handleAdminConfig(cfg, mqStore, policies))
+	mux.HandleFunc("POST /api/v1/admin/config/toggle-storage", handleToggleStorage(cfg, regStore, mqStore, policies, auditLog, policyMu))
 	mux.HandleFunc("POST /api/v1/admin/config/toggle-forwarding", handleToggleForwarding(policies, auditLog))
-	mux.HandleFunc("POST /api/v1/admin/config/set-retention", handleSetRetention(cfg, mqStore, auditLog, cfgPath))
+	mux.HandleFunc("POST /api/v1/admin/config/set-retention", handleSetRetention(cfg, mqStore, policies, auditLog, policyMu))
 	mux.HandleFunc("GET /api/v1/admin/peers", handleAdminPeers(h, regStore))
 	mux.HandleFunc("GET /api/v1/admin/logs", handleAdminLogs(auditLog))
 
@@ -70,7 +72,12 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 		var m runtime.MemStats
 		runtime.ReadMemStats(&m)
 
-		mqStats, _ := mqStore.ListQueueStats(r.Context())
+		mqStats, err := mqStore.ListQueueStats(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "could not load MQ statistics"})
+			return
+		}
 
 		totalPendingMessages := 0
 		for _, stat := range mqStats {
@@ -85,12 +92,16 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 		localPeerID := h.ID().String()
 		agentPeers := make(map[string]bool)
 		agentCount := 0
-		if entries, err := regStore.ListEntries(); err == nil {
-			for _, entry := range entries {
-				if entry.PeerID != localPeerID {
-					agentCount++
-					agentPeers[entry.PeerID] = true
-				}
+		entries, err := regStore.ListEntries()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "could not load Registry statistics"})
+			return
+		}
+		for _, entry := range entries {
+			if entry.PeerID != localPeerID {
+				agentCount++
+				agentPeers[entry.PeerID] = true
 			}
 		}
 
@@ -123,15 +134,17 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 			"platform_mode":                cfg.Platform.Mode,
 			"stores_user_data":             policies.StoreUserData.Load(),
 			"forward_to_storage_platforms": policies.ForwardToStoragePlatforms.Load(),
-			"history_retention_days":       cfg.Platform.HistoryRetentionDays,
+			"history_retention_days":       mqStore.GetHistoryRetentionDays(),
 			"peer_id":                      h.ID().String(),
 			"listen_addrs":                 addrs,
 			"connected_peers":              platformPeersCount,
 			"inbound_conns":                inbound,
 			"outbound_conns":               outbound,
 			"registry_count":               agentCount,
+			"registry_ttl_hours":           cfg.Registry.TTLHours,
 			"mq_queues_count":              len(mqStats),
 			"mq_messages_count":            totalPendingMessages,
+			"mq_max_msgs_per_urn":          cfg.MQ.MaxMsgsPerURN,
 		}
 
 		json.NewEncoder(w).Encode(resp)
@@ -228,31 +241,62 @@ func handleAdminMQClear(mqStore *mqpkg.Store, auditLog *AuditLog) http.HandlerFu
 	}
 }
 
-func handleAdminConfig(cfg *config.Config) http.HandlerFunc {
+func handleAdminConfig(cfg *config.Config, mqStore *mqpkg.Store, policies *SecurityPolicies) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Create a copy of config and redact sensitive fields
 		redacted := *cfg
+		redacted.Platform.StoreUserData = policies.StoreUserData.Load()
+		redacted.Platform.ForwardToStoragePlatforms = policies.ForwardToStoragePlatforms.Load()
+		redacted.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
 		redacted.API.AdminToken = "******"
 		json.NewEncoder(w).Encode(redacted)
 	}
 }
 
-func handleToggleStorage(cfg *config.Config, regStore *registrypkg.Store, policies *SecurityPolicies, auditLog *AuditLog, cfgPath string) http.HandlerFunc {
+func handleToggleStorage(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		policyMu.Lock()
+		defer policyMu.Unlock()
+		if policies.RegistryResetPending.Load() {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":           "storage policy change is pending restart; wait for the platform to restart before retrying",
+				"restart_pending": true,
+			})
+			return
+		}
 		current := policies.StoreUserData.Load()
 		next := !current
-		policies.StoreUserData.Store(next)
-		cfg.Platform.StoreUserData = next
-
-		// Save configuration
-		if err := config.Save(cfgPath, cfg); err != nil {
-			log.Printf("[api] failed to save config on toggle-storage: %v", err)
+		updated := *cfg
+		updated.Platform.StoreUserData = next
+		updated.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
+		updated.AdminRegistryResetPending = true
+		if err := config.SaveAdminPolicies(&updated); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "could not persist storage policy: " + err.Error()})
+			return
 		}
 
 		// Clear all registry entries to force re-registration
 		if err := regStore.ClearAllEntries(); err != nil {
-			log.Printf("[api] failed to clear registry entries on toggle-storage: %v", err)
+			updated.Platform.StoreUserData = current
+			updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
+			if rollbackErr := config.SaveAdminPolicies(&updated); rollbackErr != nil {
+				log.Printf("[api] failed to roll back storage policy after registry error: %v", rollbackErr)
+				policies.RegistryResetPending.Store(true)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error":            "registry reset failed and the new storage policy remains pending on disk; restart is required for recovery before retrying",
+					"recovery_pending": true,
+				})
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "could not clear registry for storage policy change: " + err.Error()})
+			return
 		}
+		policies.StoreUserData.Store(next)
+		policies.RegistryResetPending.Store(true)
 
 		msg := fmt.Sprintf("Changed platform store user data policy to: %t, triggering registry purge and reboot", next)
 		if auditLog != nil {
@@ -299,27 +343,27 @@ func handleToggleForwarding(policies *SecurityPolicies, auditLog *AuditLog) http
 
 // PeerInfo represents information about a connected libp2p peer.
 type PeerInfo struct {
-	PeerID         string   `json:"peer_id"`
-	Addrs          []string `json:"addrs"`
-	Direction      string   `json:"direction"` // "inbound", "outbound", "both"
-	ConnCount      int      `json:"conn_count"`
-	Protocols      []string `json:"protocols"`
-	StoresUserData bool     `json:"stores_user_data"`
+	PeerID    string   `json:"peer_id"`
+	Addrs     []string `json:"addrs"`
+	Direction string   `json:"direction"` // "inbound", "outbound", "both"
+	ConnCount int      `json:"conn_count"`
+	Protocols []string `json:"protocols"`
 }
 
 func handleAdminPeers(h host.Host, regStore *registrypkg.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		localPeerID := h.ID().String()
 		agentPeers := make(map[string]bool)
-		peerToStorage := make(map[string]bool)
 		if regStore != nil {
 			entries, err := regStore.ListEntries()
-			if err == nil {
-				for _, entry := range entries {
-					if entry.PeerID != localPeerID {
-						agentPeers[entry.PeerID] = true
-						peerToStorage[entry.PeerID] = entry.StoresUserData
-					}
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "could not load Registry peers"})
+				return
+			}
+			for _, entry := range entries {
+				if entry.PeerID != localPeerID {
+					agentPeers[entry.PeerID] = true
 				}
 			}
 		}
@@ -337,11 +381,7 @@ func handleAdminPeers(h host.Host, regStore *registrypkg.Store) http.HandlerFunc
 				continue
 			}
 
-			info := &PeerInfo{
-				PeerID:         pid.String(),
-				ConnCount:      len(conns),
-				StoresUserData: peerToStorage[pid.String()],
-			}
+			info := &PeerInfo{PeerID: pid.String(), ConnCount: len(conns)}
 
 			// Determine direction
 			hasIn, hasOut := false, false
@@ -389,7 +429,7 @@ func handleAdminPeers(h host.Host, regStore *registrypkg.Store) http.HandlerFunc
 	}
 }
 
-func handleSetRetention(cfg *config.Config, mqStore *mqpkg.Store, auditLog *AuditLog, cfgPath string) http.HandlerFunc {
+func handleSetRetention(cfg *config.Config, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -408,18 +448,32 @@ func handleSetRetention(cfg *config.Config, mqStore *mqpkg.Store, auditLog *Audi
 		}
 
 		days, err := strconv.Atoi(daysStr)
-		if err != nil || days < 1 {
+		if err != nil || days < 0 || days > 36500 {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error":"invalid days value: must be a positive integer"}`))
+			w.Write([]byte(`{"error":"invalid days value: must be an integer from 0 to 36500"}`))
 			return
 		}
 
-		cfg.Platform.HistoryRetentionDays = days
-		mqStore.SetHistoryRetentionDays(days)
-
-		if err := config.Save(cfgPath, cfg); err != nil {
-			log.Printf("[api] failed to save config on set-retention: %v", err)
+		policyMu.Lock()
+		defer policyMu.Unlock()
+		if policies.RegistryResetPending.Load() {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":           "storage policy change is pending restart; wait for the platform to restart before changing retention",
+				"restart_pending": true,
+			})
+			return
 		}
+		updated := *cfg
+		updated.Platform.StoreUserData = policies.StoreUserData.Load()
+		updated.Platform.HistoryRetentionDays = days
+		updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
+		if err := config.SaveAdminPolicies(&updated); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "could not persist history retention: " + err.Error()})
+			return
+		}
+		mqStore.SetHistoryRetentionDays(days)
 
 		if auditLog != nil {
 			auditLog.Record("info", "admin", "Set MQ history retention days to: "+strconv.Itoa(days), "")

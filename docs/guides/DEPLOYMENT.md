@@ -10,7 +10,7 @@ cd agent-comm-platform
 git submodule update --init --recursive
 ```
 
-安装 Docker 和 Compose，并准备已有挂载目录 `/data`。本仓库配置不会替你分区或格式化磁盘。使用 [config.example.yaml](../../config.example.yaml) 作为独立部署的配置起点；当前 Compose 将它只读挂载到容器 `/etc/platform/config.yaml`。
+安装 Docker 和 Compose，并准备已有挂载目录 `/data`。本仓库配置不会替你分区或格式化磁盘。使用 [config.example.yaml](../../config.example.yaml) 作为独立部署的配置起点；当前 Compose 将它只读挂载到容器 `/etc/platform/config.yaml`。管理台更新的存储与历史保留策略存于可写数据目录的 `/data/admin-policies.yaml`，升级、备份和恢复时要一同保留。
 
 核对配置中的数据库、密钥目录与外部地址。平台镜像以 UID 10001 运行，挂载目录须允许该用户读写。设置独立的 `PLATFORM_ADMIN_TOKEN`，不要将真实令牌写入仓库。
 

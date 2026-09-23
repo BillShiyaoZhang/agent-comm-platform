@@ -48,6 +48,16 @@ func main() {
 	}
 	log.Printf("Platform identity: %s", id.Ed25519.URN())
 
+	// Complete any storage-policy registry reset before exposing libp2p or HTTP.
+	regStore, err := registrypkg.NewStore(cfg.Registry.PersistDB, cfg.Registry.TTLHours)
+	if err != nil {
+		log.Fatalf("create registry store: %v", err)
+	}
+	defer regStore.Close()
+	if err := recoverPendingRegistryReset(cfg, regStore); err != nil {
+		log.Fatalf("recover registry reset: %v", err)
+	}
+
 	// ── libp2p Host ───────────────────────────────────────────────────────────
 	libp2pPrivKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(id.Ed25519.PrivateKey)
 	if err != nil {
@@ -69,11 +79,6 @@ func main() {
 	}
 
 	// ── Registry ─────────────────────────────────────────────────────────────
-	regStore, err := registrypkg.NewStore(cfg.Registry.PersistDB, cfg.Registry.TTLHours)
-	if err != nil {
-		log.Fatalf("create registry store: %v", err)
-	}
-	defer regStore.Close()
 	regSrv := registry.NewServer(h, regStore)
 	regSrv.Register()
 	log.Printf("Registry: %s", registry.ProtoID)
@@ -152,6 +157,21 @@ func main() {
 	cancel()
 	wg.Wait()
 	log.Println("Done.")
+}
+
+func recoverPendingRegistryReset(cfg *config.Config, regStore *registrypkg.Store) error {
+	if !cfg.AdminRegistryResetPending {
+		return nil
+	}
+	if err := regStore.ClearAllEntries(); err != nil {
+		return fmt.Errorf("clear registry: %w", err)
+	}
+	cfg.AdminRegistryResetPending = false
+	if err := config.SaveAdminPolicies(cfg); err != nil {
+		cfg.AdminRegistryResetPending = true
+		return fmt.Errorf("complete registry reset: %w", err)
+	}
+	return nil
 }
 
 func registerPlatformIdentity(store registry.Store, h host.Host, id *crypto.IdentityKeys, storesUserData bool) error {

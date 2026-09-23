@@ -6,7 +6,8 @@
 
 - 在 HTTPS 反向代理后运行 HTTP API。独立 Compose 仅在内部网络暴露 8080；需要发布 TCP/UDP 45041 才能使用 libp2p。
 - 设置 `PLATFORM_ADMIN_TOKEN`，保护管理操作。真实值通过部署环境传入，不提交到配置样例。
-- 管理 API 只接受 `X-Admin-Token` 请求头；URL 中的 `token` 参数不再用于认证。管理响应禁止缓存，保存配置会收紧文件权限到 `0600`（Windows 应另行配置账户 ACL）。
+- 管理 API 只接受 `X-Admin-Token` 请求头；URL 中的 `token` 参数不再用于认证。管理响应禁止缓存。管理台只将可变策略写入数据目录的 `admin-policies.yaml`，以临时文件加重命名方式更新并设置权限 `0600`（Windows 应另行配置账户 ACL）；不会把环境变量中的令牌写入该文件。
+- 管理台将输入的令牌保存在当前浏览器标签的 `sessionStorage`，刷新标签时继续使用；关闭标签或在管理台退出登录会清除该会话的令牌。浏览器会话存储不替代 HTTPS、访问控制和可信终端。
 - 独立 TLS 可同时设置 `api.tls_cert` 和 `api.tls_key`；证书缺失或无效时拒绝启动，不会退回明文服务。
 - HTTP 限流默认使用实际连接来源。反向代理部署需将 `api.trusted_proxy_cidrs` 收窄到可信代理地址/网段，并由最外层代理覆盖 `X-Real-IP`。不信任客户端的 `X-Forwarded-For`，不要将不受信任的容器放入该代理网段。
 - HTTP 签名和 libp2p 身份验证由现役代码实现。新增写入口必须继续经过存储层的身份校验，不能绕过验证直接入库。
@@ -20,10 +21,10 @@ MQ 单次读取最多 500 封且总计约 4 MiB，确认后再次读取后续批
 
 限流器最多保留 10000 个活动来源，空闲来源会回收；超限的新来源共享一个限流桶。Relay 的时长和字节额度作用于每条中继连接，预约有效期独立管理。这些限制减少单请求/单连接消耗，部署仍需配置磁盘容量、网络层限流和监控。
 
-备份配置、身份密钥和数据库；复制 SQLite 数据文件时协调写入并包含需要的 WAL 文件。恢复应使用匹配的配置和密钥，避免意外生成新平台身份。健康检查、管理审计以及真实两端消息验证共同用于确认服务状态。
+备份配置、`admin-policies.yaml`、身份密钥和数据库；复制 SQLite 数据文件时协调写入并包含需要的 WAL 文件。恢复应使用匹配的配置、管理策略覆盖文件和密钥，避免意外生成新平台身份。健康检查、管理审计以及真实两端消息验证共同用于确认服务状态。
 
 ## 验证入口
 
 `go test ./...` 覆盖 API 权限、签名所有权、MQ 配额/去重、审计和配置。SDK 的 `tools/test_helper_platform.py` 用隔离的本机进程验证 helper 与 Platform 的收发和恢复。此类测试不替代真实部署的证书、域名、备份恢复和授权 agent 的业务结果检查。
 
-`node --test tests/admin_security.test.cjs` 验证管理台对地址、URN、协议名、消息 ID 与审计数据的 HTML/事件参数转义。构建最低使用 Go 1.26.8；定期运行 `govulncheck ./...`，并在 Linux 部署时使用 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0` 检查生产目标。
+`node --test tests/admin_*.test.cjs` 验证管理台的转义、配置容量显示和令牌会话。构建最低使用 Go 1.26.8；定期运行 `govulncheck ./...`，并在 Linux 部署时使用 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0` 检查生产目标。

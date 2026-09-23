@@ -4,11 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title data-i18n="title">Agent Comm Platform 管理后台</title>
-  <!-- Google Fonts Outfit & Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
   <style>
     /* Design Tokens */
     :root {
@@ -1501,6 +1496,7 @@
       color: #fff;
     }
   </style>
+  <link rel="stylesheet" href="console.css">
 </head>
 <body>
 
@@ -1520,7 +1516,7 @@
         <span class="brand-title">Agent Comm</span>
       </div>
     </div>
-    <button class="menu-btn" onclick="toggleMobileSidebar()">
+    <button class="menu-btn" type="button" onclick="toggleMobileSidebar()" aria-controls="appSidebar" aria-expanded="false" aria-label="打开导航 / Open navigation">
       <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16m-7 6h7"/></svg>
     </button>
   </div>
@@ -1529,6 +1525,7 @@
     
     <!-- Sidebar -->
     <div class="sidebar" id="appSidebar">
+      <div class="sidebar-heading">
       <div class="brand">
         <div class="brand-logo">
           <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -1538,32 +1535,35 @@
           <span class="brand-subtitle" data-i18n="subtitle">通信平台管理后台</span>
         </div>
       </div>
+      <button class="sidebar-close" type="button" onclick="toggleMobileSidebar()" aria-label="关闭导航 / Close navigation">×</button>
+      </div>
 
       <nav class="menu">
-        <a class="menu-item active" onclick="switchView('dashboard', this)">
+        <span class="nav-caption" data-i18n="nav_workspace">工作区</span>
+        <button type="button" class="menu-item active" onclick="switchView('dashboard', this)" aria-current="page">
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
           <span data-i18n="tab_dashboard">控制面板</span>
-        </a>
-        <a class="menu-item" onclick="switchView('registry', this)">
+        </button>
+        <button type="button" class="menu-item" onclick="switchView('registry', this)">
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
           <span data-i18n="tab_registry">注册名册</span>
-        </a>
-        <a class="menu-item" onclick="switchView('relay', this)">
+        </button>
+        <button type="button" class="menu-item" onclick="switchView('relay', this)">
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
           <span data-i18n="tab_relay">中继网络</span>
-        </a>
-        <a class="menu-item" onclick="switchView('mq', this)">
+        </button>
+        <button type="button" class="menu-item" onclick="switchView('mq', this)">
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0l-3.586-3.586a2 2 0 00-2.828 0L12 11.586l-1.586-1.586a2 2 0 00-2.828 0L4 13"/></svg>
           <span data-i18n="tab_mq">离线信箱</span>
-        </a>
-        <a class="menu-item" onclick="switchView('logs', this)">
+        </button>
+        <button type="button" class="menu-item" onclick="switchView('logs', this)">
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           <span data-i18n="tab_logs">活动日志</span>
-        </a>
-        <a class="menu-item" onclick="switchView('config', this)">
+        </button>
+        <button type="button" class="menu-item" onclick="switchView('config', this)">
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span data-i18n="tab_config">系统配置</span>
-        </a>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -1573,7 +1573,7 @@
         </div>
         <div class="status-badge">
           <div class="status-dot" id="healthDot"></div>
-          <span id="healthText" data-i18n="status_disconnected">未连接</span>
+          <span id="healthText" data-i18n="disconnected" aria-live="polite">未连接</span>
         </div>
         <button class="btn-action-side" onclick="clearToken(true)" data-i18n="logout">注销登录</button>
       </div>
@@ -1581,13 +1581,17 @@
 
     <!-- Main Content -->
     <div class="main-content">
-      
+      <div class="workspace-bar">
+        <span class="workspace-path"><span class="workspace-path-root">Agent Comm</span><span class="path-divider">/</span><span data-i18n="workspace_label">Platform 管理</span></span>
+        <a class="docs-link" href="/docs/" target="_blank" rel="noopener noreferrer" data-i18n="nav_docs">API 文档 ↗</a>
+      </div>
+
       <!-- 1. Dashboard Pane -->
       <div class="view-pane active" id="pane-dashboard">
         <div class="header-bar">
           <div class="header-title">
             <h1 data-i18n="tab_dashboard">控制面板</h1>
-            <p data-i18n="subtitle">平台整体运营指标、状态摘要与实时图表监控</p>
+            <p data-i18n="dashboard_sub">平台状态、队列与运行策略概览</p>
           </div>
           <div class="header-actions">
             <button class="btn btn-secondary btn-sm" onclick="exportOverviewReport()">
@@ -1633,13 +1637,13 @@
           <!-- MQ Messages -->
           <div class="card-stat">
             <div class="card-stat-header">
-              <span class="card-stat-title" data-i18n="stat_mq">信箱暂存数</span>
+              <span class="card-stat-title" data-i18n="stat_mq">待收信封数</span>
               <div class="card-stat-icon" style="color: var(--accent-amber); background: rgba(245, 158, 11, 0.08);">
                 <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
               </div>
             </div>
             <div class="card-stat-value" id="statMQMessages">0</div>
-            <div class="card-stat-desc" data-i18n="stat_mq_desc">离线队列密文信封</div>
+            <div class="card-stat-desc" data-i18n="stat_mq_desc">平台暂存的待收密文信封</div>
             <div class="sparkline-container">
               <canvas id="canvasSparkMQ" class="sparkline-canvas"></canvas>
             </div>
@@ -1662,51 +1666,51 @@
 
         <div class="details-grid">
           <!-- Security Policies -->
-          <div class="card-large col-12" style="margin-bottom: 8px;">
+          <div class="card-large col-12 policy-section">
             <div class="card-header-title">
               <span>
                 <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                 <span data-i18n="security_policies">安全与隐私策略 (Security & Privacy Policies)</span>
               </span>
             </div>
-            <div class="policies-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+            <div class="policies-container">
               <!-- Policy 1: Store User Data -->
-              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <span style="font-weight: 600; font-size: 0.95rem; color: #fff;" data-i18n="policy_store_title">自身数据存储开关</span>
-                  <span style="font-size: 0.8rem; color: var(--text-muted);" id="policyStoreDesc" data-i18n="policy_store_desc">允许平台代存离线信箱消息(MQ)</span>
+              <div class="policy-item">
+                <div class="policy-copy">
+                  <span class="policy-title" id="policyStoreTitle" data-i18n="policy_store_title">平台存储离线信封</span>
+                  <span class="policy-description" id="policyStoreDesc" data-i18n="policy_store_desc">控制本平台是否接收并暂存离线加密信封</span>
                 </div>
                 <div class="switch-control">
                   <label class="switch">
-                    <input type="checkbox" id="policyStoreToggle" onchange="toggleStorePolicy()">
+                    <input type="checkbox" id="policyStoreToggle" aria-labelledby="policyStoreTitle" aria-describedby="policyStoreDesc" onchange="toggleStorePolicy()">
                     <span class="slider"></span>
                   </label>
                 </div>
               </div>
 
               <!-- Policy 2: Forward to Storage Platforms -->
-              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <span style="font-weight: 600; font-size: 0.95rem; color: #fff;" data-i18n="policy_forward_title">安全连接转发隔离</span>
-                  <span style="font-size: 0.8rem; color: var(--text-muted);" id="policyForwardDesc" data-i18n="policy_forward_desc">禁止向存储用户数据的三方节点转发消息</span>
+              <div class="policy-item">
+                <div class="policy-copy">
+                  <span class="policy-title" id="policyForwardTitle" data-i18n="policy_forward_title">允许转发至存储平台</span>
+                  <span class="policy-description" id="policyForwardDesc" data-i18n="policy_forward_desc">控制是否允许向存储用户数据的平台身份转发</span>
                 </div>
                 <div class="switch-control">
                   <label class="switch">
-                    <input type="checkbox" id="policyForwardToggle" onchange="toggleForwardPolicy()">
+                    <input type="checkbox" id="policyForwardToggle" aria-labelledby="policyForwardTitle" aria-describedby="policyForwardDesc" onchange="toggleForwardPolicy()">
                     <span class="slider"></span>
                   </label>
                 </div>
               </div>
 
               <!-- Policy 3: History Retention Days -->
-              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <span style="font-weight: 600; font-size: 0.95rem; color: #fff;" data-i18n="policy_retention_title">已读历史消息保留天数</span>
-                  <span style="font-size: 0.8rem; color: var(--text-muted);" id="policyRetentionDesc" data-i18n="policy_retention_desc">设置已读/历史信封在数据库中保存的天数</span>
+              <div class="policy-item">
+                <div class="policy-copy">
+                  <span class="policy-title" id="policyRetentionTitle" data-i18n="policy_retention_title">已确认信封保留天数</span>
+                  <span class="policy-description" id="policyRetentionDesc" data-i18n="policy_retention_desc">已确认信封的保留上限；0 表示下次清理时删除历史</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <input type="number" id="policyRetentionInput" min="1" max="365" style="width: 70px; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color: #fff; text-align: center;" onchange="updateRetentionDays()">
-                  <span style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="days_label">天</span>
+                <div class="retention-control">
+                  <input type="number" id="policyRetentionInput" min="0" max="36500" step="1" aria-labelledby="policyRetentionTitle" aria-describedby="policyRetentionDesc" onchange="updateRetentionDays()">
+                  <span data-i18n="days_label">天</span>
                 </div>
               </div>
             </div>
@@ -1719,12 +1723,12 @@
                 <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                 <span data-i18n="host_details">libp2p 节点信息 (Host Details)</span>
               </span>
-              <span id="platformModeIndicator" class="mode-indicator">UNKNOWN</span>
+              <span id="platformModeIndicator" class="mode-indicator">--</span>
             </div>
             <div class="info-list">
               <div class="info-item">
                 <span class="info-label" data-i18n="peer_id">节点 Peer ID</span>
-                <span class="info-value" id="peerIDVal" style="font-family: monospace; background: rgba(255,255,255,0.04); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color);">--</span>
+                <span class="info-value" id="peerIDVal">--</span>
               </div>
               <div class="info-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
                 <span class="info-label" data-i18n="listen_addrs">监听 Multiaddresses</span>
@@ -1733,6 +1737,7 @@
                 </div>
               </div>
             </div>
+            <p class="card-note" data-i18n="mode_note">模式为配置值；实际存储与转发由上方策略控制。</p>
           </div>
 
           <!-- OS Metrics circular gauges -->
@@ -1796,17 +1801,17 @@
           <!-- Batch actions -->
           <div id="regBatchBar" class="batch-actions-bar" style="display: none;">
             <svg style="width:20px;height:20px;stroke:var(--accent-rose);fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            <span style="font-size:0.9rem; color:var(--text-main); font-weight:600;"><span data-i18n="actions">已选择</span>: <span id="regSelectCount">0</span> URNs</span>
+            <span style="font-size:0.9rem; color:var(--text-main); font-weight:600;"><span data-i18n="selected">已选择</span>: <span id="regSelectCount">0</span> URNs</span>
             <button class="btn btn-danger-outline btn-sm" onclick="batchEvictNodes()" style="margin-left: auto;" data-i18n="batch_evict">批量驱逐选定节点</button>
           </div>
 
           <div class="table-controls">
             <div class="search-input-wrapper">
-              <input type="text" id="registrySearch" class="search-input" placeholder="输入 URN 或 PeerID 筛选..." oninput="debouncedFilterRegistry()">
+              <input type="search" id="registrySearch" class="search-input" placeholder="输入 URN 或 PeerID 筛选..." aria-label="搜索名册 / Search registry" data-i18n="search_reg" oninput="debouncedFilterRegistry()">
               <svg class="search-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
-            <div style="font-size: 0.9rem; color: var(--text-muted);">
-              <span data-i18n="actions">显示结果数</span>: <span id="registryCountVal" style="color: #fff; font-weight:600;">0</span>
+            <div class="result-count">
+              <span data-i18n="result_count">结果</span><strong id="registryCountVal">0</strong>
             </div>
           </div>
 
@@ -1814,11 +1819,11 @@
             <table id="registryTable">
               <thead>
                 <tr>
-                  <th class="checkbox-cell"><input type="checkbox" id="selectAllReg" onchange="toggleSelectAllReg(this)"></th>
-                  <th class="sortable" onclick="sortTable('registry', 'URN')" data-i18n="urn">URN <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
-                  <th class="sortable" onclick="sortTable('registry', 'PeerID')" data-i18n="peer_id_col">PeerID <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="checkbox-cell"><input type="checkbox" id="selectAllReg" aria-label="全选名册 / Select all registry entries" onchange="toggleSelectAllReg(this)"></th>
+                  <th class="sortable" onclick="sortTable('registry', 'URN')"><span data-i18n="urn">URN</span> <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('registry', 'PeerID')"><span data-i18n="peer_id_col">PeerID</span> <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
                   <th data-i18n="bind_addrs">绑定的 Multiaddresses / Relay Addrs</th>
-                  <th class="sortable" onclick="sortTable('registry', 'ExpiresAt')" data-i18n="expires_at">过期时间 (TTL) <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('registry', 'ExpiresAt')"><span data-i18n="expires_at">过期时间 (TTL)</span> <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
                   <th style="width: 100px; text-align: center;" data-i18n="actions">操作</th>
                 </tr>
               </thead>
@@ -1878,7 +1883,7 @@
         <div class="card-large col-12">
           <div class="table-controls">
             <div class="search-input-wrapper">
-              <input type="text" id="peersSearch" class="search-input" placeholder="输入 Peer ID 搜索物理节点..." oninput="filterPeersTable()">
+              <input type="search" id="peersSearch" class="search-input" placeholder="输入 Peer ID 搜索物理节点..." aria-label="搜索节点 / Search peers" data-i18n="search_peer" oninput="filterPeersTable()">
               <svg class="search-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
           </div>
@@ -1926,17 +1931,17 @@
           <!-- Batch actions -->
           <div id="mqBatchBar" class="batch-actions-bar" style="display: none;">
             <svg style="width:20px;height:20px;stroke:var(--accent-rose);fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            <span style="font-size:0.9rem; color:var(--text-main); font-weight:600;"><span data-i18n="actions">已选择</span>: <span id="mqSelectCount">0</span> URNs</span>
+            <span style="font-size:0.9rem; color:var(--text-main); font-weight:600;"><span data-i18n="selected">已选择</span>: <span id="mqSelectCount">0</span> URNs</span>
             <button class="btn btn-danger-outline btn-sm" onclick="batchClearQueues()" style="margin-left: auto;" data-i18n="batch_clear">批量清空选定信箱</button>
           </div>
 
           <div class="table-controls">
             <div class="search-input-wrapper">
-              <input type="text" id="mqSearch" class="search-input" placeholder="输入接收方 URN 筛选..." oninput="debouncedFilterMQ()">
+              <input type="search" id="mqSearch" class="search-input" placeholder="输入接收方 URN 筛选..." aria-label="搜索信箱 / Search mailboxes" data-i18n="search_mq" oninput="debouncedFilterMQ()">
               <svg class="search-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
-            <div style="font-size: 0.9rem; color: var(--text-muted);">
-              <span data-i18n="actions">活跃邮箱数</span>: <span id="mqCountVal" style="color:#fff; font-weight:600;">0</span>
+            <div class="result-count">
+              <span data-i18n="mailbox_count">信箱</span><strong id="mqCountVal">0</strong>
             </div>
           </div>
 
@@ -1944,12 +1949,12 @@
             <table id="mqTable">
               <thead>
                 <tr>
-                  <th class="checkbox-cell"><input type="checkbox" id="selectAllMQ" onchange="toggleSelectAllMQ(this)"></th>
-                  <th class="sortable" onclick="sortTable('mq', 'recipient')" data-i18n="recipient">接收方 URN <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
-                  <th class="sortable" onclick="sortTable('mq', 'count')" data-i18n="msg_count">暂存信封数 <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
-                  <th class="sortable" onclick="sortTable('mq', 'total_size')" data-i18n="total_size">累积大小 <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
-                  <th class="sortable" onclick="sortTable('mq', 'oldest_at')" data-i18n="oldest_time">最早存入时间 <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
-                  <th class="sortable" onclick="sortTable('mq', 'newest_at')" data-i18n="newest_time">最晚更新时间 <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="checkbox-cell"><input type="checkbox" id="selectAllMQ" aria-label="全选信箱 / Select all mailboxes" onchange="toggleSelectAllMQ(this)"></th>
+                  <th class="sortable" onclick="sortTable('mq', 'recipient')"><span data-i18n="recipient">接收方 URN</span> <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('mq', 'count')"><span data-i18n="msg_count">暂存信封数</span> <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('mq', 'total_size')"><span data-i18n="total_size">累积大小</span> <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('mq', 'oldest_at')"><span data-i18n="oldest_time">最早存入时间</span> <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
+                  <th class="sortable" onclick="sortTable('mq', 'newest_at')"><span data-i18n="newest_time">最晚更新时间</span> <svg class="sort-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></th>
                   <th style="width: 100px; text-align: center;" data-i18n="actions">操作</th>
                 </tr>
               </thead>
@@ -1974,9 +1979,9 @@
             <p data-i18n="logs_sub">记录平台内部事件、连接变动与管理员的操作审计流水记录</p>
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
-            <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.85rem; color:var(--text-muted); cursor:pointer;">
+            <label class="auto-refresh-control">
               <input type="checkbox" id="logAutoRefresh" checked onchange="toggleLogAutoRefresh()">
-              <span>实时自动滚动</span>
+              <span data-i18n="auto_refresh">自动刷新</span>
             </label>
             <button class="btn btn-primary btn-sm" onclick="refreshLogs()">
               <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
@@ -1988,7 +1993,7 @@
         <div class="card-large col-12">
           <div class="table-controls">
             <div class="search-input-wrapper">
-              <input type="text" id="logSearch" class="search-input" placeholder="过滤关键字..." oninput="debouncedFilterLogs()">
+              <input type="search" id="logSearch" class="search-input" placeholder="过滤关键字..." aria-label="搜索活动日志 / Search activity logs" data-i18n="search_log" oninput="debouncedFilterLogs()">
               <svg class="search-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
             
@@ -2018,13 +2023,13 @@
 
           <!-- Pagination -->
           <div style="display:flex; justify-content: space-between; align-items:center; margin-top: 16px;">
-            <div style="font-size:0.85rem; color:var(--text-muted);">
-              Total: <span id="logTotalCount" style="color:#fff; font-weight:600;">0</span> entries
+            <div class="result-count">
+              <span data-i18n="log_entries">日志条目</span><strong id="logTotalCount">0</strong>
             </div>
             <div style="display:flex; gap:8px;">
-              <button class="btn btn-secondary btn-sm" id="btnPrevLogPage" onclick="changeLogPage(-1)" disabled>◀</button>
+              <button class="btn btn-secondary btn-sm" id="btnPrevLogPage" onclick="changeLogPage(-1)" aria-label="上一页 / Previous page" disabled>◀</button>
               <span id="logPageIndicator" style="font-size:0.85rem; display:inline-flex; align-items:center; padding:0 8px; color:var(--text-muted);">Page 1</span>
-              <button class="btn btn-secondary btn-sm" id="btnNextLogPage" onclick="changeLogPage(1)" disabled>▶</button>
+              <button class="btn btn-secondary btn-sm" id="btnNextLogPage" onclick="changeLogPage(1)" aria-label="下一页 / Next page" disabled>▶</button>
             </div>
           </div>
         </div>
@@ -2047,7 +2052,7 @@
 
         <div class="card-large col-12">
           <div class="card-header-title">
-            <span>config.yaml Config Objects</span>
+            <span data-i18n="config_snapshot">当前配置快照</span>
             <button class="btn btn-primary btn-sm" style="font-size: 0.75rem; padding: 4px 10px;" onclick="refreshConfig()">
               <svg style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
               <span data-i18n="refresh">重新加载</span>
@@ -2062,10 +2067,10 @@
 
   <!-- Detail Slider Drawer -->
   <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
-  <div class="drawer-container" id="detailDrawer">
+  <div class="drawer-container" id="detailDrawer" role="dialog" aria-labelledby="drawerTitle">
     <div class="drawer-header">
       <h3 class="drawer-title" id="drawerTitle">Node Details</h3>
-      <button class="drawer-close" onclick="closeDrawer()">
+      <button class="drawer-close" type="button" onclick="closeDrawer()" aria-label="关闭详情 / Close details">
         <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
@@ -2075,7 +2080,7 @@
   </div>
 
   <!-- custom confirmation dialog modal -->
-  <div class="modal-overlay" id="confirmModal">
+  <div class="modal-overlay" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalText" tabindex="-1">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-icon-wrapper danger">
@@ -2092,7 +2097,7 @@
   </div>
 
   <!-- System Rebooting Overlay -->
-  <div class="modal-overlay" id="rebootingOverlay">
+  <div class="modal-overlay" id="rebootingOverlay" role="dialog" aria-modal="true" aria-labelledby="rebootingOverlayTitle" aria-describedby="rebootingOverlayText" tabindex="-1">
     <div class="modal-card" style="text-align: center;">
       <div class="modal-header" style="flex-direction: column; align-items: center;">
         <div style="margin-bottom: 24px; display: inline-flex; width: 64px; height: 64px; background: rgba(99, 102, 241, 0.1); border-radius: 50%; align-items: center; justify-content: center;">
@@ -2108,16 +2113,17 @@
   </div>
 
   <!-- Admin Login Auth Overlay -->
-  <div class="modal-overlay" id="authModal">
+  <div class="modal-overlay" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" aria-describedby="authModalDescription" tabindex="-1">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-icon-wrapper primary">
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
         </div>
-        <h2 class="modal-title" data-i18n="login_title">管理后台授权</h2>
-        <p class="modal-subtitle" data-i18n="login_sub">请输入节点配置文件中配置的后台访问令牌 (admin_token)</p>
+        <h2 class="modal-title" id="authModalTitle" data-i18n="login_title">管理后台授权</h2>
+        <p class="modal-subtitle" id="authModalDescription" data-i18n="login_sub">请输入节点配置文件中配置的后台访问令牌 (admin_token)</p>
       </div>
       <input type="password" id="adminTokenInput" class="modal-input" placeholder="输入访问密钥 Token..." onkeydown="if(event.key==='Enter') saveToken()" data-i18n="login_placeholder">
+      <p class="auth-session-note" data-i18n="login_session_note">令牌仅在当前浏览器标签会话保留；关闭标签或退出登录即清除。</p>
       <div class="modal-actions">
         <button class="btn btn-primary" onclick="saveToken()" style="width: 100%;" data-i18n="login_btn">验证进入</button>
       </div>
@@ -2135,14 +2141,16 @@
       registryData: [],
       mqData: [],
       peersData: [],
-      peerId: null,
       logsData: [],
       configData: {},
+      registryTTLHours: null,
+      maxMsgsPerURN: null,
       selectedRegistryURNs: new Set(),
       selectedMQURNs: new Set(),
       logPage: 0,
       logLimit: 100,
       logTotal: 0,
+      retentionSubmitting: false,
       activeView: 'dashboard',
       sortConfig: {
         registry: { key: 'URN', desc: false },
@@ -2162,6 +2170,10 @@
       zh: {
         title: "Agent Comm Platform 管理后台",
         subtitle: "通信平台管理与运维控制台",
+        nav_workspace: "工作区",
+        workspace_label: "Platform 管理",
+        nav_docs: "API 文档 ↗",
+        dashboard_sub: "平台状态、队列与运行策略概览",
         conn_status: "连接状态",
         connected: "已连接",
         disconnected: "未连接",
@@ -2169,6 +2181,12 @@
         logout: "注销登录",
         refresh: "刷新",
         actions: "操作",
+        selected: "已选择",
+        result_count: "结果",
+        mailbox_count: "信箱",
+        log_entries: "日志条目",
+        auto_refresh: "自动刷新",
+        config_snapshot: "当前配置快照",
         tab_dashboard: "控制面板",
         tab_registry: "注册名册",
         tab_relay: "中继网络",
@@ -2179,22 +2197,20 @@
         stat_peers_desc: "当前活跃 P2P 连接",
         stat_registry: "注册 URN 数",
         stat_registry_desc: "全局已认证节点身份",
-        stat_mq: "信箱暂存数",
-        stat_mq_desc: "离线队列密文信封",
+        stat_mq: "待收信封数",
+        stat_mq_desc: "平台暂存的待收密文信封",
         stat_uptime: "运行时间",
         stat_uptime_desc: "系统连续运行时间",
         host_details: "libp2p 节点信息 (Host Details)",
         os_details: "运行指标 (OS & Runtime)",
         peer_id: "节点 Peer ID",
         listen_addrs: "监听 Multiaddresses",
-        platform_mode: "通信平台模式",
-        platform_mode_privacy: "隐私保护模式 (Privacy Mode)",
-        platform_mode_compliance: "合规审查模式 (Compliance Mode)",
         security_policies: "安全与隐私策略",
-        policy_store_title: "自身数据存储开关",
-        policy_store_desc: "开启以接收并代存离线消息信箱(MQ)",
-        policy_forward_title: "允许向三方存储节点转发",
-        policy_forward_desc: "允许向外部存储用户数据的平台进行连接或消息转发",
+        policy_store_title: "平台存储离线信封",
+        policy_store_desc: "控制本平台是否接收并暂存离线加密信封",
+        policy_forward_title: "允许转发至存储平台",
+        policy_forward_desc: "控制是否允许向存储用户数据的平台身份转发",
+        mode_note: "模式为配置值；实际存储与转发由上方策略控制。",
         storage_badge_warning: "存储用户数据",
         forwarding_restricted: "转发受限",
         mem_alloc: "已分配内存",
@@ -2205,6 +2221,7 @@
         registry_title: "注册名册",
         registry_sub: "全局已认证节点身份 (URN)、物理多地址与生命周期管理",
         search_reg: "输入 URN 或 PeerID 筛选...",
+        search_peer: "输入 Peer ID 搜索物理节点...",
         batch_evict: "批量驱逐选定节点",
         urn: "URN 标识",
         peer_id_col: "节点 ID (Peer ID)",
@@ -2250,20 +2267,21 @@
         login_sub: "请输入节点配置文件中配置的后台访问令牌 (admin_token)",
         login_btn: "验证进入控制台",
         login_placeholder: "输入访问密钥 Token...",
+        login_session_note: "令牌仅在当前浏览器标签会话保留；关闭标签或退出登录即清除。",
         login_empty: "Token 不能为空",
         login_error: "令牌验证失败，请重新输入",
         confirm_title: "高危安全确认",
         confirm_btn: "确认执行",
         cancel_btn: "取消",
         confirm_evict: "您确认要将以下节点从注册名册中移除吗？移除后其通信路由将不可达。",
-        confirm_clear: "警告：您确认要清空以下节点的所有暂存离线信封吗？删除后数据无法恢复！",
+        confirm_clear: "确认清空此信箱？未读信封和已读历史都会删除，且无法恢复。",
         confirm_batch_evict: "您确认要批量驱逐选中的 {count} 个节点吗？",
-        confirm_batch_clear: "警告：您确认要批量清空选中的 {count} 个信箱队列吗？此操作无法恢复！",
+        confirm_batch_clear: "确认清空选中的 {count} 个信箱？这些信箱的未读信封和已读历史都会删除，且无法恢复。",
         confirm_toggle_storage_warning: "警告：切换数据存储声明是高影响性操作。切换后平台将清除全局已注册的所有路由节点信息并自动重启，所有 Agent 需要重新对齐并重新注册。您确定要继续吗？",
         rebooting_system: "系统重启中",
         rebooting_desc: "正在切换数据存储声明并重启服务，正在清空路由表。请等待服务重新上线...",
-        policy_retention_title: "已读历史消息保留天数",
-        policy_retention_desc: "设置已读/历史信封在数据库中保存的天数",
+        policy_retention_title: "已确认信封保留天数",
+        policy_retention_desc: "已确认信封的保留上限；0 表示下次清理时删除历史",
         days_label: "天",
         tab_pending: "未读队列 (Pending)",
         tab_history: "已读历史 (History)",
@@ -2278,6 +2296,10 @@
       en: {
         title: "Agent Comm Platform Console",
         subtitle: "Operations & Admin Console",
+        nav_workspace: "Workspace",
+        workspace_label: "Platform Admin",
+        nav_docs: "API Docs ↗",
+        dashboard_sub: "Platform health, queued envelopes, and runtime policies",
         conn_status: "Connection",
         connected: "Connected",
         disconnected: "Disconnected",
@@ -2285,6 +2307,12 @@
         logout: "Logout",
         refresh: "Refresh",
         actions: "Actions",
+        selected: "Selected",
+        result_count: "Results",
+        mailbox_count: "Mailboxes",
+        log_entries: "Log entries",
+        auto_refresh: "Auto refresh",
+        config_snapshot: "Current configuration snapshot",
         tab_dashboard: "Dashboard",
         tab_registry: "Registry",
         tab_relay: "Relay Network",
@@ -2295,22 +2323,20 @@
         stat_peers_desc: "Active physical P2P channels",
         stat_registry: "Registry Count",
         stat_registry_desc: "Authenticated URN identities",
-        stat_mq: "Inbox Queues",
-        stat_mq_desc: "Cryptographic envelopes stored",
+        stat_mq: "Queued Envelopes",
+        stat_mq_desc: "Encrypted envelopes awaiting receipt",
         stat_uptime: "Uptime",
         stat_uptime_desc: "Total continuous duration",
         host_details: "libp2p Host Details",
         os_details: "OS & Runtime Metrics",
         peer_id: "Node Peer ID",
         listen_addrs: "Listen Multiaddresses",
-        platform_mode: "Platform Mode",
-        platform_mode_privacy: "Privacy Mode",
-        platform_mode_compliance: "Compliance Mode",
         security_policies: "Security & Privacy Policies",
-        policy_store_title: "Self Data Storage",
-        policy_store_desc: "Allow this platform to receive and queue offline envelopes",
-        policy_forward_title: "Allow Forwarding to Storage Nodes",
-        policy_forward_desc: "Allow routing or forwarding messages to third-party platforms that store user data",
+        policy_store_title: "Store offline envelopes",
+        policy_store_desc: "Control whether this platform accepts and queues encrypted envelopes",
+        policy_forward_title: "Forward to storage platforms",
+        policy_forward_desc: "Allow forwarding to platform identities that store user data",
+        mode_note: "Mode is a configuration value; the policies above control storage and forwarding.",
         storage_badge_warning: "Stores User Data",
         forwarding_restricted: "Forward Restricted",
         mem_alloc: "Allocated Mem",
@@ -2321,6 +2347,7 @@
         registry_title: "Registry Explorer",
         registry_sub: "Lifecycle mapping of authenticated agent URNs to transport multiaddresses",
         search_reg: "Filter URN or Peer ID...",
+        search_peer: "Search physical peers by Peer ID...",
         batch_evict: "Evict Selected Nodes",
         urn: "URN Identity",
         peer_id_col: "Peer ID",
@@ -2366,20 +2393,21 @@
         login_sub: "Provide administrative token (admin_token) defined inside config.yaml",
         login_btn: "Authenticate Console",
         login_placeholder: "Enter admin_token...",
+        login_session_note: "The token stays in this browser tab session. Closing the tab or signing out clears it.",
         login_empty: "Token cannot be empty",
         login_error: "Authentication failed. Try again.",
         confirm_title: "Warning: Destructive Action",
         confirm_btn: "Confirm Proceed",
         cancel_btn: "Cancel",
         confirm_evict: "Are you sure you want to evict this node from registry? Its routing path will be deleted.",
-        confirm_clear: "Warning: Are you sure you want to clear this URN mailbox? All envelopes will be deleted forever!",
+        confirm_clear: "Clear this mailbox? Both pending envelopes and read history will be deleted permanently.",
         confirm_batch_evict: "Are you sure you want to evict {count} selected nodes from registry?",
-        confirm_batch_clear: "Warning: Are you sure you want to clear {count} selected queues? This action is irreversible!",
+        confirm_batch_clear: "Clear {count} selected mailboxes? Their pending envelopes and read history will be deleted permanently.",
         confirm_toggle_storage_warning: "WARNING: Toggling the data storage policy is a high-impact operation. The platform will purge all registered routing nodes and automatically reboot, requiring all agents to align policies and re-register. Do you want to proceed?",
         rebooting_system: "System Rebooting",
         rebooting_desc: "Toggling storage policy and rebooting service, clearing registry. Please wait for the service to come back online...",
-        policy_retention_title: "Read Message Retention",
-        policy_retention_desc: "Define maximum days to keep read history envelopes in local database",
+        policy_retention_title: "Acknowledged envelope retention",
+        policy_retention_desc: "Maximum retention; 0 removes acknowledged history on the next cleanup",
         days_label: "days",
         tab_pending: "Pending Queue",
         tab_history: "Read History",
@@ -2440,32 +2468,100 @@
       document.title = dict.title;
     }
 
+    const modalBackgroundSelector = '.app-container, .mobile-header, .beian-bar, #detailDrawer, #drawerOverlay';
+
+    function activeManagedModal() {
+      // Match the document's stacking order when two overlays briefly coexist.
+      for (const id of ['authModal', 'rebootingOverlay', 'confirmModal']) {
+        const modal = document.getElementById(id);
+        if (modal.classList.contains('active')) return modal;
+      }
+      return null;
+    }
+
+    function syncModalBackground() {
+      const blocked = !!activeManagedModal();
+      document.querySelectorAll(modalBackgroundSelector).forEach(el => { el.inert = blocked; });
+    }
+
+    function showManagedModal(id, focusId) {
+      const modal = document.getElementById(id);
+      if (!modal.classList.contains('active')) {
+        const previous = document.activeElement;
+        if (previous && previous !== document.body && !modal.contains?.(previous)) {
+          modal.returnFocusTo = previous;
+        }
+      }
+      modal.classList.add('active');
+      syncModalBackground();
+      const focusTarget = focusId ? document.getElementById(focusId) : null;
+      (focusTarget?.focus ? focusTarget : modal).focus?.();
+    }
+
+    function hideManagedModal(id) {
+      const modal = document.getElementById(id);
+      const wasOpen = modal.classList.contains('active');
+      modal.classList.remove('active');
+      syncModalBackground();
+      if (!wasOpen) return;
+      const nextModal = activeManagedModal();
+      if (nextModal) {
+        nextModal.focus?.();
+      } else {
+        const previous = modal.returnFocusTo;
+        const target = previous && (!document.contains || document.contains(previous))
+          ? previous : document.querySelector?.('.menu-item.active');
+        target?.focus?.();
+      }
+      modal.returnFocusTo = null;
+    }
+
+    function trapModalTab(event, modal) {
+      const controls = Array.from(modal.querySelectorAll?.('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') || []);
+      const first = controls[0] || modal;
+      const last = controls[controls.length - 1] || modal;
+      const current = document.activeElement;
+      if (event.shiftKey && (current === first || !modal.contains?.(current))) {
+        event.preventDefault();
+        last.focus?.();
+      } else if (!event.shiftKey && (current === last || !modal.contains?.(current))) {
+        event.preventDefault();
+        first.focus?.();
+      }
+    }
+
     // DOM Bootstrapping
     window.addEventListener('DOMContentLoaded', () => {
       // Toggle to default saved language
       changeLang(state.lang);
 
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       if (!token) {
-        document.getElementById('authModal').classList.add('active');
+        showManagedModal('authModal', 'adminTokenInput');
       } else {
         verifyHealthAndLoad();
       }
 
       // Keyboard shortcuts: 1-6 switch views, Esc close modal/drawers, R refresh active
       window.addEventListener('keydown', (e) => {
-        if (document.getElementById('authModal').classList.contains('active')) return;
+        const modal = activeManagedModal();
+        if (modal) {
+          if (e.key === 'Tab') trapModalTab(e, modal);
+          if (e.key === 'Escape' && modal.id === 'confirmModal') closeConfirmModal();
+          return;
+        }
         
         if (e.key === 'Escape') {
           closeDrawer();
           closeConfirmModal();
         }
-        if (e.key.toLowerCase() === 'r' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
+        const isEditing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) || e.target.isContentEditable;
+        if (e.key.toLowerCase() === 'r' && !isEditing) {
           refreshActiveView();
         }
-        
+
         // 1-6 keys for navigation (when not focused on input fields)
-        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.ctrlKey && !e.metaKey) {
+        if (!isEditing && !e.ctrlKey && !e.metaKey) {
           const menuItems = document.querySelectorAll('.menu-item');
           if (e.key === '1') switchView('dashboard', menuItems[0]);
           if (e.key === '2') switchView('registry', menuItems[1]);
@@ -2478,12 +2574,15 @@
     });
 
     function toggleMobileSidebar() {
-      document.getElementById('appSidebar').classList.toggle('active');
+      const sidebar = document.getElementById('appSidebar');
+      sidebar.classList.toggle('active');
+      const menuButton = document.querySelector('.menu-btn');
+      if (menuButton) menuButton.setAttribute('aria-expanded', String(sidebar.classList.contains('active')));
     }
 
     // Verify token & boot application
     function verifyHealthAndLoad() {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       if (!token) return;
 
       fetch('/api/v1/admin/overview', {
@@ -2510,7 +2609,7 @@
         if (!data) return;
 
         // Hide authentication overlay
-        document.getElementById('authModal').classList.remove('active');
+        hideManagedModal('authModal');
 
         const healthDot = document.getElementById('healthDot');
         healthDot.className = 'status-dot online';
@@ -2519,9 +2618,6 @@
 
         // Render Dashboard
         renderOverview(data);
-
-        // Warmup sparklines with mock randomized historical trends
-        initMockSparkHistory(data);
 
         // Load all data
         refreshRegistry();
@@ -2550,16 +2646,19 @@
         showToast(i18n[state.lang].login_empty, 'error');
         return;
       }
-      localStorage.setItem('admin_token', val);
+      sessionStorage.setItem('admin_token', val);
       verifyHealthAndLoad();
     }
 
     function clearToken(showToastMessage = true, toastType = 'success', toastText = 'Connection closed') {
-      localStorage.removeItem('admin_token');
-      
+      sessionStorage.removeItem('admin_token');
+
+      // An expired token can be reported while a destructive confirmation is open.
+      // Remove that dialog and its pending action before offering a new login.
+      closeConfirmModal();
       const modal = document.getElementById('authModal');
       const wasActive = modal.classList.contains('active');
-      modal.classList.add('active');
+      showManagedModal('authModal', 'adminTokenInput');
       document.getElementById('adminTokenInput').value = '';
 
       if (showToastMessage && !wasActive) {
@@ -2573,6 +2672,7 @@
         clearInterval(logsTimer);
         logsTimer = null;
       }
+      Object.values(state.sparkHistory).forEach(history => { history.length = 0; });
       document.getElementById('healthDot').className = 'status-dot';
       document.getElementById('healthText').textContent = i18n[state.lang].disconnected;
     }
@@ -2591,13 +2691,19 @@
     function switchView(viewName, element) {
       state.activeView = viewName;
       document.querySelectorAll('.view-pane').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+      document.querySelectorAll('.menu-item').forEach(m => {
+        m.classList.remove('active');
+        m.removeAttribute('aria-current');
+      });
       
       document.getElementById(`pane-${viewName}`).classList.add('active');
       element.classList.add('active');
+      element.setAttribute('aria-current', 'page');
 
       // Close mobile sidebar drawer on toggle
       document.getElementById('appSidebar').classList.remove('active');
+      const menuButton = document.querySelector('.menu-btn');
+      if (menuButton) menuButton.setAttribute('aria-expanded', 'false');
 
       // Immediate refresh for the newly selected pane
       refreshActiveView();
@@ -2605,7 +2711,7 @@
 
     // API calls wrapper
     function apiCall(endpoint, method = 'GET', queryParams = {}) {
-      const token = localStorage.getItem('admin_token');
+      const token = sessionStorage.getItem('admin_token');
       let url = endpoint;
       const q = new URLSearchParams(queryParams).toString();
       if (q) {
@@ -2623,7 +2729,11 @@
           throw new Error('Unauthorized');
         }
         if (!res.ok) {
-          return res.json().then(e => { throw new Error(e.error || 'Server Internal Error') });
+          return res.text().then(body => {
+            let message = body.trim();
+            try { message = JSON.parse(body).error || message; } catch (_) {}
+            throw new Error(message || `HTTP ${res.status}`);
+          });
         }
         return res.json();
       });
@@ -2644,6 +2754,16 @@
       if (diff < 3600) return `${Math.floor(diff/60)} ${state.lang === 'zh' ? '分钟前' : 'm ago'}`;
       if (diff < 86400) return `${Math.floor(diff/3600)} ${state.lang === 'zh' ? '小时前' : 'h ago'}`;
       return `${Math.floor(diff/86400)} ${state.lang === 'zh' ? '天前' : 'd ago'}`;
+    }
+
+    function formatTimeUntil(unixSeconds) {
+      if (!unixSeconds) return '-';
+      const seconds = Math.ceil(unixSeconds - Date.now() / 1000);
+      if (seconds <= 0) return state.lang === 'zh' ? '已过期' : 'Expired';
+      if (seconds < 60) return `${seconds} ${state.lang === 'zh' ? '秒后' : 's left'}`;
+      if (seconds < 3600) return `${Math.ceil(seconds / 60)} ${state.lang === 'zh' ? '分钟后' : 'm left'}`;
+      if (seconds < 86400) return `${Math.ceil(seconds / 3600)} ${state.lang === 'zh' ? '小时后' : 'h left'}`;
+      return `${Math.ceil(seconds / 86400)} ${state.lang === 'zh' ? '天后' : 'd left'}`;
     }
 
     function formatUptime(sec) {
@@ -2700,12 +2820,12 @@
     function showConfirmModal(title, text, proceedCallback) {
       document.getElementById('confirmModalTitle').textContent = title;
       document.getElementById('confirmModalText').textContent = text;
-      document.getElementById('confirmModal').classList.add('active');
+      showManagedModal('confirmModal', 'btnConfirmCancel');
       confirmProceedCallback = proceedCallback;
     }
 
     function closeConfirmModal() {
-      document.getElementById('confirmModal').classList.remove('active');
+      hideManagedModal('confirmModal');
       confirmProceedCallback = null;
     }
 
@@ -2742,28 +2862,6 @@
         }
       }
       requestAnimationFrame(update);
-    }
-
-    // Sparklines history initializer
-    function initMockSparkHistory(data) {
-      const lists = ['peers', 'registry', 'mq', 'uptime'];
-      const vals = {
-        peers: data.connected_peers,
-        registry: data.registry_count,
-        mq: data.mq_messages_count,
-        uptime: 10
-      };
-      
-      lists.forEach(key => {
-        state.sparkHistory[key] = [];
-        const base = vals[key];
-        // Populate 20 values with small fluctuations
-        for (let i = 0; i < 20; i++) {
-          const fluc = (Math.random() - 0.5) * (base * 0.15 + 1);
-          state.sparkHistory[key].push(Math.max(0, Math.floor(base + fluc)));
-        }
-        drawSparkline(`canvasSpark${key.charAt(0).toUpperCase() + key.slice(1)}`, state.sparkHistory[key], getSparkColor(key));
-      });
     }
 
     function getSparkColor(key) {
@@ -2847,9 +2945,9 @@
     }
 
     // Circular gauges updater
-    function updateGauges(memAllocMB, goroutines) {
-      // Memory: benchmark against 128MB as standard peak, calculate relative percentage
-      const memPct = Math.min(100, Math.floor((memAllocMB / 128) * 100));
+    function updateGauges(memAllocMB, memSysMB, goroutines) {
+      // Go reports Alloc and Sys in the same snapshot; the ring shows their ratio.
+      const memPct = memSysMB > 0 ? Math.min(100, Math.floor((memAllocMB / memSysMB) * 100)) : 0;
       const goroVal = goroutines;
       
       // Calculate SVG stroke dashes (circumference = 2 * PI * r = 2 * 3.14159 * 34 = 213.6)
@@ -2862,12 +2960,10 @@
         document.getElementById('gaugeMemText').textContent = `${memPct}%`;
       }
 
-      // Goroutines: benchmark against 200 as warning threshold
-      const goroPct = Math.min(100, Math.floor((goroVal / 200) * 100));
-      const goroOffset = maxOffset - (goroPct / 100) * maxOffset;
       const goroGauge = document.getElementById('gaugeGoro');
       if (goroGauge) {
-        goroGauge.style.strokeDashoffset = goroOffset;
+        // Goroutines have no configured capacity, so do not imply a utilization percentage.
+        goroGauge.style.strokeDashoffset = maxOffset;
         document.getElementById('gaugeGoroText').textContent = goroVal;
       }
     }
@@ -2877,16 +2973,23 @@
       apiCall('/api/v1/admin/overview')
       .then(data => {
         renderOverview(data);
+        document.getElementById('healthDot').className = 'status-dot online';
+        document.getElementById('healthText').textContent = i18n[state.lang].connected;
         if (forceShowToast) {
           showToast(state.lang === 'zh' ? '控制面板指标已同步' : 'Dashboard statistics synchronized', 'success');
         }
       })
       .catch(err => {
         console.error('Overview refresh failed', err);
+        document.getElementById('healthDot').className = 'status-dot';
+        document.getElementById('healthText').textContent = state.lang === 'zh' ? '同步失败' : 'Refresh failed';
+        if (forceShowToast) showToast(err.message, 'error');
       });
     }
 
     function renderOverview(data) {
+      state.registryTTLHours = Number(data.registry_ttl_hours) > 0 ? Number(data.registry_ttl_hours) : null;
+      state.maxMsgsPerURN = Number(data.mq_max_msgs_per_urn) > 0 ? Number(data.mq_max_msgs_per_urn) : null;
       countUp('statPeers', data.connected_peers);
       countUp('statRegistry', data.registry_count);
       countUp('statMQMessages', data.mq_messages_count);
@@ -2895,19 +2998,9 @@
 
       // Host details URN/PeerID/Mode
       document.getElementById('peerIDVal').textContent = data.peer_id;
-      state.peerId = data.peer_id;
-      
-      state.storesUserData = data.stores_user_data;
-      state.forwardToStoragePlatforms = data.forward_to_storage_platforms;
-
       const modeIndicator = document.getElementById('platformModeIndicator');
-      if (data.platform_mode === 'privacy') {
-        modeIndicator.className = 'mode-indicator privacy';
-        modeIndicator.textContent = i18n[state.lang].platform_mode_privacy;
-      } else {
-        modeIndicator.className = 'mode-indicator compliance';
-        modeIndicator.textContent = i18n[state.lang].platform_mode_compliance;
-      }
+      modeIndicator.className = 'mode-indicator';
+      modeIndicator.textContent = `${state.lang === 'zh' ? '配置模式' : 'Configured mode'}: ${data.platform_mode || '-'}`;
 
       // Multiaddresses listing
       const addrsList = document.getElementById('multiAddrsList');
@@ -2933,7 +3026,7 @@
       document.getElementById('goVersionVal').textContent = data.go_version;
 
       // Update gauges
-      updateGauges(data.memory_alloc_mb, data.goroutines);
+      updateGauges(data.memory_alloc_mb, data.memory_sys_mb, data.goroutines);
 
       // Update policy switches
       const storeToggle = document.getElementById('policyStoreToggle');
@@ -2945,7 +3038,7 @@
         forwardToggle.checked = !!data.forward_to_storage_platforms;
       }
       const retentionInput = document.getElementById('policyRetentionInput');
-      if (retentionInput) {
+      if (retentionInput && !state.retentionSubmitting && document.activeElement !== retentionInput) {
         retentionInput.value = data.history_retention_days;
       }
 
@@ -2971,7 +3064,7 @@
         
         apiCall('/api/v1/admin/config/toggle-storage', 'POST')
         .then(res => {
-          document.getElementById('rebootingOverlay').classList.add('active');
+          showManagedModal('rebootingOverlay');
           let count = 4;
           document.getElementById('rebootCountdown').textContent = count;
           const interval = setInterval(() => {
@@ -2993,19 +3086,22 @@
 
     function updateRetentionDays() {
       const input = document.getElementById('policyRetentionInput');
-      const val = parseInt(input.value, 10);
-      if (isNaN(val) || val < 1) {
+      const raw = input.value.trim();
+      const val = Number(raw);
+      if (!raw || !Number.isSafeInteger(val) || val < 0 || val > 36500 || (input.validity && !input.validity.valid)) {
         showToast(state.lang === 'zh' ? '请输入有效的保留天数' : 'Please enter a valid retention day value', 'error');
-        refreshOverview();
         return;
       }
+      state.retentionSubmitting = true;
       apiCall('/api/v1/admin/config/set-retention', 'POST', { days: val })
       .then(res => {
         showToast(state.lang === 'zh' ? '历史消息保留天数修改成功' : 'Read message retention days updated successfully', 'success');
-        refreshOverview();
       })
       .catch(err => {
         showToast(err.message || 'Failed to update retention days', 'error');
+      })
+      .finally(() => {
+        state.retentionSubmitting = false;
         refreshOverview();
       });
     }
@@ -3027,7 +3123,6 @@
 
     // Export raw platform JSON metrics report
     function exportOverviewReport() {
-      const token = localStorage.getItem('admin_token');
       apiCall('/api/v1/admin/overview')
       .then(data => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -3061,6 +3156,9 @@
     }
 
     const debouncedFilterRegistry = debounce(() => {
+      state.selectedRegistryURNs.clear();
+      document.getElementById('selectAllReg').checked = false;
+      updateRegBatchBar();
       renderRegistryTable();
     }, 250);
 
@@ -3104,18 +3202,16 @@
         
         // TTL computation
         const remains = e.ExpiresAt - Math.floor(Date.now() / 1000);
-        const totalTTL = 24 * 3600; // default 24 hours
-        const pct = Math.max(0, Math.min(100, Math.floor((remains / totalTTL) * 100)));
+        const totalTTL = state.registryTTLHours ? state.registryTTLHours * 3600 : null;
+        const pct = totalTTL ? Math.max(0, Math.min(100, Math.floor((remains / totalTTL) * 100))) : null;
         let colorClass = '';
-        if (pct < 15) colorClass = 'danger';
-        else if (pct < 45) colorClass = 'warning';
+        if (pct !== null && pct < 15) colorClass = 'danger';
+        else if (pct !== null && pct < 45) colorClass = 'warning';
         
         const ttlHTML = `
           <div style="font-size:0.8rem; font-weight:600;">${formatTime(e.ExpiresAt)}</div>
-          <div class="progress-bar-container">
-            <div class="progress-bar-fill ${colorClass}" style="width: ${pct}%;"></div>
-          </div>
-          <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">remains ${formatTimeRelative(e.ExpiresAt).replace(/ ago/, '')}</div>
+          ${pct === null ? '' : `<div class="progress-bar-container"><div class="progress-bar-fill ${colorClass}" style="width: ${pct}%;"></div></div>`}
+          <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">${formatTimeUntil(e.ExpiresAt)}</div>
         `;
 
         // Check if selected
@@ -3197,15 +3293,15 @@
 
       const warnMsg = i18n[state.lang].confirm_batch_evict.replace('{count}', urns.length);
       showConfirmModal(i18n[state.lang].confirm_title, warnMsg, () => {
-        // Execute deletions sequentially/concurrently via Promise.all
         const promises = urns.map(urn => apiCall('/api/v1/admin/registry', 'DELETE', { urn: urn }));
-        Promise.all(promises)
-        .then(() => {
-          showToast(state.lang === 'zh' ? `批量驱逐成功 (${urns.length} 节点)` : `Batch evicted ${urns.length} nodes`, 'success');
-          refreshRegistry();
-        })
-        .catch(err => {
-          showToast('Batch eviction failed: ' + err.message, 'error');
+        Promise.allSettled(promises)
+        .then(results => {
+          const completed = results.filter(result => result.status === 'fulfilled').length;
+          const failed = urns.length - completed;
+          const message = state.lang === 'zh'
+            ? `批量驱逐：成功 ${completed}，失败 ${failed}`
+            : `Batch eviction: ${completed} succeeded, ${failed} failed`;
+          showToast(message, failed ? 'error' : 'success');
           refreshRegistry();
         });
       });
@@ -3244,7 +3340,7 @@
 
         <div class="drawer-section">
           <div class="drawer-section-title">Associated Peer ID</div>
-          <div style="font-family: monospace; font-size: 0.85rem; background: rgba(0,0,0,0.2); padding: 8px; border-radius:6px; word-break:break-all; display:flex; justify-content:space-between; align-items:center;">
+          <div class="detail-code">
             <span>${escapeHTML(entry.PeerID)}</span>
             <button class="copy-btn-inline" style="opacity:1;" onclick="copyText(${jsArg(entry.PeerID)})">
               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
@@ -3274,14 +3370,14 @@
       contentHTML += `
         <div class="drawer-section">
           <div class="drawer-section-title">Lifespan & Expiry</div>
-          <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
+          <div class="info-list detail-info-panel">
             <div class="info-item">
               <span class="info-label">Expires At</span>
               <span class="info-value">${formatTime(entry.ExpiresAt)}</span>
             </div>
             <div class="info-item">
               <span class="info-label">Remaining Duration</span>
-              <span class="info-value" style="color: var(--accent-amber);">${formatTimeRelative(entry.ExpiresAt).replace(/ ago/, '')}</span>
+              <span class="info-value" style="color: var(--accent-amber);">${formatTimeUntil(entry.ExpiresAt)}</span>
             </div>
           </div>
         </div>
@@ -3350,28 +3446,11 @@
         if (addrs.length > 1) addrsHTML += `<div style="font-size:0.75rem; color:var(--text-dim);">+ ${addrs.length - 1} more physical multiaddresses</div>`;
 
         const protos = e.protocols || [];
-        let protosHTML = protos.slice(0, 3).map(p => `<span style="display:inline-block; font-size:0.75rem; background:rgba(255,255,255,0.05); padding: 2px 6px; border-radius:4px; margin-right:4px; margin-bottom:4px; font-family:monospace;">${escapeHTML(p)}</span>`).join('');
+        let protosHTML = protos.slice(0, 3).map(p => `<span class="protocol-chip">${escapeHTML(p)}</span>`).join('');
         if (protos.length > 3) protosHTML += `<span style="font-size:0.75rem; color:var(--text-dim);">+${protos.length - 3}</span>`;
 
-        let selfBadge = '';
-        if (state.peerId && e.peer_id === state.peerId) {
-          selfBadge = ` <span class="badge" style="margin-left: 8px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: var(--accent-cyan); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${state.lang === 'zh' ? '本地平台 (自身)' : 'Local Platform (Self)'}</span>`;
-        }
-
-        let storageBadge = '';
-        if (e.stores_user_data) {
-          const isBlocked = (state.forwardToStoragePlatforms === false);
-          const badgeColor = isBlocked ? 'var(--accent-rose)' : 'var(--accent-amber)';
-          const badgeBg = isBlocked ? 'rgba(244,63,94,0.15)' : 'rgba(245,158,11,0.15)';
-          const badgeBorder = isBlocked ? 'rgba(244,63,94,0.3)' : 'rgba(245,158,11,0.3)';
-          const labelText = isBlocked 
-            ? (state.lang === 'zh' ? '存储平台 (通信受限)' : 'Storage Node (Restricted)')
-            : (state.lang === 'zh' ? '存储平台' : 'Storage Node');
-          storageBadge = ` <span class="badge" style="margin-left: 8px; background: ${badgeBg}; border: 1px solid ${badgeBorder}; color: ${badgeColor}; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${labelText}</span>`;
-        }
-
         tr.innerHTML = `
-          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails(${jsArg(e.peer_id)})">${escapeHTML(e.peer_id)}${selfBadge}${storageBadge}</td>
+          <td style="font-family: monospace; font-size:0.85rem; font-weight:600;" onclick="showPeerDetails(${jsArg(e.peer_id)})">${escapeHTML(e.peer_id)}</td>
           <td onclick="showPeerDetails(${jsArg(e.peer_id)})">${dirHTML}</td>
           <td style="font-weight:700;" onclick="showPeerDetails(${jsArg(e.peer_id)})">${e.conn_count}</td>
           <td onclick="showPeerDetails(${jsArg(e.peer_id)})">${addrsHTML || `<span style="color:var(--text-dim);">[Internal Node Loopback]</span>`}</td>
@@ -3397,20 +3476,16 @@
       `).join('');
 
       const protocols = (peer.protocols || []).map(p => `
-        <div style="font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--accent-cyan); word-break:break-all;">
+        <div class="detail-protocol">
           ${escapeHTML(p)}
         </div>
       `).join('');
-
-      const selfLabel = (state.peerId && peer.peer_id === state.peerId)
-        ? ` <span class="badge" style="margin-left: 8px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: var(--accent-cyan); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${state.lang === 'zh' ? '本地平台 (自身)' : 'Local Platform (Self)'}</span>`
-        : '';
 
       let contentHTML = `
         <div class="drawer-section">
           <div class="drawer-section-title">Peer Connection ID</div>
           <div style="font-family: monospace; font-size: 0.9rem; font-weight: 700; color: var(--primary); word-break:break-all; display:flex; justify-content:space-between; align-items:center;">
-            <span>${escapeHTML(peer.peer_id)}${selfLabel}</span>
+            <span>${escapeHTML(peer.peer_id)}</span>
             <button class="copy-btn-inline" style="opacity:1;" onclick="copyText(${jsArg(peer.peer_id)})">
               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             </button>
@@ -3419,7 +3494,7 @@
 
         <div class="drawer-section">
           <div class="drawer-section-title">P2P Channel Statistics</div>
-          <div class="info-list" style="background: rgba(255,255,255,0.02); padding: 14px; border-radius: 8px; border:1px solid var(--border-color);">
+          <div class="info-list detail-info-panel">
             <div class="info-item">
               <span class="info-label">Direction</span>
               <span class="info-value" style="text-transform: capitalize;">${escapeHTML(peer.direction)}</span>
@@ -3446,41 +3521,6 @@
         </div>
       `;
 
-      // Safety & Privacy declaration
-      const privacyStatusText = peer.stores_user_data
-        ? (state.lang === 'zh' ? '该物理节点被标记为：接收并存储用户数据' : 'This physical peer is identified as storing user message data.')
-        : (state.lang === 'zh' ? '该物理节点被标记为：不存储用户数据' : 'This physical peer is identified as not storing user data.');
-      
-      const isBlocked = peer.stores_user_data && (state.forwardToStoragePlatforms === false);
-      
-      const privacyColor = isBlocked ? 'var(--accent-rose)' : (peer.stores_user_data ? 'var(--accent-amber)' : 'var(--success)');
-      const privacyBg = isBlocked ? 'rgba(244, 63, 94, 0.08)' : (peer.stores_user_data ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)');
-      const privacyBorder = isBlocked ? 'rgba(244, 63, 94, 0.2)' : (peer.stores_user_data ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)');
-
-      const blockedNotice = isBlocked 
-        ? `<div style="margin-top: 8px; font-size: 0.8rem; color: var(--accent-rose); font-weight: 500;">
-             ${state.lang === 'zh' ? '⚠️ 由于系统“安全连接转发隔离”策略已启用，该节点已被限制接收转发消息。' : '⚠️ Due to forwarding restriction policies, communication with this node is currently restricted.'}
-           </div>`
-        : '';
-
-      contentHTML += `
-        <div class="drawer-section">
-          <div class="drawer-section-title">${state.lang === 'zh' ? '安全风控状态' : 'Security Policy Status'}</div>
-          <div style="background: ${privacyBg}; border: 1px solid ${privacyBorder}; padding: 12px; border-radius: 8px; font-size: 0.85rem; color: ${privacyColor}; font-weight: 600; display: flex; flex-direction: column; gap: 4px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <svg style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2.5;" viewBox="0 0 24 24">
-                ${peer.stores_user_data 
-                  ? '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>'
-                  : '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>'
-                }
-              </svg>
-              <span>${privacyStatusText}</span>
-            </div>
-            ${blockedNotice}
-          </div>
-        </div>
-      `;
-
       openDrawer(title, contentHTML);
     }
 
@@ -3501,6 +3541,9 @@
     }
 
     const debouncedFilterMQ = debounce(() => {
+      state.selectedMQURNs.clear();
+      document.getElementById('selectAllMQ').checked = false;
+      updateMQBatchBar();
       renderMQTable();
     }, 250);
 
@@ -3541,19 +3584,16 @@
       filtered.forEach(e => {
         const tr = document.createElement('tr');
         
-        // Quota percentage bar (benchmark against 1000 max envelopes per URN as standard config)
-        const maxEnvelopes = 1000;
-        const pct = Math.min(100, Math.floor((e.count / maxEnvelopes) * 100));
+        const maxEnvelopes = state.maxMsgsPerURN;
+        const pct = maxEnvelopes ? Math.min(100, Math.floor((e.count / maxEnvelopes) * 100)) : null;
         let colorClass = '';
-        if (pct > 80) colorClass = 'danger';
-        else if (pct > 50) colorClass = 'warning';
+        if (pct !== null && pct > 80) colorClass = 'danger';
+        else if (pct !== null && pct > 50) colorClass = 'warning';
 
         const quotaHTML = `
-          <div style="font-weight:700;">${e.count} Envelopes</div>
-          <div class="progress-bar-container">
-            <div class="progress-bar-fill ${colorClass}" style="width: ${pct}%;"></div>
-          </div>
-          <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">quota ${pct}% used</div>
+          <div style="font-weight:700;">${e.count} ${state.lang === 'zh' ? '封密文' : 'envelopes'}</div>
+          ${pct === null ? '' : `<div class="progress-bar-container"><div class="progress-bar-fill ${colorClass}" style="width: ${pct}%;"></div></div>
+          <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">${e.count} / ${maxEnvelopes} (${pct}%)</div>`}
         `;
 
         const checked = state.selectedMQURNs.has(e.recipient) ? 'checked' : '';
@@ -3629,14 +3669,15 @@
       const warnMsg = i18n[state.lang].confirm_batch_clear.replace('{count}', urns.length);
       showConfirmModal(i18n[state.lang].confirm_title, warnMsg, () => {
         const promises = urns.map(urn => apiCall('/api/v1/admin/mq/clear', 'DELETE', { urn: urn }));
-        Promise.all(promises)
+        Promise.allSettled(promises)
         .then(results => {
-          const totalDeleted = results.reduce((acc, r) => acc + (r.deleted || 0), 0);
-          showToast(state.lang === 'zh' ? `批量清理完毕 (清空 ${urns.length} 个邮箱, 删除 ${totalDeleted} 封邮件)` : `Batch cleared ${urns.length} mailboxes, deleted ${totalDeleted} envelopes`, 'success');
-          refreshMQ();
-        })
-        .catch(err => {
-          showToast('Batch clear failed: ' + err.message, 'error');
+          const completed = results.filter(result => result.status === 'fulfilled');
+          const totalDeleted = completed.reduce((acc, result) => acc + (result.value.deleted || 0), 0);
+          const failed = urns.length - completed.length;
+          const message = state.lang === 'zh'
+            ? `批量清理：成功 ${completed.length}，失败 ${failed}，删除 ${totalDeleted} 封`
+            : `Batch purge: ${completed.length} succeeded, ${failed} failed, ${totalDeleted} envelopes deleted`;
+          showToast(message, failed ? 'error' : 'success');
           refreshMQ();
         });
       });
@@ -3659,7 +3700,7 @@
 
         <!-- Tab controllers -->
         <div style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
-          <button id="tabDetailPending" onclick="switchDetailTab('pending')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid var(--primary); color: #fff; font-weight: 600; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_pending">未读队列 (Pending)</button>
+          <button id="tabDetailPending" onclick="switchDetailTab('pending')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid var(--primary); color: var(--primary); font-weight: 600; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_pending">未读队列 (Pending)</button>
           <button id="tabDetailHistory" onclick="switchDetailTab('history')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 500; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_history">已读历史 (History)</button>
         </div>
 
@@ -3680,14 +3721,14 @@
       
       if (tab === 'pending') {
         btnPending.style.borderBottomColor = 'var(--primary)';
-        btnPending.style.color = '#fff';
+        btnPending.style.color = 'var(--primary)';
         btnPending.style.fontWeight = '600';
         btnHistory.style.borderBottomColor = 'transparent';
         btnHistory.style.color = 'var(--text-muted)';
         btnHistory.style.fontWeight = '500';
       } else {
         btnHistory.style.borderBottomColor = 'var(--primary)';
-        btnHistory.style.color = '#fff';
+        btnHistory.style.color = 'var(--primary)';
         btnHistory.style.fontWeight = '600';
         btnPending.style.borderBottomColor = 'transparent';
         btnPending.style.color = 'var(--text-muted)';
@@ -3711,7 +3752,7 @@
         container.innerHTML = '';
         messages.forEach(msg => {
           const card = document.createElement('div');
-          card.style.background = 'rgba(255,255,255,0.02)';
+          card.style.background = 'var(--surface-glass-hover)';
           card.style.border = '1px solid var(--border-color)';
           card.style.borderRadius = '10px';
           card.style.padding = '14px';
@@ -3722,38 +3763,38 @@
           const readAtItem = currentDetailTab === 'history' ? `
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="read_at">读取时间</span>
-              <span style="color:#fff; font-weight:500;">${formatTime(msg.read_at)}</span>
+              <span style="color:var(--text-main); font-weight:500;">${formatTime(msg.read_at)}</span>
             </div>
           ` : '';
 
           card.innerHTML = `
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="msg_id">消息 ID</span>
-              <span style="font-family:monospace; color:#fff; word-break:break-all;">${escapeHTML(msg.id)}</span>
+              <span style="font-family:monospace; color:var(--text-main); word-break:break-all;">${escapeHTML(msg.id)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="sender">发送方</span>
-              <span style="font-family:monospace; color:#fff; word-break:break-all;">${escapeHTML(msg.sender || '--')}</span>
+              <span style="font-family:monospace; color:var(--text-main); word-break:break-all;">${escapeHTML(msg.sender || '--')}</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="size">大小</span>
-              <span style="color:#fff;">${formatBytes(msg.size)}</span>
+              <span style="color:var(--text-main);">${formatBytes(msg.size)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="stored_at">存入时间</span>
-              <span style="color:#fff;">${formatTime(msg.stored_at)}</span>
+              <span style="color:var(--text-main);">${formatTime(msg.stored_at)}</span>
             </div>
             ${readAtItem}
             <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="expiry">失效时间</span>
-              <span style="color:#fff;">${msg.expiry > 0 ? formatTime(msg.expiry) : 'Never'}</span>
+              <span style="color:var(--text-main);">${msg.expiry > 0 ? formatTime(msg.expiry) : 'Never'}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; margin-top:4px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="color:var(--text-muted);" data-i18n="payload">加密载荷 (Payload Hex)</span>
                 <button onclick="copyText(${jsArg(msg.payload)})" style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-size:0.75rem;">Copy</button>
               </div>
-              <textarea readonly style="width:100%; height:60px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:6px; color:var(--text-muted); font-family:monospace; font-size:0.75rem; padding:6px; resize:none; outline:none; word-break:break-all;">${escapeHTML(msg.payload)}</textarea>
+              <textarea readonly class="detail-payload">${escapeHTML(msg.payload)}</textarea>
             </div>
           `;
           container.appendChild(card);

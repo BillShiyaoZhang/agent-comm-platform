@@ -11,7 +11,9 @@ function consoleUI() {
       appendChild(child) { this.children.push(child); }, addEventListener() {} };
   }
   const context = vm.createContext({
-    localStorage: { getItem() { return null; } }, window: { addEventListener() {} },
+    localStorage: { getItem() { return null; } },
+    sessionStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+    window: { addEventListener() {} },
     document: { getElementById(id) { if (!nodes.has(id)) nodes.set(id, element()); return nodes.get(id); },
       createElement: element, querySelectorAll() { return []; } }, setTimeout() {}, clearTimeout() {},
   });

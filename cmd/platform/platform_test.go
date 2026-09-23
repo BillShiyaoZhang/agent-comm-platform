@@ -67,6 +67,64 @@ func readPrefixed(r io.Reader, msg goproto.Message) error {
 	return goproto.Unmarshal(data, msg)
 }
 
+func TestPendingStoragePolicyResetRecoversBeforeServing(t *testing.T) {
+	dataDir := t.TempDir()
+	cfgPath := filepath.Join(dataDir, "config.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Platform.DataDir = dataDir
+	cfg.Registry.PersistDB = filepath.Join(dataDir, "registry.db")
+	if err := config.Save(cfgPath, cfg); err != nil {
+		t.Fatal(err)
+	}
+	id, err := crypto.LoadOrCreateIdentity(filepath.Join(dataDir, "keys"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(id.Ed25519.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := golibp2p.New(golibp2p.Identity(privateKey), golibp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	store, err := registrypkg.NewStore(cfg.Registry.PersistDB, cfg.Registry.TTLHours)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := registerPlatformIdentity(store, h, id, true); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Platform.StoreUserData = false
+	cfg.AdminRegistryResetPending = true
+	if err := config.SaveAdminPolicies(cfg); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.AdminRegistryResetPending || reloaded.Platform.StoreUserData {
+		t.Fatalf("expected pending policy transition: %+v", reloaded)
+	}
+	if err := recoverPendingRegistryReset(reloaded, store); err != nil {
+		t.Fatal(err)
+	}
+	entry, err := store.ResolveEntry(id.Ed25519.URN())
+	if err != nil || entry != nil {
+		t.Fatalf("stale Registry entry survived recovery: entry=%v err=%v", entry, err)
+	}
+	reloaded, err = config.Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.AdminRegistryResetPending || reloaded.Platform.StoreUserData {
+		t.Fatalf("recovery marker or policy incorrect after restart: %+v", reloaded)
+	}
+}
+
 func TestRegisterPlatformIdentityOwnershipAndRenewal(t *testing.T) {
 	id, err := crypto.LoadOrCreateIdentity(filepath.Join(t.TempDir(), "keys"))
 	if err != nil {
