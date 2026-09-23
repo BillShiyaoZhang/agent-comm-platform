@@ -104,7 +104,20 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 
 ACK 将消息标记为已确认，之后不再作为待收消息返回；并不保证立即物理删除。清理任务定期删除过期记录与超出历史保留期的记录。`history_retention_days: 0` 也在清理任务执行时移除历史。记录清理后不能依赖平台永久去重。
 
-管理台更改 `store_user_data`、`forward_to_storage_platforms` 或 `history_retention_days` 时，将覆盖值写入 `platform.data_dir/admin-policies.yaml`。启动时覆盖主配置中已在文件声明的策略字段；旧覆盖文件没有转发字段时仍使用 `config.yaml` 中的转发值。存储策略切换还写入内部 `registry_reset_pending` 标记；重启时先完成 Registry 清理，再清除标记和对外提供服务，防止进程中断留下旧路由。数据目录须可写；初始持久化失败会返回错误，不会执行 Registry 清理或重启。更改主配置的这些字段前，先检查是否有现存覆盖文件。
+管理台的三项即时策略 `store_user_data`、`forward_to_storage_platforms`、`history_retention_days` 写入 `platform.data_dir/admin-policies.yaml`。启动时，覆盖文件中出现的字段覆盖只读主配置 `config.yaml`；旧覆盖文件没有转发字段时仍使用主配置值。存储策略切换还写入内部 `registry_reset_pending` 标记；重启时先完成 Registry 清理，再清除标记和对外提供服务，防止进程中断留下旧路由。数据目录须可写；初始持久化失败会返回错误，不会执行 Registry 清理或重启。
+
+管理台另可编辑六项**启动时生效**的资源设置。它们经 `GET /api/v1/admin/config/editable` 提供的当前运行修订号、只读 `POST /api/v1/admin/config/editable/preview` 预览及确认令牌，最后由 `PUT /api/v1/admin/config/editable` 写入同一覆盖文件并自动重启。修订号只反映当前进程已加载的六项值，直接编辑磁盘文件需要重启才会改变该修订号；过时修订号或待重启状态拒绝预览/提交。写入前按范围验证，写入失败不触发重启；无变化提交仍须预览确认，但不重启。覆盖文件中六项字段与主配置的对应关系如下，具体范围和用户可见影响见 [管理接口](API.md#管理接口)。
+
+| 主配置字段 | 覆盖文件字段 |
+| --- | --- |
+| `registry.ttl_hours` | `registry_ttl_hours` |
+| `mq.default_ttl_days` | `mq_default_ttl_days` |
+| `mq.max_msgs_per_urn` | `mq_max_msgs_per_urn` |
+| `relay.enabled` | `relay_enabled` |
+| `relay.max_reservations` | `relay_max_reservations` |
+| `relay.max_circuit_duration` | `relay_max_circuit_duration` |
+
+编辑主配置中的九项受管理字段前，先检查现存覆盖文件；启动时覆盖文件中的对应值优先。管理范围仅约束新写入的覆盖值，旧主配置中不在新范围内的值仍可加载，修改其他字段也不会顺带改写它。身份、数据库和数据目录、监听、TLS、管理令牌、可信代理与 HTTP 限流仍只通过服务器部署配置管理。`platform.mode` 目前只用于显示；`libp2p.external_addrs`、`registry.http_enabled`、`mq.http_enabled` 当前不改变运行行为。
 
 未读队列满时拒绝新入队消息，HTTP 返回 429 和 `Retry-After: 5`，已入队消息保留。发送方应保留本地 outbox 并按策略重试；消息过期、容量限制或收件设备长期离线都可能影响最终送达。
 
@@ -136,6 +149,12 @@ Platform 单独运行时不包含 `/dashboard` 或账户登录。完整网站通
 
 ```sh
 go test ./...
+```
+
+管理配置、预览和确认流程涉及 `internal/api` 与 `internal/config`；修改这些行为还应运行管理页面测试：
+
+```sh
+node --test tests/admin_*.test.cjs
 ```
 
 涉及共享协议或 SDK 修改时，进入 `agent-comm` 子模块单独测试；父模块测试不会自动覆盖嵌套模块：

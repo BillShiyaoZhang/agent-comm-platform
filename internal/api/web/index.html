@@ -404,6 +404,8 @@
       align-items: center;
     }
 
+    .mobile-header .brand { margin-bottom: 0; }
+
     .menu-btn {
       background: transparent;
       border: none;
@@ -1197,12 +1199,43 @@
 
     .admin-page-controls button:disabled { opacity: 0.45; cursor: not-allowed; }
 
+    .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
+    .config-group { border: 1px solid var(--border-color-hover); border-radius: 12px; padding: 18px; background: var(--surface-glass); }
+    .config-group h2 { font-size: 1.05rem; margin-bottom: 8px; }
+    .config-group > p { color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; margin-bottom: 14px; }
+    .config-field { display: flex; flex-direction: column; gap: 5px; margin-top: 14px; }
+    .config-field label { font-size: 0.88rem; font-weight: 600; }
+    .config-field small { color: var(--text-muted); line-height: 1.4; }
+    .config-field input, .config-field select { width: 100%; padding: 9px 11px; border: 1px solid var(--border-color-hover); border-radius: 8px; color: var(--text-main); background: #111b30; font: inherit; }
+    .config-field input[type="checkbox"] { width: 20px; height: 20px; }
+    .config-current { color: var(--accent-cyan); font-family: monospace; }
+    .config-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 22px; }
+    .config-review { margin-top: 16px; border: 1px solid var(--accent-amber); border-radius: 12px; padding: 18px; background: rgba(245, 158, 11, 0.06); }
+    .config-review[hidden] { display: none; }
+    .config-review h2 { font-size: 1.05rem; margin-bottom: 10px; }
+    .config-diff { display: grid; gap: 10px; }
+    .config-diff-item { border-bottom: 1px solid var(--border-color-hover); padding-bottom: 10px; }
+    .config-diff-item strong { display: block; margin-bottom: 4px; }
+    .config-diff-item p { color: var(--text-muted); font-size: 0.83rem; line-height: 1.5; margin-top: 4px; }
+    .config-affected { margin: 12px 0; font-size: 0.83rem; color: var(--accent-amber); }
+    .config-policy-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border-color); padding: 12px 0; }
+    .config-policy-row span { color: var(--text-muted); font-size: 0.85rem; }
+    .config-policy-row strong { color: var(--text-main); }
+    .config-diagnostics { margin-top: 14px; border-top: 1px solid var(--border-color); padding-top: 12px; }
+    .config-diagnostics summary { cursor: pointer; color: var(--accent-cyan); font-weight: 600; }
+    .config-diagnostic-row { display: grid; grid-template-columns: minmax(170px, 1fr) 2fr; gap: 12px; border-bottom: 1px solid var(--border-color); padding: 10px 0; font-size: 0.85rem; }
+    .config-diagnostic-row span { color: var(--text-muted); }
+    .config-diagnostic-row strong { font-weight: 500; overflow-wrap: anywhere; }
+
     .admin-page-controls span { min-width: 0; text-align: center; }
 
     #drawerMQMessagesList .mq-message-field { min-width: 0; gap: 8px; }
     #drawerMQMessagesList .mq-message-field > span { overflow-wrap: anywhere; }
 
     @media (max-width: 700px) {
+      .config-grid { grid-template-columns: 1fr; }
+      .config-policy-row { align-items: flex-start; flex-direction: column; }
+      .config-diagnostic-row { grid-template-columns: 1fr; gap: 4px; }
       .admin-summary { grid-template-columns: 1fr; }
       .admin-mailbox-lookup { flex-wrap: wrap; }
       #tabDetailPending, #tabDetailHistory { min-width: 0; white-space: normal; }
@@ -1300,6 +1333,7 @@
       color: var(--text-muted);
       font-size: 0.88rem;
     }
+    #confirmModalText { white-space: pre-line; max-height: 55vh; overflow-y: auto; text-align: left; }
 
     .modal-input {
       width: 100%;
@@ -2155,26 +2189,73 @@
       <div class="view-pane" id="pane-config">
         <div class="header-bar">
           <div class="header-title">
-            <h1 data-i18n="config_title">系统配置信息</h1>
-            <p data-i18n="config_sub">只读查看当前节点底层运行环境参数 (敏感私钥、接口令牌已被自动脱敏脱密)</p>
+            <h1 data-i18n="config_title">系统配置</h1>
+            <p data-i18n="config_sub">查看当前值，预览影响并确认可管理的运行参数变更</p>
           </div>
           <div>
-            <button class="btn btn-primary btn-sm" onclick="copyConfigToClipboard()">
-              <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-              <span data-i18n="copy_btn">复制配置 JSON</span>
-            </button>
+            <button class="btn btn-secondary btn-sm" onclick="requestConfigRefresh()"><span data-i18n="refresh">重新加载</span></button>
           </div>
         </div>
 
+        <p class="admin-inline-status" id="configStatus" role="status" aria-live="polite"></p>
         <div class="card-large col-12">
           <div class="card-header-title">
-            <span data-i18n="config_snapshot">当前配置快照</span>
-            <button class="btn btn-primary btn-sm" style="font-size: 0.75rem; padding: 4px 10px;" onclick="refreshConfig()">
-              <svg style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
-              <span data-i18n="refresh">重新加载</span>
-            </button>
+            <span data-i18n="config_managed_title">可管理运行参数</span>
           </div>
-          <pre class="config-pre" id="configContent">Getting node runtime structures...</pre>
+          <div class="config-grid">
+            <section class="config-group" aria-labelledby="configRegistryHeading">
+              <h2 id="configRegistryHeading" data-i18n="config_registry_group">注册名册</h2>
+              <p data-i18n="config_registry_impact">TTL 修改只影响后续注册；现有记录的过期时间不变。</p>
+              <div class="config-field"><label for="configRegistryTTL" data-i18n="config_registry_ttl">注册有效期（小时）</label><small><span data-i18n="config_current">当前</span>: <span class="config-current" id="configCurrentRegistryTTL">--</span></small><input id="configRegistryTTL" type="number" min="1" max="8760" step="1" oninput="configDraftChanged()" disabled></div>
+            </section>
+            <section class="config-group" aria-labelledby="configMQHeading">
+              <h2 id="configMQHeading" data-i18n="config_mq_group">离线信箱</h2>
+              <p data-i18n="config_mq_impact">默认有效期只影响新信封；容量下降可能拒收后续消息。</p>
+              <div class="config-field"><label for="configMQTTL" data-i18n="config_mq_ttl">新信封默认有效期（天）</label><small><span data-i18n="config_current">当前</span>: <span class="config-current" id="configCurrentMQTTL">--</span></small><input id="configMQTTL" type="number" min="1" max="3650" step="1" oninput="configDraftChanged()" disabled></div>
+              <div class="config-field"><label for="configMQMax" data-i18n="config_mq_max">每个 URN 最多未读信封</label><small><span data-i18n="config_current">当前</span>: <span class="config-current" id="configCurrentMQMax">--</span></small><input id="configMQMax" type="number" min="1" max="100000" step="1" oninput="configDraftChanged()" disabled></div>
+            </section>
+            <section class="config-group" aria-labelledby="configRelayHeading">
+              <h2 id="configRelayHeading" data-i18n="config_relay_group">中继服务</h2>
+              <p data-i18n="config_relay_impact">关闭中继会中断现有 circuit，依赖 NAT 穿透的 Agent 可能失联。</p>
+              <div class="config-field"><label for="configRelayEnabled" data-i18n="config_relay_enabled">启用中继</label><small><span data-i18n="config_current">当前</span>: <span class="config-current" id="configCurrentRelayEnabled">--</span></small><input id="configRelayEnabled" type="checkbox" onchange="configDraftChanged()" disabled></div>
+              <div class="config-field"><label for="configRelayMax" data-i18n="config_relay_max">最多预订数</label><small><span data-i18n="config_current">当前</span>: <span class="config-current" id="configCurrentRelayMax">--</span></small><input id="configRelayMax" type="number" min="1" max="100000" step="1" oninput="configDraftChanged()" disabled></div>
+              <div class="config-field"><label for="configRelayDuration" data-i18n="config_relay_duration">单次 circuit 最长持续时间</label><small><span data-i18n="config_current">当前</span>: <span class="config-current" id="configCurrentRelayDuration">--</span></small><select id="configRelayDuration" onchange="configDraftChanged()" disabled></select></div>
+            </section>
+          </div>
+          <div class="config-actions">
+            <button id="configPreviewButton" type="button" class="btn btn-primary btn-sm" onclick="previewConfigChanges()" disabled data-i18n="config_preview_button">预览变更与影响</button>
+            <button id="configResetButton" type="button" class="btn btn-secondary btn-sm" onclick="resetConfigDraft()" disabled data-i18n="config_reset_button">放弃草稿</button>
+          </div>
+          <div id="configReview" class="config-review" hidden>
+            <h2 data-i18n="config_review_title">服务器核算的变更</h2>
+            <div id="configDiff" class="config-diff"></div>
+            <p id="configAffected" class="config-affected"></p>
+            <p id="configRestartImpact" class="config-affected"></p>
+            <p id="configPreviewExpiry" class="config-affected"></p>
+            <p data-i18n="config_restart_notice">确认后写入配置并重启 Platform。请在状态复读完成前不要重复提交。</p>
+            <div class="config-actions"><button id="configApplyButton" type="button" class="btn btn-danger-outline btn-sm" onclick="confirmEditableConfig()" data-i18n="config_apply_button">确认并提交</button></div>
+          </div>
+        </div>
+        <div class="card-large col-12" style="margin-top:16px;">
+          <div class="card-header-title"><span data-i18n="config_live_policies">即时策略</span></div>
+          <p data-i18n="config_policy_note">这些策略通过控制面板独立操作；存储声明切换会清空 Registry 并重启，历史保留缩短会在后续清理时删除旧历史。</p>
+          <div class="config-policy-row"><span data-i18n="policy_store_title">平台存储离线信封</span><strong id="configPolicyStore">--</strong><button type="button" class="btn btn-secondary btn-sm" onclick="openPolicyControl('policyStoreToggle')" data-i18n="config_change_policy">查看并修改</button></div>
+          <div class="config-policy-row"><span data-i18n="policy_forward_title">允许转发至存储平台</span><strong id="configPolicyForward">--</strong><button type="button" class="btn btn-secondary btn-sm" onclick="openPolicyControl('policyForwardToggle')" data-i18n="config_change_policy">查看并修改</button></div>
+          <div class="config-policy-row"><span data-i18n="policy_retention_title">已确认信封保留天数</span><strong id="configPolicyRetention">--</strong><button type="button" class="btn btn-secondary btn-sm" onclick="openPolicyControl('policyRetentionInput')" data-i18n="config_change_policy">查看并修改</button></div>
+        </div>
+        <div class="card-large col-12" style="margin-top:16px;">
+          <div class="card-header-title"><span data-i18n="config_server_owned">由服务器部署管理</span></div>
+          <p data-i18n="config_server_owned_desc">身份、路径、网络监听、TLS、令牌、限速及运行模式由服务器部署管理。下方只显示白名单诊断字段，不展示密钥、令牌或文件路径。</p>
+          <details id="configDiagnostics" class="config-diagnostics" ontoggle="if (this.open) refreshConfigDiagnostics()">
+            <summary data-i18n="config_diagnostics_title">查看非敏感运行诊断值</summary>
+            <p class="admin-inline-status" id="configDiagnosticsStatus" role="status" aria-live="polite"></p>
+            <div class="config-diagnostic-row"><span data-i18n="config_diag_mode">运行模式（只读）</span><strong id="configDiagMode">--</strong></div>
+            <div class="config-diagnostic-row"><span data-i18n="config_diag_api_listen">API 监听地址</span><strong id="configDiagAPIListen">--</strong></div>
+            <div class="config-diagnostic-row"><span data-i18n="config_diag_rate">每 IP 每秒请求上限</span><strong id="configDiagRate">--</strong></div>
+            <div class="config-diagnostic-row"><span data-i18n="config_diag_burst">请求突发上限</span><strong id="configDiagBurst">--</strong></div>
+            <div class="config-diagnostic-row"><span data-i18n="config_diag_tls">TLS 是否配置</span><strong id="configDiagTLS">--</strong></div>
+            <p data-i18n="config_diag_inert">注意：registry.http_enabled、mq.http_enabled 和 libp2p.external_addrs 当前不改变运行行为，因此不提供开关。</p>
+          </details>
         </div>
       </div>
 
@@ -2262,7 +2343,15 @@
       mqData: [],
       peersData: [],
       logsData: [],
-      configData: {},
+      configEditable: null,
+      configDraftRaw: null,
+      configPreview: null,
+      configBusy: false,
+      configRequestSequence: 0,
+      configRecoveryExpected: null,
+      configRecoveryUncertain: false,
+      configDiagnostics: null,
+      latestOverview: null,
       registryTTLHours: null,
       maxMsgsPerURN: null,
       selectedRegistryURNs: new Set(),
@@ -2422,10 +2511,69 @@
         log_source: "来源组件",
         log_msg: "事件描述",
         no_logs: "暂无事件日志审计流水",
-        config_title: "节点配置参数",
-        config_sub: "只读查看底层的 config.yaml 参数设定 (已对隐私项目脱密)",
-        copy_success: "配置 JSON 成功复制到剪贴板",
-        copy_btn: "复制配置 JSON",
+        config_title: "系统配置",
+        config_sub: "查看当前值，预览影响并确认可管理的运行参数变更",
+        config_managed_title: "可管理运行参数",
+        config_registry_group: "注册名册",
+        config_registry_impact: "TTL 修改只影响后续注册；现有记录的过期时间不变。",
+        config_registry_ttl: "注册有效期（小时）",
+        config_mq_group: "离线信箱",
+        config_mq_impact: "默认有效期只影响新信封；容量下降可能拒收后续消息。",
+        config_mq_ttl: "新信封默认有效期（天）",
+        config_mq_max: "每个 URN 最多未读信封",
+        config_relay_group: "中继服务",
+        config_relay_impact: "关闭中继会中断现有 circuit，依赖 NAT 穿透的 Agent 可能失联。",
+        config_relay_enabled: "启用中继",
+        config_relay_max: "最多预订数",
+        config_relay_duration: "单次 circuit 最长持续时间",
+        config_current: "当前",
+        config_preview_button: "预览变更与影响",
+        config_reset_button: "放弃草稿",
+        config_review_title: "服务器核算的变更",
+        config_restart_notice: "确认后写入配置并重启 Platform。请在状态复读完成前不要重复提交。",
+        config_apply_button: "确认并提交",
+        config_live_policies: "即时策略",
+        config_policy_note: "这些策略通过控制面板独立操作；存储声明切换会清空 Registry 并重启，历史保留缩短会在后续清理时删除旧历史。",
+        config_change_policy: "查看并修改",
+        config_server_owned: "由服务器部署管理",
+        config_server_owned_desc: "身份、路径、网络监听、TLS、令牌、限速及运行模式由服务器部署管理。下方只显示白名单诊断字段，不展示密钥、令牌或文件路径。",
+        config_diagnostics_title: "查看非敏感运行诊断值",
+        config_diagnostics_loading: "正在读取诊断值…",
+        config_diagnostics_loaded: "诊断值已更新；这些字段不可在管理台修改。",
+        config_diagnostics_failed: "诊断值读取失败：",
+        config_diag_mode: "运行模式（只读）",
+        config_diag_api_listen: "API 监听地址",
+        config_diag_rate: "每 IP 每秒请求上限",
+        config_diag_burst: "请求突发上限",
+        config_diag_tls: "TLS 是否配置",
+        config_diag_inert: "注意：registry.http_enabled、mq.http_enabled 和 libp2p.external_addrs 当前不改变运行行为，因此不提供开关。",
+        config_loading: "正在读取可管理配置…",
+        config_loaded: "已读取服务器当前配置",
+        config_failed: "配置读取失败：",
+        config_draft: "草稿尚未提交；预览后才能保存。",
+        config_editing: "正在编辑配置；完成输入后可预览。",
+        config_no_changes: "没有需要提交的变更。",
+        config_invalid: "请检查字段输入：",
+        config_preview_loading: "正在由服务器计算影响…",
+        config_preview_ready: "影响预览已就绪；请检查后确认。",
+        config_preview_failed: "预览失败：",
+        config_apply_loading: "正在提交配置；等待服务器确认…",
+        config_apply_failed: "配置提交失败：",
+        config_pending: "配置已写入，正在等待 Platform 重启并复读结果。",
+        config_applied: "Platform 已重启，配置已复读核实。",
+        config_unverified: "已重新读取服务器当前值，但上次提交的重启与结果尚未核实；请重试检查。",
+        config_unverified_pending: "提交响应中断，结果未知；正在读取服务器状态核实。请勿重复提交。",
+        config_noop: "服务器确认当前配置已是目标值，无需重启。",
+        config_stale: "服务器配置已被其他操作修改；草稿已保留，请核对新当前值并重新预览。",
+        config_preview_expired: "预览已过期；草稿仍在，请重新预览后提交。",
+        config_preview_expires: "此预览的确认期限：{time}。过期后须重新预览。",
+        config_reload_confirm: "重新读取会放弃当前草稿和预览。确认继续？",
+        config_confirm_title: "确认配置变更",
+        config_affected: "当前影响范围：注册记录 {registry}，信箱 {queues}，未读信封 {messages}，已连接节点 {peers}。",
+        config_capped: "其中 {capped} 个信箱达到或超过目标容量上限。",
+        config_enabled: "启用",
+        config_disabled: "关闭",
+        config_reboot_title: "配置生效中",
         login_title: "管理后台授权认证",
         login_sub: "请输入节点配置文件中配置的后台访问令牌 (admin_token)",
         login_btn: "验证进入控制台",
@@ -2585,9 +2733,68 @@
         log_msg: "Message",
         no_logs: "No system audit events logged",
         config_title: "System Config",
-        config_sub: "Read-only configurations. Yaml structures with sensitive parameters redacted",
-        copy_success: "Configuration JSON copied to clipboard",
-        copy_btn: "Copy JSON",
+        config_sub: "Review current values and confirm changes to managed runtime settings",
+        config_managed_title: "Managed runtime settings",
+        config_registry_group: "Registry",
+        config_registry_impact: "TTL changes affect future registrations only; existing expiry times remain unchanged.",
+        config_registry_ttl: "Registration TTL (hours)",
+        config_mq_group: "Offline mailbox",
+        config_mq_impact: "Default TTL affects new envelopes only; a lower capacity may reject future messages.",
+        config_mq_ttl: "New envelope default TTL (days)",
+        config_mq_max: "Max unread envelopes per URN",
+        config_relay_group: "Relay service",
+        config_relay_impact: "Disabling relay drops active circuits; NAT-connected agents may lose connectivity.",
+        config_relay_enabled: "Enable relay",
+        config_relay_max: "Max reservations",
+        config_relay_duration: "Maximum circuit duration",
+        config_current: "Current",
+        config_preview_button: "Preview changes and impact",
+        config_reset_button: "Discard draft",
+        config_review_title: "Server-calculated changes",
+        config_restart_notice: "Confirmation saves configuration and restarts Platform. Avoid submitting again until verification completes.",
+        config_apply_button: "Confirm and apply",
+        config_live_policies: "Live policies",
+        config_policy_note: "These policies use the dashboard controls. Storage changes clear Registry and restart; shorter history retention deletes old history during a later cleanup.",
+        config_change_policy: "View and change",
+        config_server_owned: "Managed by server deployment",
+        config_server_owned_desc: "Identity, paths, network listeners, TLS, tokens, rate limits, and runtime mode are managed by server deployment. Only allowlisted diagnostic fields appear below; keys, tokens, and file paths are never displayed.",
+        config_diagnostics_title: "View non-sensitive runtime diagnostics",
+        config_diagnostics_loading: "Loading diagnostics…",
+        config_diagnostics_loaded: "Diagnostics updated; these fields cannot be changed here.",
+        config_diagnostics_failed: "Diagnostics failed: ",
+        config_diag_mode: "Runtime mode (read-only)",
+        config_diag_api_listen: "API listen address",
+        config_diag_rate: "Requests per IP per second",
+        config_diag_burst: "Request burst limit",
+        config_diag_tls: "TLS configured",
+        config_diag_inert: "Note: registry.http_enabled, mq.http_enabled, and libp2p.external_addrs currently have no runtime effect, so this console offers no switches for them.",
+        config_loading: "Loading managed configuration…",
+        config_loaded: "Current server configuration loaded",
+        config_failed: "Configuration load failed: ",
+        config_draft: "Draft not submitted; preview it before saving.",
+        config_editing: "Editing configuration; preview after finishing your input.",
+        config_no_changes: "No changes to submit.",
+        config_invalid: "Check field input: ",
+        config_preview_loading: "Server is calculating impact…",
+        config_preview_ready: "Impact preview ready; review before confirming.",
+        config_preview_failed: "Preview failed: ",
+        config_apply_loading: "Submitting configuration; waiting for server confirmation…",
+        config_apply_failed: "Configuration submission failed: ",
+        config_pending: "Configuration saved; waiting for Platform restart and read-back verification.",
+        config_applied: "Platform restarted and configuration read back successfully.",
+        config_unverified: "Current server values were reloaded, but the previous restart and result remain unverified. Retry verification.",
+        config_unverified_pending: "The save response was interrupted. Outcome is unknown; checking server state. Do not resubmit yet.",
+        config_noop: "Server confirms the configuration already matches; no restart needed.",
+        config_stale: "Server settings changed elsewhere. Your draft is preserved; compare current values and preview again.",
+        config_preview_expired: "Preview expired. Your draft is preserved; preview it again before saving.",
+        config_preview_expires: "Confirm this preview by {time}. Preview again after it expires.",
+        config_reload_confirm: "Reloading discards the current draft and preview. Continue?",
+        config_confirm_title: "Confirm configuration changes",
+        config_affected: "Current scope: {registry} Registry entries, {queues} mailboxes, {messages} unread envelopes, {peers} connected peers.",
+        config_capped: "{capped} mailboxes are at or above the target capacity limit.",
+        config_enabled: "Enabled",
+        config_disabled: "Disabled",
+        config_reboot_title: "Applying configuration",
         login_title: "Administrative Sign In",
         login_sub: "Provide administrative token (admin_token) defined inside config.yaml",
         login_btn: "Authenticate Console",
@@ -2654,6 +2861,10 @@
       if (state.mqData.length > 0) renderMQTable();
       if (state.peersData.length > 0) renderPeersTable();
       if (state.logsData.length > 0) renderLogsStream();
+      renderConfigPolicyValues();
+      renderConfigCurrentLabels();
+      renderConfigDiagnostics();
+      if (state.configPreview) renderConfigPreview();
     }
 
     // Apply translations to all DOM elements with data-i18n attributes
@@ -2941,7 +3152,9 @@
           return res.text().then(body => {
             let message = body.trim();
             try { message = JSON.parse(body).error || message; } catch (_) {}
-            throw new Error(message || `HTTP ${res.status}`);
+            const error = new Error(message || `HTTP ${res.status}`);
+            error.status = res.status;
+            throw error;
           });
         }
         return res.json();
@@ -3198,6 +3411,8 @@
 
     function renderOverview(data) {
       state.lastOverviewUptime = Number(data.uptime_seconds);
+      state.latestOverview = data;
+      renderConfigPolicyValues();
       state.registryTTLHours = Number(data.registry_ttl_hours) > 0 ? Number(data.registry_ttl_hours) : null;
       state.maxMsgsPerURN = Number(data.mq_max_msgs_per_urn) > 0 ? Number(data.mq_max_msgs_per_urn) : null;
       countUp('statPeers', data.connected_peers);
@@ -3343,14 +3558,33 @@
     }
 
     function startStorageRecovery(target, baselineUptime) {
+      state.configRecoveryExpected = null;
+      state.configRecoveryUncertain = false;
       state.storageRecoveryTarget = target;
       state.storageRecoveryBaseline = baselineUptime;
       state.storageRecoveryStartedAt = Date.now();
       const sequence = ++state.storageRecoverySequence;
+      document.getElementById('rebootingOverlayTitle').textContent = i18n[state.lang].rebooting_system;
       document.getElementById('rebootingOverlayText').textContent = i18n[state.lang].reboot_checking;
       document.getElementById('rebootCountdown').textContent = '0s';
       document.getElementById('btnRetryReboot').style.display = 'none';
       document.getElementById('btnCloseReboot').style.display = 'none';
+      showManagedModal('rebootingOverlay');
+      pollStorageRecovery(sequence);
+    }
+
+    function startConfigRecovery(expectedSettings, baselineUptime, uncertain = false) {
+      state.configRecoveryExpected = { ...expectedSettings };
+      state.configRecoveryUncertain = uncertain;
+      state.storageRecoveryTarget = null;
+      state.storageRecoveryBaseline = baselineUptime;
+      state.storageRecoveryStartedAt = Date.now();
+      const sequence = ++state.storageRecoverySequence;
+      document.getElementById('rebootingOverlayTitle').textContent = i18n[state.lang].config_reboot_title;
+      document.getElementById('rebootingOverlayText').textContent = i18n[state.lang][uncertain ? 'config_unverified_pending' : 'config_pending'];
+      document.getElementById('rebootCountdown').textContent = '0s';
+      document.getElementById('btnRetryReboot').style.display = 'none';
+      document.getElementById('btnCloseReboot').style.display = uncertain ? 'inline-flex' : 'none';
       showManagedModal('rebootingOverlay');
       pollStorageRecovery(sequence);
     }
@@ -3384,7 +3618,38 @@
         // servers can still be recognized by a reset uptime after restart.
         const restarted = typeof data.restart_pending === 'boolean'
           ? !data.restart_pending : uptimeReset;
-        if (restarted && !!data.stores_user_data === state.storageRecoveryTarget) {
+        if (restarted && state.configRecoveryExpected) {
+          const configResponse = await fetch('/api/v1/admin/config/editable', {
+            cache: 'no-store',
+            headers: { 'X-Admin-Token': sessionStorage.getItem('admin_token') }
+          });
+          if (configResponse.status === 401 || configResponse.status === 403) {
+            closeStorageRecovery();
+            clearToken(true, 'error', i18n[state.lang].login_error);
+            return;
+          }
+          if (!configResponse.ok) throw new Error(`HTTP ${configResponse.status}`);
+          const config = await configResponse.json();
+          const expected = state.configRecoveryExpected;
+          if (config.settings && Object.keys(expected).every(key => config.settings[key] === expected[key])) {
+            if (sequence !== state.storageRecoverySequence) return;
+            state.storageRecoverySequence++;
+            state.configRecoveryExpected = null;
+            state.configRecoveryUncertain = false;
+            state.configBusy = false;
+            state.configEditable = config;
+            state.configPreview = null;
+            document.getElementById('configReview').hidden = true;
+            renderConfigEditor();
+            document.getElementById('configStatus').textContent = i18n[state.lang].config_applied;
+            hideManagedModal('rebootingOverlay');
+            renderOverview(data);
+            refreshRegistry();
+            refreshMQ();
+            showToast(i18n[state.lang].config_applied, 'success');
+            return;
+          }
+        } else if (restarted && !!data.stores_user_data === state.storageRecoveryTarget) {
           if (sequence !== state.storageRecoverySequence) return;
           state.storageRecoverySequence++;
           hideManagedModal('rebootingOverlay');
@@ -3403,12 +3668,21 @@
     }
 
     function retryStorageRecovery() {
-      startStorageRecovery(state.storageRecoveryTarget, state.storageRecoveryBaseline);
+      if (state.configRecoveryExpected) startConfigRecovery(state.configRecoveryExpected, state.storageRecoveryBaseline, state.configRecoveryUncertain);
+      else startStorageRecovery(state.storageRecoveryTarget, state.storageRecoveryBaseline);
     }
 
     function closeStorageRecovery() {
       state.storageRecoverySequence++;
       hideManagedModal('rebootingOverlay');
+      if (state.configRecoveryExpected) {
+        state.configRecoveryExpected = null;
+        state.configRecoveryUncertain = false;
+        state.configBusy = false;
+        setConfigInputsDisabled(false);
+        document.getElementById('configStatus').textContent = i18n[state.lang].config_unverified;
+        refreshConfig({ force: true, statusAfterLoad: 'config_unverified' });
+      }
       refreshOverview();
     }
 
@@ -4348,48 +4622,346 @@
     // CONFIGURATION VIEW
     // ─────────────────────────────────────────────────────────────────────────
 
-    function refreshConfig() {
-      apiCall('/api/v1/admin/config')
-      .then(data => {
-        state.configData = data;
-        const block = document.getElementById('configContent');
-        block.innerHTML = highlightJSON(data);
-      })
-      .catch(err => {
-        console.error('Config fetch failed', err);
+    const managedConfigFields = [
+      { key: 'registry.ttl_hours', input: 'configRegistryTTL', current: 'configCurrentRegistryTTL', label: 'config_registry_ttl', type: 'integer' },
+      { key: 'mq.default_ttl_days', input: 'configMQTTL', current: 'configCurrentMQTTL', label: 'config_mq_ttl', type: 'integer' },
+      { key: 'mq.max_msgs_per_urn', input: 'configMQMax', current: 'configCurrentMQMax', label: 'config_mq_max', type: 'integer' },
+      { key: 'relay.enabled', input: 'configRelayEnabled', current: 'configCurrentRelayEnabled', label: 'config_relay_enabled', type: 'boolean' },
+      { key: 'relay.max_reservations', input: 'configRelayMax', current: 'configCurrentRelayMax', label: 'config_relay_max', type: 'integer' },
+      { key: 'relay.max_circuit_duration', input: 'configRelayDuration', current: 'configCurrentRelayDuration', label: 'config_relay_duration', type: 'duration' }
+    ];
+
+    function configFieldMeta(key) {
+      return state.configEditable?.fields?.find(field => field.key === key);
+    }
+
+    function configValueText(value) {
+      if (typeof value === 'boolean') return i18n[state.lang][value ? 'config_enabled' : 'config_disabled'];
+      return String(value ?? '--');
+    }
+
+    function renderConfigCurrentLabels() {
+      if (!state.configEditable) return;
+      for (const field of managedConfigFields) {
+        document.getElementById(field.current).textContent = configValueText(state.configEditable.settings[field.key]);
+      }
+    }
+
+    function renderConfigPolicyValues() {
+      const overview = state.latestOverview;
+      if (!overview) return;
+      document.getElementById('configPolicyStore').textContent = configValueText(!!overview.stores_user_data);
+      document.getElementById('configPolicyForward').textContent = configValueText(!!overview.forward_to_storage_platforms);
+      document.getElementById('configPolicyRetention').textContent = `${overview.history_retention_days} ${i18n[state.lang].days_label}`;
+    }
+
+    function renderConfigDiagnostics() {
+      const values = state.configDiagnostics;
+      if (!values) return;
+      document.getElementById('configDiagMode').textContent = values.mode;
+      document.getElementById('configDiagAPIListen').textContent = values.apiListen;
+      document.getElementById('configDiagRate').textContent = values.rate ?? '--';
+      document.getElementById('configDiagBurst').textContent = values.burst ?? '--';
+      document.getElementById('configDiagTLS').textContent = configValueText(values.tlsConfigured);
+    }
+
+    function refreshConfigDiagnostics() {
+      const status = document.getElementById('configDiagnosticsStatus');
+      status.className = 'admin-inline-status';
+      status.textContent = i18n[state.lang].config_diagnostics_loading;
+      return apiCall('/api/v1/admin/config').then(data => {
+        const api = data?.API || {};
+        state.configDiagnostics = {
+          mode: typeof data?.Platform?.Mode === 'string' ? data.Platform.Mode : '--',
+          apiListen: typeof api.ListenAddr === 'string' ? api.ListenAddr : '--',
+          rate: Number.isFinite(api.RateLimitRate) ? api.RateLimitRate : null,
+          burst: Number.isSafeInteger(api.RateLimitBurst) ? api.RateLimitBurst : null,
+          tlsConfigured: !!(api.TLSCert && api.TLSKey)
+        };
+        renderConfigDiagnostics();
+        status.textContent = i18n[state.lang].config_diagnostics_loaded;
+      }).catch(err => {
+        status.classList.add('error');
+        status.textContent = i18n[state.lang].config_diagnostics_failed + err.message;
       });
     }
 
-    function copyConfigToClipboard() {
-      const text = JSON.stringify(state.configData, null, 2);
-      navigator.clipboard.writeText(text)
-      .then(() => showToast(i18n[state.lang].copy_success, 'success'))
-      .catch(err => showToast('Copy failure: ' + err.message, 'error'));
+    function openPolicyControl(inputId) {
+      switchView('dashboard', document.querySelectorAll('.menu-item')[0]);
+      const input = document.getElementById(inputId);
+      input.scrollIntoView?.({ block: 'center' });
+      input.focus?.();
     }
 
-    // Lightweight native JSON Syntax Highlighter
-    function highlightJSON(jsonObj) {
-      let json = JSON.stringify(jsonObj, null, 2);
-      
-      // Escape HTML entities to prevent injection
-      json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      
-      const regex = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g;
-      
-      return json.replace(regex, function (match) {
-        let cls = 'config-number';
-        if (/^"/.test(match)) {
-          if (/:$/.test(match)) {
-            cls = 'config-key';
-          } else {
-            cls = 'config-string';
-          }
-        } else if (/true|false/.test(match)) {
-          cls = 'config-boolean';
-        } else if (/null/.test(match)) {
-          cls = 'config-null';
+    function rawConfigDraft() {
+      const raw = {};
+      for (const field of managedConfigFields) {
+        const input = document.getElementById(field.input);
+        raw[field.key] = field.type === 'boolean' ? !!input.checked : input.value;
+      }
+      return raw;
+    }
+
+    function configDraftIsDirty(raw = state.configDraftRaw) {
+      if (!state.configEditable || !raw) return false;
+      return managedConfigFields.some(field => String(raw[field.key]) !== String(state.configEditable.settings[field.key]));
+    }
+
+    function setConfigInputsDisabled(disabled) {
+      for (const field of managedConfigFields) {
+        document.getElementById(field.input).disabled = disabled || !configFieldMeta(field.key);
+      }
+      document.getElementById('configPreviewButton').disabled = disabled || !configDraftIsDirty();
+      document.getElementById('configResetButton').disabled = disabled || !configDraftIsDirty();
+      document.getElementById('configApplyButton').disabled = disabled;
+    }
+
+    function renderConfigEditor(preservedRaw = null) {
+      const settings = state.configEditable.settings;
+      for (const field of managedConfigFields) {
+        const input = document.getElementById(field.input);
+        const meta = configFieldMeta(field.key);
+        const value = preservedRaw && Object.hasOwn(preservedRaw, field.key) ? preservedRaw[field.key] : settings[field.key];
+        if (field.type === 'integer' && meta) {
+          input.min = meta.min;
+          input.max = meta.max;
         }
-        return '<span class="' + cls + '">' + match + '</span>';
+        if (field.type === 'duration') {
+          input.innerHTML = '';
+          const options = new Set([settings[field.key], ...(meta?.options || [])]);
+          for (const optionValue of options) {
+            const option = document.createElement('option');
+            option.value = optionValue;
+            option.textContent = optionValue;
+            input.appendChild(option);
+          }
+        }
+        if (field.type === 'boolean') input.checked = !!value;
+        else input.value = String(value ?? '');
+      }
+      state.configDraftRaw = rawConfigDraft();
+      renderConfigCurrentLabels();
+      setConfigInputsDisabled(state.configBusy);
+    }
+
+    function refreshConfig(options = {}) {
+      const focusedField = managedConfigFields.some(field => document.activeElement === document.getElementById(field.input));
+      if (!options.force && (state.configBusy || configDraftIsDirty() || focusedField)) {
+        document.getElementById('configStatus').textContent = i18n[state.lang][configDraftIsDirty() ? 'config_draft' : 'config_editing'];
+        return Promise.resolve();
+      }
+      const sequence = ++state.configRequestSequence;
+      const draftAtRequest = state.configDraftRaw;
+      const status = document.getElementById('configStatus');
+      status.className = 'admin-inline-status';
+      status.textContent = i18n[state.lang].config_loading;
+      return apiCall('/api/v1/admin/config/editable')
+      .then(data => {
+        if (sequence !== state.configRequestSequence) return;
+        if (!data || typeof data.revision !== 'string' || !data.settings || !Array.isArray(data.fields)) {
+          throw new Error('Invalid managed config response');
+        }
+        const editedDuringRequest = state.configDraftRaw !== draftAtRequest;
+        const focusedNow = managedConfigFields.some(field => document.activeElement === document.getElementById(field.input));
+        if (!options.preserveDraft && (editedDuringRequest || (!options.force && (configDraftIsDirty() || focusedNow)))) {
+          status.textContent = i18n[state.lang][configDraftIsDirty() ? 'config_draft' : 'config_editing'];
+          return;
+        }
+        state.configEditable = data;
+        state.configPreview = null;
+        document.getElementById('configReview').hidden = true;
+        if (options.preserveDraft && editedDuringRequest) {
+          state.configDraftRaw = rawConfigDraft();
+          renderConfigCurrentLabels();
+          setConfigInputsDisabled(state.configBusy);
+        } else renderConfigEditor(options.preserveDraft ? state.configDraftRaw : null);
+        status.textContent = i18n[state.lang][options.statusAfterLoad || (options.preserveDraft ? 'config_stale' : 'config_loaded')];
+      })
+      .catch(err => {
+        if (sequence !== state.configRequestSequence) return;
+        status.classList.add('error');
+        status.textContent = i18n[state.lang].config_failed + err.message;
+      });
+    }
+
+    function requestConfigRefresh() {
+      if (!configDraftIsDirty()) return refreshConfig({ force: true });
+      showConfirmModal(i18n[state.lang].config_confirm_title, i18n[state.lang].config_reload_confirm,
+        () => refreshConfig({ force: true }));
+    }
+
+    function configDraftChanged() {
+      state.configDraftRaw = rawConfigDraft();
+      state.configPreview = null;
+      document.getElementById('configReview').hidden = true;
+      setConfigInputsDisabled(state.configBusy);
+      document.getElementById('configStatus').textContent = i18n[state.lang][configDraftIsDirty() ? 'config_draft' : 'config_no_changes'];
+    }
+
+    function resetConfigDraft() {
+      if (!state.configEditable) return;
+      state.configPreview = null;
+      document.getElementById('configReview').hidden = true;
+      renderConfigEditor();
+      document.getElementById('configStatus').textContent = i18n[state.lang].config_no_changes;
+    }
+
+    function buildConfigChanges() {
+      if (!state.configEditable) throw new Error(i18n[state.lang].config_loading);
+      const changes = {};
+      const raw = rawConfigDraft();
+      for (const field of managedConfigFields) {
+        const meta = configFieldMeta(field.key);
+        if (!meta) continue;
+        let value = raw[field.key];
+        if (String(value) === String(state.configEditable.settings[field.key])) continue;
+        if (field.type === 'integer') {
+          const number = Number(value);
+          if (value === '' || !Number.isSafeInteger(number) || number < meta.min || number > meta.max) {
+            throw new Error(i18n[state.lang].config_invalid + i18n[state.lang][field.label]);
+          }
+          value = number;
+        } else if (field.type === 'duration') {
+          if (typeof value !== 'string' || !value) throw new Error(i18n[state.lang].config_invalid + i18n[state.lang][field.label]);
+        }
+        changes[field.key] = value;
+      }
+      return changes;
+    }
+
+    function previewConfigChanges() {
+      if (state.configBusy || !state.configEditable) return;
+      let changes;
+      try { changes = buildConfigChanges(); }
+      catch (err) { document.getElementById('configStatus').textContent = err.message; return; }
+      if (Object.keys(changes).length === 0) {
+        document.getElementById('configStatus').textContent = i18n[state.lang].config_no_changes;
+        return;
+      }
+      state.configBusy = true;
+      setConfigInputsDisabled(true);
+      document.getElementById('configStatus').textContent = i18n[state.lang].config_preview_loading;
+      apiCall('/api/v1/admin/config/editable/preview', 'POST', {}, {
+        expected_revision: state.configEditable.revision, changes
+      }).then(preview => {
+        if (typeof preview.confirmation_token !== 'string' || !Array.isArray(preview.changes)) {
+          throw new Error('Invalid configuration preview');
+        }
+        state.configPreview = { ...preview, requestedChanges: changes };
+        renderConfigPreview();
+        document.getElementById('configReview').hidden = false;
+        document.getElementById('configStatus').textContent = i18n[state.lang].config_preview_ready;
+      }).catch(err => {
+        if (err.status === 409) refreshConfig({ force: true, preserveDraft: true });
+        else document.getElementById('configStatus').textContent = i18n[state.lang].config_preview_failed + err.message;
+      }).finally(() => {
+        state.configBusy = false;
+        setConfigInputsDisabled(false);
+      });
+    }
+
+    function configAffectedText(affected = {}, changes = []) {
+      const scope = i18n[state.lang].config_affected
+        .replace('{registry}', affected.registry_entries ?? 0)
+        .replace('{queues}', affected.mq_queues ?? 0)
+        .replace('{messages}', affected.mq_messages ?? 0)
+        .replace('{peers}', affected.connected_peers ?? 0);
+      if (!changes.some(change => change.key === 'mq.max_msgs_per_urn')) return scope;
+      return `${scope} ${i18n[state.lang].config_capped.replace('{capped}', affected.mq_queues_at_or_above_target_limit ?? 0)}`;
+    }
+
+    function renderConfigPreview() {
+      const preview = state.configPreview;
+      if (!preview) return;
+      const container = document.getElementById('configDiff');
+      container.innerHTML = '';
+      for (const change of preview.changes) {
+        const field = managedConfigFields.find(candidate => candidate.key === change.key);
+        if (!field) continue;
+        const row = document.createElement('div');
+        row.className = 'config-diff-item';
+        const heading = document.createElement('strong');
+        heading.textContent = i18n[state.lang][field.label] + ': ' + configValueText(change.current) + ' → ' + configValueText(change.target);
+        const impact = document.createElement('p');
+        impact.textContent = state.lang === 'zh' ? change.impact_zh : change.impact_en;
+        row.appendChild(heading);
+        row.appendChild(impact);
+        container.appendChild(row);
+      }
+      document.getElementById('configAffected').textContent = configAffectedText(preview.affected, preview.changes);
+      document.getElementById('configRestartImpact').textContent = state.lang === 'zh'
+        ? (preview.restart_impact_zh || '') : (preview.restart_impact_en || '');
+      document.getElementById('configPreviewExpiry').textContent = preview.confirmation_expires_at
+        ? i18n[state.lang].config_preview_expires.replace('{time}', formatTime(preview.confirmation_expires_at)) : '';
+    }
+
+    function configConfirmationText(preview) {
+      const lines = preview.changes.map(change => {
+        const field = managedConfigFields.find(candidate => candidate.key === change.key);
+        if (!field) return '';
+        return `${i18n[state.lang][field.label]}: ${configValueText(change.current)} → ${configValueText(change.target)}\n${state.lang === 'zh' ? change.impact_zh : change.impact_en}`;
+      }).filter(Boolean);
+      lines.push(configAffectedText(preview.affected, preview.changes));
+      const restartImpact = state.lang === 'zh' ? preview.restart_impact_zh : preview.restart_impact_en;
+      if (restartImpact) lines.push(restartImpact);
+      return lines.join('\n\n');
+    }
+
+    function confirmEditableConfig() {
+      if (!state.configPreview || state.configBusy) return;
+      const preview = state.configPreview;
+      if (preview.confirmation_expires_at && Date.now() / 1000 >= preview.confirmation_expires_at) {
+        state.configPreview = null;
+        document.getElementById('configReview').hidden = true;
+        document.getElementById('configStatus').textContent = i18n[state.lang].config_preview_expired;
+        return;
+      }
+      showConfirmModal(i18n[state.lang].config_confirm_title, configConfirmationText(preview),
+        () => applyEditableConfig(preview));
+    }
+
+    function applyEditableConfig(preview) {
+      if (state.configBusy || !state.configEditable || preview !== state.configPreview) return;
+      let changes;
+      try { changes = buildConfigChanges(); }
+      catch (err) { document.getElementById('configStatus').textContent = err.message; return; }
+      if (JSON.stringify(changes) !== JSON.stringify(preview.requestedChanges)) {
+        configDraftChanged();
+        return;
+      }
+      state.configBusy = true;
+      setConfigInputsDisabled(true);
+      document.getElementById('configStatus').textContent = i18n[state.lang].config_apply_loading;
+      const baselineUptime = state.lastOverviewUptime;
+      apiCall('/api/v1/admin/config/editable', 'PUT', {}, {
+        expected_revision: preview.expected_revision,
+        changes,
+        confirmation_token: preview.confirmation_token
+      }).then(result => {
+        state.configPreview = null;
+        document.getElementById('configReview').hidden = true;
+        if (!result.changed) {
+          document.getElementById('configStatus').textContent = i18n[state.lang].config_noop;
+          refreshConfig({ force: true, statusAfterLoad: 'config_noop' });
+          return;
+        }
+        document.getElementById('configStatus').textContent = i18n[state.lang].config_pending;
+        startConfigRecovery(result.settings, baselineUptime);
+      }).catch(err => {
+        if (err.status === 409) refreshConfig({ force: true, preserveDraft: true });
+        else if (err.status === 400) {
+          state.configPreview = null;
+          document.getElementById('configReview').hidden = true;
+          document.getElementById('configStatus').textContent = i18n[state.lang].config_preview_expired;
+        } else {
+          document.getElementById('configStatus').textContent = i18n[state.lang].config_unverified_pending;
+          startConfigRecovery({ ...state.configEditable.settings, ...changes }, baselineUptime, true);
+        }
+      }).finally(() => {
+        if (!state.configRecoveryExpected) {
+          state.configBusy = false;
+          setConfigInputsDisabled(false);
+        }
       });
     }
 

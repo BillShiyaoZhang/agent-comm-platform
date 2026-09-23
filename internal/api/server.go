@@ -29,6 +29,7 @@ type SecurityPolicies struct {
 	StoreUserData             atomic.Bool
 	ForwardToStoragePlatforms atomic.Bool
 	RegistryResetPending      atomic.Bool
+	ConfigRestartPending      atomic.Bool
 	restart                   func()
 }
 

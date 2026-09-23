@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -26,10 +27,16 @@ type Config struct {
 // adminPolicyOverrides contains only the settings the admin console may persist.
 // It lives in platform.data_dir so deployments can keep the main config read-only.
 type adminPolicyOverrides struct {
-	StoreUserData             *bool `yaml:"store_user_data"`
-	ForwardToStoragePlatforms *bool `yaml:"forward_to_storage_platforms,omitempty"`
-	HistoryRetentionDays      *int  `yaml:"history_retention_days"`
-	RegistryResetPending      bool  `yaml:"registry_reset_pending"`
+	StoreUserData             *bool   `yaml:"store_user_data"`
+	ForwardToStoragePlatforms *bool   `yaml:"forward_to_storage_platforms,omitempty"`
+	HistoryRetentionDays      *int    `yaml:"history_retention_days"`
+	RegistryResetPending      bool    `yaml:"registry_reset_pending"`
+	RegistryTTLHours          *int    `yaml:"registry_ttl_hours,omitempty"`
+	MQDefaultTTLDays          *int    `yaml:"mq_default_ttl_days,omitempty"`
+	MQMaxMsgsPerURN           *int    `yaml:"mq_max_msgs_per_urn,omitempty"`
+	RelayEnabled              *bool   `yaml:"relay_enabled,omitempty"`
+	RelayMaxReservations      *int    `yaml:"relay_max_reservations,omitempty"`
+	RelayMaxCircuitDuration   *string `yaml:"relay_max_circuit_duration,omitempty"`
 }
 
 const adminPoliciesFilename = "admin-policies.yaml"
@@ -143,18 +150,9 @@ func Load(path string) (*Config, error) {
 // A missing override file preserves the original configuration.
 func LoadAdminPolicies(cfg *Config) error {
 	path := filepath.Join(cfg.Platform.DataDir, adminPoliciesFilename)
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return nil
-	}
+	overrides, err := readAdminPolicyOverrides(path)
 	if err != nil {
-		return fmt.Errorf("read admin policies: %w", err)
-	}
-	var overrides adminPolicyOverrides
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&overrides); err != nil {
-		return fmt.Errorf("parse admin policies: %w", err)
+		return err
 	}
 	if overrides.HistoryRetentionDays != nil && *overrides.HistoryRetentionDays < 0 {
 		return fmt.Errorf("admin policies history_retention_days must be nonnegative")
@@ -168,25 +166,143 @@ func LoadAdminPolicies(cfg *Config) error {
 	if overrides.HistoryRetentionDays != nil {
 		cfg.Platform.HistoryRetentionDays = *overrides.HistoryRetentionDays
 	}
+	if overrides.RegistryTTLHours != nil {
+		cfg.Registry.TTLHours = *overrides.RegistryTTLHours
+	}
+	if overrides.MQDefaultTTLDays != nil {
+		cfg.MQ.DefaultTTLDays = *overrides.MQDefaultTTLDays
+	}
+	if overrides.MQMaxMsgsPerURN != nil {
+		cfg.MQ.MaxMsgsPerURN = *overrides.MQMaxMsgsPerURN
+	}
+	if overrides.RelayEnabled != nil {
+		cfg.Relay.Enabled = *overrides.RelayEnabled
+	}
+	if overrides.RelayMaxReservations != nil {
+		cfg.Relay.MaxReservations = *overrides.RelayMaxReservations
+	}
+	if overrides.RelayMaxCircuitDuration != nil {
+		cfg.Relay.MaxCircuitDuration = *overrides.RelayMaxCircuitDuration
+	}
+	for key, present := range map[string]bool{
+		"registry.ttl_hours":         overrides.RegistryTTLHours != nil,
+		"mq.default_ttl_days":        overrides.MQDefaultTTLDays != nil,
+		"mq.max_msgs_per_urn":        overrides.MQMaxMsgsPerURN != nil,
+		"relay.max_reservations":     overrides.RelayMaxReservations != nil,
+		"relay.max_circuit_duration": overrides.RelayMaxCircuitDuration != nil,
+	} {
+		if present {
+			if err := ValidateAdminEditableSetting(cfg, key); err != nil {
+				return fmt.Errorf("admin policies: %w", err)
+			}
+		}
+	}
 	cfg.AdminRegistryResetPending = overrides.RegistryResetPending
+	return nil
+}
+
+func readAdminPolicyOverrides(path string) (adminPolicyOverrides, error) {
+	var overrides adminPolicyOverrides
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return overrides, nil
+	}
+	if err != nil {
+		return overrides, fmt.Errorf("read admin policies: %w", err)
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&overrides); err != nil {
+		return overrides, fmt.Errorf("parse admin policies: %w", err)
+	}
+	return overrides, nil
+}
+
+// ValidateAdminEditableSetting checks a single console-managed value. Base
+// config.yaml remains compatible with older values (for example MQ max=0),
+// while every override written by the console is validated before restart.
+func ValidateAdminEditableSetting(cfg *Config, key string) error {
+	switch key {
+	case "registry.ttl_hours":
+		if cfg.Registry.TTLHours < 1 || cfg.Registry.TTLHours > 8760 {
+			return fmt.Errorf("registry.ttl_hours must be 1..8760")
+		}
+	case "mq.default_ttl_days":
+		if cfg.MQ.DefaultTTLDays < 1 || cfg.MQ.DefaultTTLDays > 3650 {
+			return fmt.Errorf("mq.default_ttl_days must be 1..3650")
+		}
+	case "mq.max_msgs_per_urn":
+		if cfg.MQ.MaxMsgsPerURN < 1 || cfg.MQ.MaxMsgsPerURN > 100000 {
+			return fmt.Errorf("mq.max_msgs_per_urn must be 1..100000")
+		}
+	case "relay.enabled":
+		return nil
+	case "relay.max_reservations":
+		if cfg.Relay.MaxReservations < 1 || cfg.Relay.MaxReservations > 100000 {
+			return fmt.Errorf("relay.max_reservations must be 1..100000")
+		}
+	case "relay.max_circuit_duration":
+		duration, err := time.ParseDuration(cfg.Relay.MaxCircuitDuration)
+		if err != nil || duration < 10*time.Second || duration > 24*time.Hour {
+			return fmt.Errorf("relay.max_circuit_duration must be a duration from 10s to 24h")
+		}
+	default:
+		return fmt.Errorf("%s is not a console-managed setting", key)
+	}
 	return nil
 }
 
 // SaveAdminPolicies atomically persists only console-managed settings. The main
 // config and environment-provided admin token are never rewritten by the console.
 func SaveAdminPolicies(cfg *Config) error {
+	overrides, err := readAdminPolicyOverrides(filepath.Join(cfg.Platform.DataDir, adminPoliciesFilename))
+	if err != nil {
+		return err
+	}
+	return saveAdminPolicies(cfg, overrides)
+}
+
+// SaveAdminEditableSettings persists only requested startup settings together
+// with the current live policies. Callers serialize this with other admin writes.
+func SaveAdminEditableSettings(cfg *Config, keys []string) error {
+	overrides, err := readAdminPolicyOverrides(filepath.Join(cfg.Platform.DataDir, adminPoliciesFilename))
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if err := ValidateAdminEditableSetting(cfg, key); err != nil {
+			return err
+		}
+		switch key {
+		case "registry.ttl_hours":
+			overrides.RegistryTTLHours = &cfg.Registry.TTLHours
+		case "mq.default_ttl_days":
+			overrides.MQDefaultTTLDays = &cfg.MQ.DefaultTTLDays
+		case "mq.max_msgs_per_urn":
+			overrides.MQMaxMsgsPerURN = &cfg.MQ.MaxMsgsPerURN
+		case "relay.enabled":
+			overrides.RelayEnabled = &cfg.Relay.Enabled
+		case "relay.max_reservations":
+			overrides.RelayMaxReservations = &cfg.Relay.MaxReservations
+		case "relay.max_circuit_duration":
+			overrides.RelayMaxCircuitDuration = &cfg.Relay.MaxCircuitDuration
+		}
+	}
+	return saveAdminPolicies(cfg, overrides)
+}
+
+func saveAdminPolicies(cfg *Config, overrides adminPolicyOverrides) error {
 	storeUserData := cfg.Platform.StoreUserData
 	forwardToStoragePlatforms := cfg.Platform.ForwardToStoragePlatforms
 	historyRetentionDays := cfg.Platform.HistoryRetentionDays
 	if historyRetentionDays < 0 {
 		return fmt.Errorf("history_retention_days must be nonnegative")
 	}
-	data, err := yaml.Marshal(adminPolicyOverrides{
-		StoreUserData:             &storeUserData,
-		ForwardToStoragePlatforms: &forwardToStoragePlatforms,
-		HistoryRetentionDays:      &historyRetentionDays,
-		RegistryResetPending:      cfg.AdminRegistryResetPending,
-	})
+	overrides.StoreUserData = &storeUserData
+	overrides.ForwardToStoragePlatforms = &forwardToStoragePlatforms
+	overrides.HistoryRetentionDays = &historyRetentionDays
+	overrides.RegistryResetPending = cfg.AdminRegistryResetPending
+	data, err := yaml.Marshal(overrides)
 	if err != nil {
 		return fmt.Errorf("marshal admin policies: %w", err)
 	}

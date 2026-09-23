@@ -197,6 +197,12 @@ func TestLoadRejectsInvalidAdminPolicyOverride(t *testing.T) {
 		"history_retention_days: -1\n",
 		"unknown_policy: true\n",
 		"history_retention_days: nope\n",
+		"registry_ttl_hours: 0\n",
+		"mq_default_ttl_days: 0\n",
+		"mq_max_msgs_per_urn: 100001\n",
+		"relay_max_reservations: 0\n",
+		"relay_max_circuit_duration: nonsense\n",
+		"relay_max_circuit_duration: 25h\n",
 	} {
 		dataDir := t.TempDir()
 		cfgPath := filepath.Join(dataDir, "config.yaml")
@@ -211,5 +217,74 @@ func TestLoadRejectsInvalidAdminPolicyOverride(t *testing.T) {
 		if _, err := Load(cfgPath); err == nil {
 			t.Fatalf("invalid admin policy override accepted: %q", override)
 		}
+	}
+}
+
+func TestEditableOverridesPreserveLegacyBaseAndOtherPolicies(t *testing.T) {
+	dataDir := t.TempDir()
+	base := DefaultConfig()
+	base.Platform.DataDir = dataDir
+	base.MQ.MaxMsgsPerURN = 0 // Legacy unlimited value remains valid in config.yaml.
+	cfgPath := filepath.Join(dataDir, "config.yaml")
+	if err := Save(cfgPath, base); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("legacy base config rejected: %v", err)
+	}
+	loaded.Registry.TTLHours = 48
+	loaded.Relay.Enabled = false
+	if err := SaveAdminEditableSettings(loaded, []string{"registry.ttl_hours", "relay.enabled"}); err != nil {
+		t.Fatal(err)
+	}
+	loaded.Platform.HistoryRetentionDays = 9
+	loaded.Platform.ForwardToStoragePlatforms = false
+	if err := SaveAdminPolicies(loaded); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Registry.TTLHours != 48 || reloaded.Relay.Enabled || reloaded.MQ.MaxMsgsPerURN != 0 || reloaded.Platform.HistoryRetentionDays != 9 || reloaded.Platform.ForwardToStoragePlatforms {
+		t.Fatalf("overrides lost or legacy base rewritten: %+v", reloaded)
+	}
+}
+
+func TestAllEditableOverridesSurviveLegacyPolicyWrite(t *testing.T) {
+	dataDir := t.TempDir()
+	base := DefaultConfig()
+	base.Platform.DataDir = dataDir
+	cfgPath := filepath.Join(dataDir, "config.yaml")
+	if err := Save(cfgPath, base); err != nil {
+		t.Fatal(err)
+	}
+	base.Registry.TTLHours = 48
+	base.MQ.DefaultTTLDays = 10
+	base.MQ.MaxMsgsPerURN = 250
+	base.Relay.Enabled = false
+	base.Relay.MaxReservations = 500
+	base.Relay.MaxCircuitDuration = "5m"
+	keys := []string{"registry.ttl_hours", "mq.default_ttl_days", "mq.max_msgs_per_urn", "relay.enabled", "relay.max_reservations", "relay.max_circuit_duration"}
+	if err := SaveAdminEditableSettings(base, keys); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy.Platform.StoreUserData = false
+	legacy.Platform.ForwardToStoragePlatforms = false
+	legacy.Platform.HistoryRetentionDays = 12
+	if err := SaveAdminPolicies(legacy); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Registry.TTLHours != 48 || got.MQ.DefaultTTLDays != 10 || got.MQ.MaxMsgsPerURN != 250 || got.Relay.Enabled || got.Relay.MaxReservations != 500 || got.Relay.MaxCircuitDuration != "5m" || got.Platform.StoreUserData || got.Platform.ForwardToStoragePlatforms || got.Platform.HistoryRetentionDays != 12 {
+		t.Fatalf("legacy policy write lost editable override: %+v", got)
 	}
 }

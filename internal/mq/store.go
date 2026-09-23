@@ -331,9 +331,12 @@ func (s *Store) ListQueueStats(ctx context.Context) ([]*QueueStat, error) {
 	for rows.Next() {
 		var qs QueueStat
 		if err := rows.Scan(&qs.Recipient, &qs.Count, &qs.TotalSize, &qs.OldestAt, &qs.NewestAt); err != nil {
-			continue
+			return nil, fmt.Errorf("scan MQ queue statistics: %w", err)
 		}
 		stats = append(stats, &qs)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate MQ queue statistics: %w", err)
 	}
 	if stats == nil {
 		stats = []*QueueStat{}

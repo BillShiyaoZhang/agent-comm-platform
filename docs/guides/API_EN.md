@@ -87,7 +87,7 @@ Every `/api/v1/admin/...` request requires `X-Admin-Token: <configured token>`. 
 
 | Method and path | Parameters | Result/effect |
 | --- | --- | --- |
-| `GET /api/v1/admin/overview` | None | Runtime, memory, connections, Registry/MQ and policies; `restart_pending` reports a storage-policy restart yet to complete, while `registry_ttl_hours` and `mq_max_msgs_per_urn` expose configured capacities |
+| `GET /api/v1/admin/overview` | None | Runtime, memory, connections, Registry/MQ and policies; `restart_pending` reports an admin-settings restart yet to complete, while `registry_ttl_hours` and `mq_max_msgs_per_urn` expose configured capacities |
 | `GET /api/v1/admin/registry` | None | `entries`, `count` |
 | `DELETE /api/v1/admin/registry` | Required `urn` query | Remove a registration; `{"ok":true}` |
 | `GET /api/v1/admin/mq` | None | Unread `queues`, `count` |
@@ -98,6 +98,9 @@ Every `/api/v1/admin/...` request requires `X-Admin-Token: <configured token>`. 
 | `DELETE /api/v1/admin/mq/messages` | Required `urn` and `id` | Remove only the matching message from that mailbox; `{ok:true,deleted:0 or 1}` is safe to repeat and actual deletion is audited |
 | `DELETE /api/v1/admin/mq/clear` | Required `urn` | Remove both pending and read-history messages for a recipient; `deleted` count |
 | `GET /api/v1/admin/config` | None | Config with admin token redacted as `******` |
+| `GET /api/v1/admin/config/editable` | None | Six effective editable resource settings, `revision`, `restart_pending`, and `fields` metadata (type, bounds, restart requirement, and impact descriptions) |
+| `POST /api/v1/admin/config/editable/preview` | JSON `{ "expected_revision": "...", "changes": {"mq.max_msgs_per_urn": 1000} }` | Read-only preview of current and target values, impact descriptions, current `affected` counts, `restart_required`, a `confirmation_token`, and its Unix-seconds `confirmation_expires_at`; restart is required only when values change |
+| `PUT /api/v1/admin/config/editable` | JSON `{ "expected_revision": "...", "changes": {...}, "confirmation_token": "..." }` | Apply changed previewed settings and restart; returns `ok`, `changed`, `restart_pending`, and `settings`; a no-op still requires preview and confirmation but does not restart |
 | `PUT /api/v1/admin/config/storage` | JSON `{ "store_user_data": true or false }` | Set an exact storage policy; unchanged value returns `changed:false`, a change clears Registry and restarts; response includes `restart_pending` |
 | `POST /api/v1/admin/config/toggle-storage` | None | Toggle storage, clear Registry and restart Platform |
 | `PUT /api/v1/admin/config/forwarding` | JSON `{ "forward_to_storage_platforms": true or false }` | Set an exact forwarding policy; response includes `changed`; changes take effect immediately and persist |
@@ -107,6 +110,19 @@ Every `/api/v1/admin/...` request requires `X-Admin-Token: <configured token>`. 
 | `GET /api/v1/admin/logs` | Optional `limit` (1–500, default 100), `offset` (non-negative, default 0), `level`, `source`, `search` | `entries`, `total`, `limit`, `offset`; search matches message text |
 
 Storage policy changes, message or queue deletion, and Registry eviction change live state; follow the [deployment and backup guide](DEPLOYMENT.md). The three managed policies `store_user_data`, `forward_to_storage_platforms`, and `history_retention_days` are atomically written to `platform.data_dir/admin-policies.yaml` and override those fields from the main config on restart; old override files without forwarding preserve the main config value. A failed write returns `500` and leaves the live policy unchanged. During a pending storage-policy restart, further storage policy or `set-retention` requests return `409` with `restart_pending:true`; forwarding may be updated independently without clearing the pending marker.
+
+The resource editor accepts only the six settings below. The ranges constrain **new admin-submitted values**; an older base config outside these ranges is not rewritten merely by upgrading. For example, an existing `mq.max_msgs_per_urn: 0` keeps its legacy behavior, but the editor cannot submit `0` as a new target. The six settings take effect after restart. Editing them does not delete existing messages, registrations, or platform identity. The restart briefly disconnects peers; disabling Relay also affects NAT connectivity and existing relayed sessions.
+
+| Setting key | Allowed value | Effect |
+| --- | --- | --- |
+| `registry.ttl_hours` | Integer 1–8760 | TTL for future registrations and renewals; existing expiry timestamps remain unchanged |
+| `mq.default_ttl_days` | Integer 1–3650 | Default and maximum TTL for future messages; existing expiry timestamps remain unchanged |
+| `mq.max_msgs_per_urn` | Integer 1–100000 | Unread mailbox limit checked on future writes; lowering it does not delete existing messages |
+| `relay.enabled` | Boolean | Start or stop Relay; disabling it can disrupt connections relayed through this platform |
+| `relay.max_reservations` | Integer 1–100000 | Relay reservation capacity |
+| `relay.max_circuit_duration` | Go duration string from 10 seconds to 24 hours, e.g. `"2m"` | Per-circuit Relay duration limit |
+
+The `revision` from `GET /config/editable` identifies the six settings loaded by the current process. Direct edits to the main config or override file are reflected only after restart. Read the revision, call `preview`, review its `changes` and `affected` snapshot (`registry_entries`, `mq_queues`, `mq_messages`, `connected_peers`, `mq_queues_at_or_above_target_limit`), then submit the same `changes` key set, target values, and `confirmation_token` before `confirmation_expires_at`. The server-issued token binds the current revision, target settings, requested key set, and expiry; it expires after five minutes, so preview again when it expires. Unchanged fields are not written as new overrides. Counts can change after the preview. A stale revision returns `409`; a missing, mismatched, or expired confirmation token returns `400`. Preview and apply return `409` with `restart_pending:true` while a restart is pending. The six settings and three managed policies share `admin-policies.yaml`, leaving the main config read-only. `platform.mode` is a display label; `libp2p.external_addrs`, `registry.http_enabled`, and `mq.http_enabled` currently have no runtime effect. Identity, data paths, listeners, TLS, the admin token, proxy trust, and HTTP rate limits remain server-managed.
 
 ## Common responses and troubleshooting
 

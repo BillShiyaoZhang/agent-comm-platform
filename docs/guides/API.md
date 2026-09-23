@@ -120,7 +120,7 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 
 | 方法与路径 | 查询参数 | 返回或作用 |
 | --- | --- | --- |
-| `GET /api/v1/admin/overview` | 无 | 运行时间、内存、连接、Registry、MQ、存储策略等概览；`restart_pending` 指示存储策略重启待完成，`registry_ttl_hours` 和 `mq_max_msgs_per_urn` 供管理台准确显示配置容量 |
+| `GET /api/v1/admin/overview` | 无 | 运行时间、内存、连接、Registry、MQ、存储策略等概览；`restart_pending` 指示管理设置重启待完成，`registry_ttl_hours` 和 `mq_max_msgs_per_urn` 供管理台准确显示配置容量 |
 | `GET /api/v1/admin/registry` | 无 | `entries`、`count` |
 | `DELETE /api/v1/admin/registry` | `urn` 必填 | 删除指定注册记录；`{"ok":true}` |
 | `GET /api/v1/admin/mq` | 无 | `queues`、`count`，只统计未读队列 |
@@ -131,6 +131,9 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 | `DELETE /api/v1/admin/mq/messages` | `urn`、`id` 必填 | 仅删除此收件箱中的指定消息；`{ok:true,deleted:0或1}`，重复删除安全且审计实际删除 |
 | `DELETE /api/v1/admin/mq/clear` | `urn` 必填 | 删除指定收件人的未读与已读历史消息，返回 `deleted` 数量 |
 | `GET /api/v1/admin/config` | 无 | 脱敏配置，管理令牌显示为 `******` |
+| `GET /api/v1/admin/config/editable` | 无 | 当前生效的六项可编辑资源设置、`revision`、`restart_pending` 及字段元数据 `fields`（类型、取值范围、重启要求和影响说明） |
+| `POST /api/v1/admin/config/editable/preview` | JSON `{ "expected_revision": "...", "changes": {"mq.max_msgs_per_urn": 1000} }` | 只读预览；返回变更前后值、影响说明、`affected` 当前计数、`restart_required`、`confirmation_token` 及其 Unix 秒到期时间 `confirmation_expires_at`；有实际变化时才需重启 |
+| `PUT /api/v1/admin/config/editable` | JSON `{ "expected_revision": "...", "changes": {...}, "confirmation_token": "..." }` | 经预览确认后写入有变化的设置并触发重启；返回 `ok`、`changed`、`restart_pending`、`settings`；无变化也须先预览确认，但不会重启 |
 | `PUT /api/v1/admin/config/storage` | JSON `{ "store_user_data": true或false }` | 将存储策略设置为明确目标；值未变时 `changed:false`，变更时清空 Registry 并重启；响应含 `restart_pending` |
 | `POST /api/v1/admin/config/toggle-storage` | 无 | 切换 `store_user_data`，清空 Registry 并触发 Platform 重启 |
 | `PUT /api/v1/admin/config/forwarding` | JSON `{ "forward_to_storage_platforms": true或false }` | 将转发策略设置为明确目标；响应含 `changed`，变更立即生效并持久化 |
@@ -140,6 +143,19 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 | `GET /api/v1/admin/logs` | 可选 `limit`（1–500，默认 100）、`offset`（非负，默认 0）、`level`、`source`、`search` | `entries`、`total`、`limit`、`offset`；`search` 匹配消息文本 |
 
 变更存储策略、删除消息或队列、驱逐 Registry 记录会影响线上状态，按[部署和备份指南](DEPLOYMENT.md)操作。三项管理策略 `store_user_data`、`forward_to_storage_platforms`、`history_retention_days` 原子写入 `platform.data_dir/admin-policies.yaml`，重启时覆盖主配置的对应字段；旧覆盖文件缺少转发策略时仍使用主配置。写入失败返回 `500`，运行策略保持原值。存储策略变更成功后，重启完成前再次调用存储策略接口或 `set-retention` 返回 `409` 与 `restart_pending:true`，不会覆盖待恢复的策略；转发策略可独立更新，并保留待重启标记。
+
+资源设置编辑只允许以下六项；表中的取值范围约束**新提交的管理值**。旧主配置中不在新管理范围内的值不会仅因升级而被改写，例如原有 `mq.max_msgs_per_urn: 0` 仍按旧行为运行，但管理台不能提交 `0` 为新目标。六项设置在重启后生效，配置本身不会删除现有消息、注册记录或平台身份。重启会短暂断开连接，关闭 Relay 还会影响依赖它的 NAT 连通性和现有中继会话。
+
+| 设置键 | 允许值 | 生效与影响 |
+| --- | --- | --- |
+| `registry.ttl_hours` | 整数 1–8760 | 以后注册或续期时使用新 TTL；已有记录的过期时间不追溯修改 |
+| `mq.default_ttl_days` | 整数 1–3650 | 以后入队消息的默认及最长 TTL；已有消息的到期时间不追溯修改 |
+| `mq.max_msgs_per_urn` | 整数 1–100000 | 以后写入时检查每个收件人未读队列上限；已有消息不因降低上限而删除 |
+| `relay.enabled` | 布尔值 | 启停 Relay 服务；关闭可能影响经此平台中继的连接 |
+| `relay.max_reservations` | 整数 1–100000 | 调整 Relay 预约容量 |
+| `relay.max_circuit_duration` | Go 时长字符串，10 秒至 24 小时，如 `"2m"` | 调整每条 Relay circuit 的时长上限 |
+
+`GET /config/editable` 的 `revision` 是当前进程已加载的六项设置的非语义标识；直接修改磁盘上的主配置或覆盖文件，须重启后才会进入该修订号。客户端应先读 `revision`，再调用 `preview`，核对返回的 `changes` 和 `affected`（`registry_entries`、`mq_queues`、`mq_messages`、`connected_peers`、`mq_queues_at_or_above_target_limit`），最后在 `confirmation_expires_at` 前原样提交相同的 `changes` 字段集合、目标值与 `confirmation_token`。确认令牌由服务器签发，绑定当前修订号、目标设置、请求字段集合和到期时间，五分钟后失效；过期时重新预览。同值字段不会被写成新的覆盖项。预览计数是当时快照，不保证提交时仍相同。旧修订号返回 `409`；缺少、不匹配或已过期的确认令牌返回 `400`。待重启期间预览和提交返回 `409` 与 `restart_pending:true`。六项设置和三项管理策略保存在同一 `admin-policies.yaml` 中；主配置继续保持只读。`platform.mode` 只是显示标签，`libp2p.external_addrs`、`registry.http_enabled`、`mq.http_enabled` 当前没有运行效果；身份、数据路径、监听、TLS、管理令牌、代理信任和 HTTP 限流仍由服务器配置管理。
 
 ## 通用响应与排错
 
