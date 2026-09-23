@@ -34,7 +34,7 @@ Authorization: Ed25519 <64 字节签名的 hex>:<32 字节公钥的 hex>
 
 服务端验的是请求体字节，而不是解析后重新序列化的 JSON。签名后更改空格、字段顺序或内容都会使验证失败。中间件允许的请求体上限是 20 MiB；MQ 信封另有更小的限制。签名公钥还须与具体操作的 URN 匹配：注册时等于 JSON 的 `ed25519_pubkey`；存储时属于信封 `sender_urn`；确认时属于 `recipient_urn`。
 
-`register` **另有一份在 JSON 中的 `signature`**：它是 URN 所有者对身份记录的签名，与 `Authorization` 中的 HTTP 请求体签名用途不同。构造方式见下一节。
+`register` **另有一份身份记录签名**，放在 JSON 的 `signature` 字段中。它是 URN 所有者对身份记录的签名，与 `Authorization` 中的 HTTP 请求体签名用途不同。构造方式见下一节。
 
 ### 读取与订阅：收件人签名头
 
