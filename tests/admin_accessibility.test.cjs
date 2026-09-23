@@ -28,7 +28,7 @@ function consoleUI() {
     const classes = new Set();
     const handlers = new Map();
     return {
-      id, inert: false, children: [], focusableChildren: [],
+      id, inert: false, children: [], focusableChildren: [], style: {},
       classList: {
         add(name) { classes.add(name); },
         remove(name) { classes.delete(name); },
@@ -130,7 +130,7 @@ test('successful storage confirmation moves focus into the reboot overlay', asyn
   const toggle = ui.document.getElementById('policyStoreToggle');
   toggle.checked = true;
   toggle.focus();
-  ui.run('apiCall = () => Promise.resolve({}); toggleStorePolicy()');
+  ui.run('apiCall = () => Promise.resolve({changed:true,store_user_data:true}); fetch = () => new Promise(() => {}); refreshOverview = () => {}; toggleStorePolicy()');
   assert.equal(ui.document.activeElement, ui.nodes.get('btnConfirmCancel'));
 
   ui.nodes.get('btnConfirmProceed').fire('click');

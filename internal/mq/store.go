@@ -343,67 +343,176 @@ func (s *Store) ListQueueStats(ctx context.Context) ([]*QueueStat, error) {
 
 // MessageDetail represents details about a stored envelope.
 type MessageDetail struct {
-	ID       string `json:"id"`
-	Sender   string `json:"sender"`
-	Size     int    `json:"size"`
-	StoredAt int64  `json:"stored_at"`
-	ReadAt   int64  `json:"read_at"`
-	Expiry   int64  `json:"expiry"`
-	Payload  string `json:"payload"` // hex encoded ciphertext
+	ID               string `json:"id"`
+	Sender           string `json:"sender"`
+	Size             int    `json:"size"`
+	StoredAt         int64  `json:"stored_at"`
+	ReadAt           int64  `json:"read_at"`
+	Expiry           int64  `json:"expiry"`
+	Payload          string `json:"payload,omitempty"` // hex encoded ciphertext, on explicit detail request
+	PayloadTruncated bool   `json:"payload_truncated,omitempty"`
 }
 
-// ListMessagesDetail returns messages for a recipient, filtered by status ('pending' or 'history').
+// ListMessagesDetail is the legacy detail view, bounded by both row count
+// and 2 MiB of stored envelope bytes included in its response.
 func (s *Store) ListMessagesDetail(ctx context.Context, recipientURN string, status string) ([]*MessageDetail, error) {
-	var query string
-	if status == "history" {
-		query = "SELECT id, payload, expiry, stored_at, read_at FROM messages WHERE recipient=? AND read_at > 0 ORDER BY read_at DESC"
-	} else {
-		query = "SELECT id, payload, expiry, stored_at, read_at FROM messages WHERE recipient=? AND read_at = 0 AND (expiry = 0 OR expiry > ?) ORDER BY stored_at ASC"
-	}
+	details, _, err := s.listMessagesPage(ctx, recipientURN, status, 100, 0, true)
+	return details, err
+}
 
-	var rows *sql.Rows
-	var err error
-	if status == "history" {
-		rows, err = s.db.QueryContext(ctx, query, recipientURN)
-	} else {
-		rows, err = s.db.QueryContext(ctx, query, recipientURN, time.Now().Unix())
+// ListMessagesPage returns a stable page and count from one SQLite snapshot.
+// It includes metadata only; fetch a single message for its ciphertext.
+func (s *Store) ListMessagesPage(ctx context.Context, recipientURN, status string, limit, offset int) ([]*MessageDetail, int, error) {
+	return s.listMessagesPage(ctx, recipientURN, status, limit, offset, false)
+}
+
+func (s *Store) listMessagesPage(ctx context.Context, recipientURN, status string, limit, offset int, includePayload bool) ([]*MessageDetail, int, error) {
+	if status != "pending" && status != "history" {
+		return nil, 0, fmt.Errorf("invalid message status")
 	}
+	if limit < 1 || limit > 200 || offset < 0 {
+		return nil, 0, fmt.Errorf("invalid message page")
+	}
+	now := time.Now().Unix()
+	where := "recipient=? AND read_at=0 AND (expiry=0 OR expiry>?)"
+	order := "stored_at ASC, id ASC"
+	args := []any{recipientURN, now}
+	if status == "history" {
+		where = "recipient=? AND read_at>0"
+		order = "read_at DESC, id DESC"
+		args = []any{recipientURN}
+	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	defer tx.Rollback()
+	var total int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM messages WHERE "+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	pageArgs := append(append([]any{}, args...), limit, offset)
+	rows, err := tx.QueryContext(ctx, "SELECT id, payload, expiry, stored_at, read_at FROM messages WHERE "+where+" ORDER BY "+order+" LIMIT ? OFFSET ?", pageArgs...)
+	if err != nil {
+		return nil, 0, err
 	}
 	defer rows.Close()
 
 	var details []*MessageDetail
+	const legacyPayloadBudget = 2 << 20
+	legacyBytes := 0
 	for rows.Next() {
 		var id string
 		var payload []byte
 		var expiry, storedAt, readAt int64
 		if err := rows.Scan(&id, &payload, &expiry, &storedAt, &readAt); err != nil {
-			continue
+			return nil, 0, err
 		}
 
-		var env proto.EncryptedEnvelope
-		var sender string
-		var payloadHex string
-		if err := goproto.Unmarshal(payload, &env); err == nil {
-			sender = env.GetSenderUrn()
-			payloadHex = hex.EncodeToString(env.GetCiphertext())
+		if includePayload && legacyBytes+len(payload) > legacyPayloadBudget && len(details) > 0 {
+			break
 		}
-
-		details = append(details, &MessageDetail{
-			ID:       id,
-			Sender:   sender,
-			Size:     len(payload),
-			StoredAt: storedAt,
-			ReadAt:   readAt,
-			Expiry:   expiry,
-			Payload:  payloadHex,
-		})
+		includeThisPayload := includePayload && legacyBytes+len(payload) <= legacyPayloadBudget
+		detail := messageDetailFromStored(id, payload, expiry, storedAt, readAt, includeThisPayload)
+		if includePayload && !includeThisPayload {
+			detail.PayloadTruncated = true
+		}
+		details = append(details, detail)
+		if includePayload {
+			legacyBytes += len(payload)
+		}
 	}
 	if details == nil {
 		details = []*MessageDetail{}
 	}
-	return details, nil
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, 0, err
+	}
+	return details, total, nil
+}
+
+func messageDetailFromStored(id string, payload []byte, expiry, storedAt, readAt int64, includePayload bool) *MessageDetail {
+	detail := &MessageDetail{ID: id, Size: len(payload), StoredAt: storedAt, ReadAt: readAt, Expiry: expiry}
+	var env proto.EncryptedEnvelope
+	if err := goproto.Unmarshal(payload, &env); err == nil {
+		detail.Sender = env.GetSenderUrn()
+		if includePayload {
+			detail.Payload = hex.EncodeToString(env.GetCiphertext())
+		}
+	}
+	return detail
+}
+
+// GetMessageDetail returns one message, scoped to its recipient mailbox.
+// The stored envelope size is capped by StoreEnvelope at 1 MiB; a corrupt
+// oversized row is refused rather than expanding an unbounded HTTP response.
+func (s *Store) GetMessageDetail(ctx context.Context, recipientURN, id string) (*MessageDetail, error) {
+	var payload []byte
+	var expiry, storedAt, readAt int64
+	err := s.db.QueryRowContext(ctx, "SELECT payload, expiry, stored_at, read_at FROM messages WHERE recipient=? AND id=?", recipientURN, id).Scan(&payload, &expiry, &storedAt, &readAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) > maxEnvelopeBytes {
+		return nil, fmt.Errorf("stored message exceeds envelope size limit")
+	}
+	return messageDetailFromStored(id, payload, expiry, storedAt, readAt, true), nil
+}
+
+// DeleteMessage removes exactly one message in the specified recipient mailbox.
+// Repeating the operation is safe and reports zero deleted rows.
+func (s *Store) DeleteMessage(ctx context.Context, recipientURN, id string) (int, error) {
+	res, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE recipient=? AND id=?", recipientURN, id)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
+type SummaryBucket struct {
+	Messages int   `json:"messages"`
+	Bytes    int64 `json:"bytes"`
+	Queues   int   `json:"queues"`
+}
+
+type QueueSummary struct {
+	Pending SummaryBucket `json:"pending"`
+	History SummaryBucket `json:"history"`
+	Expired SummaryBucket `json:"expired"`
+}
+
+// SummarizeMessages divides stored rows into three disjoint operational states.
+// Expired means unread and expired; read rows remain history until cleanup.
+func (s *Store) SummarizeMessages(ctx context.Context) (*QueueSummary, error) {
+	now := time.Now().Unix()
+	var summary QueueSummary
+	err := s.db.QueryRowContext(ctx, `
+		SELECT
+		COALESCE(SUM(CASE WHEN read_at=0 AND (expiry=0 OR expiry>?) THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN read_at=0 AND (expiry=0 OR expiry>?) THEN LENGTH(payload) ELSE 0 END),0),
+		COUNT(DISTINCT CASE WHEN read_at=0 AND (expiry=0 OR expiry>?) THEN recipient END),
+		COALESCE(SUM(CASE WHEN read_at>0 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN read_at>0 THEN LENGTH(payload) ELSE 0 END),0),
+		COUNT(DISTINCT CASE WHEN read_at>0 THEN recipient END),
+		COALESCE(SUM(CASE WHEN read_at=0 AND expiry>0 AND expiry<=? THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN read_at=0 AND expiry>0 AND expiry<=? THEN LENGTH(payload) ELSE 0 END),0),
+		COUNT(DISTINCT CASE WHEN read_at=0 AND expiry>0 AND expiry<=? THEN recipient END)
+		FROM messages`, now, now, now, now, now, now).Scan(
+		&summary.Pending.Messages, &summary.Pending.Bytes, &summary.Pending.Queues,
+		&summary.History.Messages, &summary.History.Bytes, &summary.History.Queues,
+		&summary.Expired.Messages, &summary.Expired.Bytes, &summary.Expired.Queues,
+	)
+	return &summary, err
 }
 
 // PurgeQueue deletes all messages for a recipient.

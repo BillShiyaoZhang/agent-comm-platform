@@ -203,7 +203,19 @@
       border: 1px solid transparent;
       position: relative;
       overflow: hidden;
+      width: 100%;
+      background: transparent;
+      font-family: inherit;
+      text-align: left;
     }
+
+    .sidebar-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .sidebar-close { display: none; }
 
     .menu-item svg {
       width: 20px;
@@ -1120,6 +1132,83 @@
       font-weight: 700;
     }
 
+    .admin-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .admin-summary-item {
+      padding: 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      background: var(--surface-glass);
+    }
+
+    .admin-summary-item strong {
+      display: block;
+      margin: 6px 0 2px;
+      color: var(--text-main);
+      font-size: 1.35rem;
+    }
+
+    .admin-summary-item span, .admin-summary-item small {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    .admin-inline-status {
+      min-height: 1.5em;
+      margin: 0 0 12px;
+      color: var(--text-muted);
+      font-size: 0.84rem;
+    }
+
+    .admin-inline-status.error { color: var(--accent-rose); }
+
+    .admin-mailbox-lookup {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .admin-mailbox-lookup input {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color-hover);
+      border-radius: 9px;
+      background: var(--surface-glass);
+      color: var(--text-main);
+    }
+
+    .admin-mailbox-lookup input:focus-visible { outline: 2px solid var(--primary); }
+
+    .admin-page-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 12px 0;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    .admin-page-controls button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .admin-page-controls span { min-width: 0; text-align: center; }
+
+    #drawerMQMessagesList .mq-message-field { min-width: 0; gap: 8px; }
+    #drawerMQMessagesList .mq-message-field > span { overflow-wrap: anywhere; }
+
+    @media (max-width: 700px) {
+      .admin-summary { grid-template-columns: 1fr; }
+      .admin-mailbox-lookup { flex-wrap: wrap; }
+      #tabDetailPending, #tabDetailHistory { min-width: 0; white-space: normal; }
+      #drawerMQMessagesList .mq-message-field { flex-direction: column; align-items: flex-start; gap: 4px; }
+    }
+
     /* Modal / Dialog Overlays */
     .modal-overlay {
       position: fixed;
@@ -1392,6 +1481,18 @@
 
     /* Responsive */
     @media (max-width: 900px) {
+      .sidebar-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: 1px solid var(--border-color-hover);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-main);
+        cursor: pointer;
+      }
       .sidebar {
         transform: translateX(-100%);
       }
@@ -1414,12 +1515,15 @@
         grid-column: span 12;
       }
       .drawer-container {
-        width: 100%;
-        right: -100%;
+        width: 100vw;
+        max-width: 100vw;
+        right: 0;
+        padding: 24px 16px;
+        transform: translateX(100%);
       }
       .drawer-overlay.active + .drawer-container,
       .drawer-container.active {
-        transform: translateX(-100%);
+        transform: translateX(0);
       }
     }
 
@@ -1796,6 +1900,7 @@
             </button>
           </div>
         </div>
+        <p class="admin-inline-status" id="registryStatus" role="status" aria-live="polite"></p>
 
         <div class="card-large col-12">
           <!-- Batch actions -->
@@ -1926,6 +2031,17 @@
             </button>
           </div>
         </div>
+
+        <div class="admin-summary" aria-label="信箱库存 / Mailbox inventory">
+          <div class="admin-summary-item"><span data-i18n="mq_pending_summary">待收未过期</span><strong id="mqSummaryPending">--</strong><small id="mqSummaryPendingBytes">--</small></div>
+          <div class="admin-summary-item"><span data-i18n="mq_history_summary">已读历史</span><strong id="mqSummaryHistory">--</strong><small id="mqSummaryHistoryBytes">--</small></div>
+          <div class="admin-summary-item"><span data-i18n="mq_expired_summary">待清理过期未读</span><strong id="mqSummaryExpired">--</strong><small id="mqSummaryExpiredBytes">--</small></div>
+        </div>
+        <p class="admin-inline-status" id="mqStatus" role="status" aria-live="polite"></p>
+        <form class="admin-mailbox-lookup" onsubmit="openMailboxLookup(event)">
+          <input id="mailboxLookupURN" type="text" autocomplete="off" aria-label="信箱接收方 URN / Mailbox recipient URN" data-i18n="mailbox_lookup_placeholder" placeholder="输入 URN 查看含历史记录的信箱">
+          <button class="btn btn-secondary btn-sm" type="submit" data-i18n="mailbox_lookup_open">查看信箱</button>
+        </form>
 
         <div class="card-large col-12">
           <!-- Batch actions -->
@@ -2106,8 +2222,12 @@
           </svg>
         </div>
         <h2 class="modal-title" id="rebootingOverlayTitle" data-i18n="rebooting_system" style="margin-bottom: 12px;">系统重启中</h2>
-        <p class="modal-subtitle" id="rebootingOverlayText" data-i18n="rebooting_desc" style="max-width: 380px; text-align: center; margin-bottom: 24px;">正在切换数据存储声明并重启服务，正在清空路由名册。请等待服务重新上线...</p>
-        <div style="font-family: var(--font-display); font-size: 3rem; font-weight: 800; color: var(--primary);" id="rebootCountdown">4</div>
+        <p class="modal-subtitle" id="rebootingOverlayText" data-i18n="rebooting_desc" style="max-width: 380px; text-align: center; margin-bottom: 24px;">正在等待平台完成重启并验证存储策略…</p>
+        <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 800; color: var(--primary);" id="rebootCountdown" role="status" aria-live="polite">0s</div>
+        <div class="modal-actions" style="margin-top: 18px;">
+          <button class="btn btn-secondary" type="button" id="btnRetryReboot" onclick="retryStorageRecovery()" style="display:none" data-i18n="retry_reboot">重试检查</button>
+          <button class="btn btn-secondary" type="button" id="btnCloseReboot" onclick="closeStorageRecovery()" style="display:none" data-i18n="return_console">返回控制台</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2151,6 +2271,19 @@
       logLimit: 100,
       logTotal: 0,
       retentionSubmitting: false,
+      storeSubmitting: false,
+      forwardSubmitting: false,
+      mqLoadSequence: 0,
+      registryLoadSequence: 0,
+      lastOverviewUptime: null,
+      storageRecoveryTarget: null,
+      storageRecoveryBaseline: null,
+      storageRecoveryStartedAt: 0,
+      storageRecoverySequence: 0,
+      mqMessageSequence: 0,
+      mqMessagePage: 0,
+      mqMessageLimit: 25,
+      mqMessageTotal: 0,
       activeView: 'dashboard',
       sortConfig: {
         registry: { key: 'URN', desc: false },
@@ -2229,6 +2362,10 @@
         expires_at: "过期时间 (TTL)",
         evict: "驱逐",
         no_reg: "暂无任何注册节点记录",
+        no_reg_match: "没有符合筛选条件的注册节点",
+        registry_loading: "正在读取注册名册…",
+        registry_loaded: "注册名册已更新",
+        registry_failed: "注册名册读取失败：",
         relay_title: "中继网络监控",
         relay_sub: "系统物理 P2P 连接细节、中继服务承载拓扑与协议树",
         peers_total: "已连节点总数",
@@ -2249,6 +2386,32 @@
         newest_time: "最晚更新时间",
         clear: "清空",
         no_mq: "目前没有积压的消息队列",
+        no_mq_match: "没有符合筛选条件的信箱",
+        mq_pending_summary: "待收未过期",
+        mq_history_summary: "已读历史",
+        mq_expired_summary: "待清理过期未读",
+        mailbox_lookup_placeholder: "输入 URN 查看含历史记录的信箱",
+        mailbox_lookup_open: "查看信箱",
+        mq_loading: "正在读取信箱库存与队列…",
+        mq_loaded: "信箱库存已更新",
+        mq_failed: "信箱数据读取失败：",
+        message_loading: "正在读取消息…",
+        message_empty: "此页没有消息",
+        message_page: "第 {page} 页，共 {total} 封",
+        message_delete: "删除此封",
+        message_delete_confirm: "确认永久删除此密文信封？此操作无法恢复。",
+        message_deleted: "密文信封已删除",
+        message_already_deleted: "该信封已不存在，列表已刷新",
+        message_failed: "消息读取失败：",
+        payload_show: "查看完整密文载荷",
+        payload_loading: "正在读取完整密文…",
+        payload_failed: "密文读取失败：",
+        payload_copy: "复制密文",
+        confirm_storage_target: "目标状态：{target}。切换会清空注册路由并重启平台；Agent 需重新注册。确认继续？",
+        storage_enabled: "允许存储离线信封",
+        storage_disabled: "禁止存储离线信封",
+        previous_page: "上一页",
+        next_page: "下一页",
         logs_title: "活动日志审计",
         logs_sub: "记录平台事件、中继拓扑跳变与管理员的操作追踪记录",
         search_log: "过滤关键字...",
@@ -2278,8 +2441,14 @@
         confirm_batch_evict: "您确认要批量驱逐选中的 {count} 个节点吗？",
         confirm_batch_clear: "确认清空选中的 {count} 个信箱？这些信箱的未读信封和已读历史都会删除，且无法恢复。",
         confirm_toggle_storage_warning: "警告：切换数据存储声明是高影响性操作。切换后平台将清除全局已注册的所有路由节点信息并自动重启，所有 Agent 需要重新对齐并重新注册。您确定要继续吗？",
+        confirm_forward_policy: "确认更改平台的存储节点转发策略？设置会持久保存并影响后续转发。",
         rebooting_system: "系统重启中",
-        rebooting_desc: "正在切换数据存储声明并重启服务，正在清空路由表。请等待服务重新上线...",
+        rebooting_desc: "正在等待平台完成重启并验证存储策略…",
+        reboot_checking: "正在等待服务恢复并验证新策略…",
+        reboot_timed_out: "尚未确认服务恢复。可重试检查，或返回控制台查看状态。",
+        reboot_verified: "平台已重启，存储策略已核实",
+        retry_reboot: "重试检查",
+        return_console: "返回控制台",
         policy_retention_title: "已确认信封保留天数",
         policy_retention_desc: "已确认信封的保留上限；0 表示下次清理时删除历史",
         days_label: "天",
@@ -2355,6 +2524,10 @@
         expires_at: "TTL Expiration",
         evict: "Evict",
         no_reg: "No registered agent records available",
+        no_reg_match: "No registry entries match this filter",
+        registry_loading: "Loading Registry…",
+        registry_loaded: "Registry updated",
+        registry_failed: "Registry load failed: ",
         relay_title: "Relay / Peer Topology",
         relay_sub: "Real-time P2P connections details, wire protocols, and relay paths",
         peers_total: "Peers Connected",
@@ -2375,6 +2548,32 @@
         newest_time: "Last Updated",
         clear: "Clear",
         no_mq: "No offline buffered message queues",
+        no_mq_match: "No mailboxes match this filter",
+        mq_pending_summary: "Pending and unexpired",
+        mq_history_summary: "Read history",
+        mq_expired_summary: "Expired and unread",
+        mailbox_lookup_placeholder: "Enter a recipient URN to inspect its mailbox, including history",
+        mailbox_lookup_open: "Open mailbox",
+        mq_loading: "Loading mailbox inventory and queues…",
+        mq_loaded: "Mailbox inventory updated",
+        mq_failed: "Mailbox load failed: ",
+        message_loading: "Loading messages…",
+        message_empty: "No messages on this page",
+        message_page: "Page {page}, {total} messages total",
+        message_delete: "Delete envelope",
+        message_delete_confirm: "Permanently delete this encrypted envelope? This cannot be undone.",
+        message_deleted: "Encrypted envelope deleted",
+        message_already_deleted: "Envelope no longer exists; list refreshed",
+        message_failed: "Message load failed: ",
+        payload_show: "View full encrypted payload",
+        payload_loading: "Loading full ciphertext…",
+        payload_failed: "Ciphertext load failed: ",
+        payload_copy: "Copy ciphertext",
+        confirm_storage_target: "Target state: {target}. Changing it clears Registry routes and restarts the platform; agents must re-register. Continue?",
+        storage_enabled: "Store offline envelopes",
+        storage_disabled: "Do not store offline envelopes",
+        previous_page: "Previous",
+        next_page: "Next",
         logs_title: "Activity Auditing Logs",
         logs_sub: "Platform system events logs, connection transitions, and admin audits",
         search_log: "Filter messages...",
@@ -2404,8 +2603,14 @@
         confirm_batch_evict: "Are you sure you want to evict {count} selected nodes from registry?",
         confirm_batch_clear: "Clear {count} selected mailboxes? Their pending envelopes and read history will be deleted permanently.",
         confirm_toggle_storage_warning: "WARNING: Toggling the data storage policy is a high-impact operation. The platform will purge all registered routing nodes and automatically reboot, requiring all agents to align policies and re-register. Do you want to proceed?",
+        confirm_forward_policy: "Change the platform's forwarding policy for storage nodes? The setting persists and affects future forwarding.",
         rebooting_system: "System Rebooting",
-        rebooting_desc: "Toggling storage policy and rebooting service, clearing registry. Please wait for the service to come back online...",
+        rebooting_desc: "Waiting for the platform to restart and verifying the storage policy…",
+        reboot_checking: "Waiting for service recovery and verifying the new policy…",
+        reboot_timed_out: "Service recovery is not yet verified. Retry the check or return to the console to inspect status.",
+        reboot_verified: "Platform restarted and storage policy verified",
+        retry_reboot: "Retry check",
+        return_console: "Return to console",
         policy_retention_title: "Acknowledged envelope retention",
         policy_retention_desc: "Maximum retention; 0 removes acknowledged history on the next cleanup",
         days_label: "days",
@@ -2673,6 +2878,9 @@
         logsTimer = null;
       }
       Object.values(state.sparkHistory).forEach(history => { history.length = 0; });
+      state.mqLoadSequence++;
+      state.registryLoadSequence++;
+      state.mqMessageSequence++;
       document.getElementById('healthDot').className = 'status-dot';
       document.getElementById('healthText').textContent = i18n[state.lang].disconnected;
     }
@@ -2710,7 +2918,7 @@
     }
 
     // API calls wrapper
-    function apiCall(endpoint, method = 'GET', queryParams = {}) {
+    function apiCall(endpoint, method = 'GET', queryParams = {}, body = null) {
       const token = sessionStorage.getItem('admin_token');
       let url = endpoint;
       const q = new URLSearchParams(queryParams).toString();
@@ -2722,7 +2930,8 @@
         headers: {
           'X-Admin-Token': token,
           'Content-Type': 'application/json'
-        }
+        },
+        ...(body === null ? {} : { body: JSON.stringify(body) })
       }).then(res => {
         if (res.status === 401 || res.status === 403) {
           clearToken(true, 'error', res.status === 401 ? i18n[state.lang].login_error : 'Forbidden access');
@@ -2988,6 +3197,7 @@
     }
 
     function renderOverview(data) {
+      state.lastOverviewUptime = Number(data.uptime_seconds);
       state.registryTTLHours = Number(data.registry_ttl_hours) > 0 ? Number(data.registry_ttl_hours) : null;
       state.maxMsgsPerURN = Number(data.mq_max_msgs_per_urn) > 0 ? Number(data.mq_max_msgs_per_urn) : null;
       countUp('statPeers', data.connected_peers);
@@ -3030,11 +3240,11 @@
 
       // Update policy switches
       const storeToggle = document.getElementById('policyStoreToggle');
-      if (storeToggle) {
+      if (storeToggle && !state.storeSubmitting) {
         storeToggle.checked = !!data.stores_user_data;
       }
       const forwardToggle = document.getElementById('policyForwardToggle');
-      if (forwardToggle) {
+      if (forwardToggle && !state.forwardSubmitting) {
         forwardToggle.checked = !!data.forward_to_storage_platforms;
       }
       const retentionInput = document.getElementById('policyRetentionInput');
@@ -3051,35 +3261,36 @@
 
     function toggleStorePolicy() {
       const storeToggle = document.getElementById('policyStoreToggle');
+      if (state.storeSubmitting) return;
       const nextCheckedState = storeToggle.checked;
       
       // Revert visual change temporarily until confirmed
       storeToggle.checked = !nextCheckedState;
       
-      const warnMsg = i18n[state.lang].confirm_toggle_storage_warning;
+      const warnMsg = i18n[state.lang].confirm_storage_target.replace(
+        '{target}', i18n[state.lang][nextCheckedState ? 'storage_enabled' : 'storage_disabled']);
       
       showConfirmModal(i18n[state.lang].confirm_title, warnMsg, () => {
-        // Confirmed! Set visual state to the intended check state
-        storeToggle.checked = nextCheckedState;
-        
-        apiCall('/api/v1/admin/config/toggle-storage', 'POST')
+        state.storeSubmitting = true;
+        storeToggle.disabled = true;
+        const baselineUptime = state.lastOverviewUptime;
+        apiCall('/api/v1/admin/config/storage', 'PUT', {}, { store_user_data: nextCheckedState })
         .then(res => {
-          showManagedModal('rebootingOverlay');
-          let count = 4;
-          document.getElementById('rebootCountdown').textContent = count;
-          const interval = setInterval(() => {
-            count--;
-            document.getElementById('rebootCountdown').textContent = count;
-            if (count <= 0) {
-              clearInterval(interval);
-              location.reload();
-            }
-          }, 1000);
+          storeToggle.checked = !!res.store_user_data;
+          if (!res.changed) {
+            showToast(state.lang === 'zh' ? '存储策略已是目标状态' : 'Storage policy is already at the selected state', 'success');
+            return;
+          }
+          startStorageRecovery(nextCheckedState, baselineUptime);
         })
         .catch(err => {
           showToast(err.message || 'Failed to toggle storage policy', 'error');
-          // Revert checkbox state on error
           storeToggle.checked = !nextCheckedState;
+        })
+        .finally(() => {
+          state.storeSubmitting = false;
+          storeToggle.disabled = false;
+          refreshOverview();
         });
       });
     }
@@ -3107,18 +3318,98 @@
     }
 
     function toggleForwardPolicy() {
-      apiCall('/api/v1/admin/config/toggle-forwarding', 'POST')
-      .then(res => {
-        const msg = state.lang === 'zh'
-          ? `外部转发隔离政策已${res.forward_to_storage_platforms ? '允许转发' : '禁止转发'}`
-          : `Forwarding to storage nodes is now ${res.forward_to_storage_platforms ? 'ALLOWED' : 'RESTRICTED'}`;
-        showToast(msg, 'success');
-        refreshOverview();
-      })
-      .catch(err => {
-        showToast(err.message || 'Failed to toggle forwarding policy', 'error');
-        refreshOverview();
+      const toggle = document.getElementById('policyForwardToggle');
+      if (state.forwardSubmitting) return;
+      const desired = toggle.checked;
+      toggle.checked = !desired;
+      showConfirmModal(i18n[state.lang].confirm_title, i18n[state.lang].confirm_forward_policy, () => {
+        state.forwardSubmitting = true;
+        toggle.disabled = true;
+        apiCall('/api/v1/admin/config/forwarding', 'PUT', {}, { forward_to_storage_platforms: desired })
+        .then(res => {
+          toggle.checked = !!res.forward_to_storage_platforms;
+          const msg = state.lang === 'zh'
+            ? `转发策略已${res.forward_to_storage_platforms ? '允许' : '限制'}并保存`
+            : `Forwarding ${res.forward_to_storage_platforms ? 'allowed' : 'restricted'} and saved`;
+          showToast(msg, 'success');
+        })
+        .catch(err => showToast(err.message, 'error'))
+        .finally(() => {
+          state.forwardSubmitting = false;
+          toggle.disabled = false;
+          if (!document.getElementById('rebootingOverlay').classList.contains('active')) refreshOverview();
+        });
       });
+    }
+
+    function startStorageRecovery(target, baselineUptime) {
+      state.storageRecoveryTarget = target;
+      state.storageRecoveryBaseline = baselineUptime;
+      state.storageRecoveryStartedAt = Date.now();
+      const sequence = ++state.storageRecoverySequence;
+      document.getElementById('rebootingOverlayText').textContent = i18n[state.lang].reboot_checking;
+      document.getElementById('rebootCountdown').textContent = '0s';
+      document.getElementById('btnRetryReboot').style.display = 'none';
+      document.getElementById('btnCloseReboot').style.display = 'none';
+      showManagedModal('rebootingOverlay');
+      pollStorageRecovery(sequence);
+    }
+
+    async function pollStorageRecovery(sequence) {
+      if (sequence !== state.storageRecoverySequence) return;
+      const elapsed = Math.floor((Date.now() - state.storageRecoveryStartedAt) / 1000);
+      document.getElementById('rebootCountdown').textContent = `${elapsed}s`;
+      if (elapsed >= 90) {
+        document.getElementById('rebootingOverlayText').textContent = i18n[state.lang].reboot_timed_out;
+        document.getElementById('btnRetryReboot').style.display = 'inline-flex';
+        document.getElementById('btnCloseReboot').style.display = 'inline-flex';
+        return;
+      }
+      try {
+        const response = await fetch('/api/v1/admin/overview', {
+          cache: 'no-store',
+          headers: { 'X-Admin-Token': sessionStorage.getItem('admin_token') }
+        });
+        if (response.status === 401 || response.status === 403) {
+          closeStorageRecovery();
+          clearToken(true, 'error', i18n[state.lang].login_error);
+          return;
+        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const baseline = state.storageRecoveryBaseline;
+        const uptimeReset = Number.isFinite(baseline)
+          && Number(data.uptime_seconds) + 1 < baseline + elapsed;
+        // A pending flag is authoritative when provided by the server. Older
+        // servers can still be recognized by a reset uptime after restart.
+        const restarted = typeof data.restart_pending === 'boolean'
+          ? !data.restart_pending : uptimeReset;
+        if (restarted && !!data.stores_user_data === state.storageRecoveryTarget) {
+          if (sequence !== state.storageRecoverySequence) return;
+          state.storageRecoverySequence++;
+          hideManagedModal('rebootingOverlay');
+          renderOverview(data);
+          refreshRegistry();
+          refreshMQ();
+          showToast(i18n[state.lang].reboot_verified, 'success');
+          return;
+        }
+      } catch (_) {
+        // A short outage is expected while the service restarts.
+      }
+      if (sequence === state.storageRecoverySequence) {
+        setTimeout(() => pollStorageRecovery(sequence), 2000);
+      }
+    }
+
+    function retryStorageRecovery() {
+      startStorageRecovery(state.storageRecoveryTarget, state.storageRecoveryBaseline);
+    }
+
+    function closeStorageRecovery() {
+      state.storageRecoverySequence++;
+      hideManagedModal('rebootingOverlay');
+      refreshOverview();
     }
 
     // Export raw platform JSON metrics report
@@ -3144,15 +3435,25 @@
     // ─────────────────────────────────────────────────────────────────────────
 
     function refreshRegistry() {
+      const sequence = ++state.registryLoadSequence;
+      const status = document.getElementById('registryStatus');
+      status.className = 'admin-inline-status';
+      status.textContent = i18n[state.lang].registry_loading;
       apiCall('/api/v1/admin/registry')
       .then(data => {
+        if (sequence !== state.registryLoadSequence) return;
         state.registryData = data.entries || [];
         state.selectedRegistryURNs.clear();
         document.getElementById('selectAllReg').checked = false;
         updateRegBatchBar();
         renderRegistryTable();
+        status.textContent = i18n[state.lang].registry_loaded + ' · ' + new Date().toLocaleTimeString(state.lang === 'zh' ? 'zh-CN' : 'en-US');
       })
-      .catch(err => showToast('Registry load error: ' + err.message, 'error'));
+      .catch(err => {
+        if (sequence !== state.registryLoadSequence) return;
+        status.classList.add('error');
+        status.textContent = i18n[state.lang].registry_failed + err.message;
+      });
     }
 
     const debouncedFilterRegistry = debounce(() => {
@@ -3191,7 +3492,7 @@
           <tr>
             <td colspan="6" class="table-empty">
               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              <div>${i18n[state.lang].no_reg}</div>
+              <div>${i18n[state.lang][q ? 'no_reg_match' : 'no_reg']}</div>
             </td>
           </tr>`;
         return;
@@ -3529,15 +3830,54 @@
     // ─────────────────────────────────────────────────────────────────────────
 
     function refreshMQ() {
-      apiCall('/api/v1/admin/mq')
-      .then(data => {
-        state.mqData = data.queues || [];
-        state.selectedMQURNs.clear();
-        document.getElementById('selectAllMQ').checked = false;
-        updateMQBatchBar();
-        renderMQTable();
-      })
-      .catch(err => showToast('MQ fetch failed: ' + err.message, 'error'));
+      const sequence = ++state.mqLoadSequence;
+      const status = document.getElementById('mqStatus');
+      status.className = 'admin-inline-status';
+      status.textContent = i18n[state.lang].mq_loading;
+      Promise.allSettled([
+        apiCall('/api/v1/admin/mq'),
+        apiCall('/api/v1/admin/mq/summary')
+      ]).then(([queuesResult, summaryResult]) => {
+        if (sequence !== state.mqLoadSequence) return;
+        const errors = [];
+        if (queuesResult.status === 'fulfilled') {
+          state.mqData = queuesResult.value.queues || [];
+          state.selectedMQURNs.clear();
+          document.getElementById('selectAllMQ').checked = false;
+          updateMQBatchBar();
+          renderMQTable();
+        } else {
+          errors.push(queuesResult.reason.message);
+        }
+        if (summaryResult.status === 'fulfilled') {
+          renderMQSummary(summaryResult.value);
+        } else {
+          errors.push(summaryResult.reason.message);
+        }
+        status.classList.toggle('error', errors.length > 0);
+        status.textContent = errors.length
+          ? i18n[state.lang].mq_failed + errors.join('; ')
+          : i18n[state.lang].mq_loaded + ' · ' + new Date().toLocaleTimeString(state.lang === 'zh' ? 'zh-CN' : 'en-US');
+      });
+    }
+
+    function renderMQSummary(summary) {
+      for (const [group, suffix] of [['pending', 'Pending'], ['history', 'History'], ['expired', 'Expired']]) {
+        const data = summary[group] || {};
+        document.getElementById('mqSummary' + suffix).textContent = Number(data.messages) || 0;
+        document.getElementById('mqSummary' + suffix + 'Bytes').textContent = formatBytes(Number(data.bytes) || 0);
+      }
+    }
+
+    function openMailboxLookup(event) {
+      event.preventDefault();
+      const input = document.getElementById('mailboxLookupURN');
+      const urn = input.value.trim();
+      if (!urn) {
+        input.focus();
+        return;
+      }
+      showMQDetails(urn);
     }
 
     const debouncedFilterMQ = debounce(() => {
@@ -3575,7 +3915,7 @@
           <tr>
             <td colspan="7" class="table-empty">
               <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-              <div>${i18n[state.lang].no_mq}</div>
+              <div>${i18n[state.lang][q ? 'no_mq_match' : 'no_mq']}</div>
             </td>
           </tr>`;
         return;
@@ -3689,6 +4029,8 @@
     function showMQDetails(urn) {
       currentDetailURN = urn;
       currentDetailTab = 'pending';
+      state.mqMessagePage = 0;
+      state.mqMessageTotal = 0;
       
       const title = state.lang === 'zh' ? '信箱详情' : 'Mailbox Details';
 
@@ -3699,13 +4041,18 @@
         </div>
 
         <!-- Tab controllers -->
-        <div style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
-          <button id="tabDetailPending" onclick="switchDetailTab('pending')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid var(--primary); color: var(--primary); font-weight: 600; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_pending">未读队列 (Pending)</button>
-          <button id="tabDetailHistory" onclick="switchDetailTab('history')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 500; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_history">已读历史 (History)</button>
+        <div role="tablist" aria-label="信箱消息类别 / Mailbox message category" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
+          <button id="tabDetailPending" type="button" role="tab" aria-selected="true" aria-controls="drawerMQMessagesList" onclick="switchDetailTab('pending')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid var(--primary); color: var(--primary); font-weight: 600; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_pending">未读队列 (Pending)</button>
+          <button id="tabDetailHistory" type="button" role="tab" aria-selected="false" aria-controls="drawerMQMessagesList" onclick="switchDetailTab('history')" style="flex: 1; padding: 10px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 500; cursor: pointer; font-family: var(--font-body);" data-i18n="tab_history">已读历史 (History)</button>
         </div>
 
-        <div id="drawerMQMessagesList" style="min-height: 150px; display: flex; flex-direction: column; gap: 12px;">
+        <div id="drawerMQMessagesList" role="tabpanel" aria-live="polite" style="min-height: 150px; display: flex; flex-direction: column; gap: 12px;">
           <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading...</div>
+        </div>
+        <div class="admin-page-controls">
+          <button id="mqPrevPage" type="button" class="btn btn-secondary btn-sm" onclick="changeMQMessagePage(-1)" disabled data-i18n="previous_page">上一页</button>
+          <span id="mqMessagePageStatus" role="status" aria-live="polite"></span>
+          <button id="mqNextPage" type="button" class="btn btn-secondary btn-sm" onclick="changeMQMessagePage(1)" disabled data-i18n="next_page">下一页</button>
         </div>
       `;
 
@@ -3716,8 +4063,11 @@
 
     function switchDetailTab(tab) {
       currentDetailTab = tab;
+      state.mqMessagePage = 0;
       const btnPending = document.getElementById('tabDetailPending');
       const btnHistory = document.getElementById('tabDetailHistory');
+      btnPending.setAttribute('aria-selected', String(tab === 'pending'));
+      btnHistory.setAttribute('aria-selected', String(tab === 'history'));
       
       if (tab === 'pending') {
         btnPending.style.borderBottomColor = 'var(--primary)';
@@ -3739,12 +4089,30 @@
 
     function loadDetailMessages() {
       const container = document.getElementById('drawerMQMessagesList');
-      container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading...</div>';
-      
-      apiCall('/api/v1/admin/mq/messages', 'GET', { urn: currentDetailURN, status: currentDetailTab })
-      .then(messages => {
-        if (!messages || messages.length === 0) {
-          const noMsgText = state.lang === 'zh' ? '暂无此类消息' : 'No messages of this category';
+      const sequence = ++state.mqMessageSequence;
+      const urn = currentDetailURN;
+      const tab = currentDetailTab;
+      const page = state.mqMessagePage;
+      container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">${i18n[state.lang].message_loading}</div>`;
+      document.getElementById('mqPrevPage').disabled = true;
+      document.getElementById('mqNextPage').disabled = true;
+
+      apiCall('/api/v1/admin/mq/messages/page', 'GET', {
+        urn, status: tab, limit: state.mqMessageLimit, offset: page * state.mqMessageLimit
+      })
+      .then(result => {
+        if (sequence !== state.mqMessageSequence) return;
+        if (!result || !Array.isArray(result.entries)) throw new Error('Invalid message page response');
+        const messages = result.entries;
+        state.mqMessageTotal = Number(result.total) || 0;
+        if (state.mqMessageTotal > 0 && page * state.mqMessageLimit >= state.mqMessageTotal) {
+          state.mqMessagePage = Math.floor((state.mqMessageTotal - 1) / state.mqMessageLimit);
+          loadDetailMessages();
+          return;
+        }
+        updateMQMessagePagination();
+        if (messages.length === 0) {
+          const noMsgText = i18n[state.lang].message_empty;
           container.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 40px;">${noMsgText}</div>`;
           return;
         }
@@ -3760,49 +4128,111 @@
           card.style.flexDirection = 'column';
           card.style.gap = '8px';
 
-          const readAtItem = currentDetailTab === 'history' ? `
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+          const readAtItem = tab === 'history' ? `
+            <div class="mq-message-field" style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="read_at">读取时间</span>
               <span style="color:var(--text-main); font-weight:500;">${formatTime(msg.read_at)}</span>
             </div>
           ` : '';
 
           card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+            <div class="mq-message-field" style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="msg_id">消息 ID</span>
               <span style="font-family:monospace; color:var(--text-main); word-break:break-all;">${escapeHTML(msg.id)}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+            <div class="mq-message-field" style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="sender">发送方</span>
               <span style="font-family:monospace; color:var(--text-main); word-break:break-all;">${escapeHTML(msg.sender || '--')}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+            <div class="mq-message-field" style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="size">大小</span>
               <span style="color:var(--text-main);">${formatBytes(msg.size)}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+            <div class="mq-message-field" style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="stored_at">存入时间</span>
               <span style="color:var(--text-main);">${formatTime(msg.stored_at)}</span>
             </div>
             ${readAtItem}
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+            <div class="mq-message-field" style="display:flex; justify-content:space-between; font-size:0.8rem;">
               <span style="color:var(--text-muted);" data-i18n="expiry">失效时间</span>
               <span style="color:var(--text-main);">${msg.expiry > 0 ? formatTime(msg.expiry) : 'Never'}</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:4px; font-size:0.8rem; margin-top:4px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="color:var(--text-muted);" data-i18n="payload">加密载荷 (Payload Hex)</span>
-                <button onclick="copyText(${jsArg(msg.payload)})" style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-size:0.75rem;">Copy</button>
-              </div>
-              <textarea readonly class="detail-payload">${escapeHTML(msg.payload)}</textarea>
-            </div>
+            <button type="button" class="btn btn-danger-outline btn-sm" aria-label="${escapeHTML(i18n[state.lang].message_delete + ' ' + msg.id)}" onclick="deleteMQMessage(${jsArg(msg.id)})">${i18n[state.lang].message_delete}</button>
           `;
+          const payloadButton = document.createElement('button');
+          payloadButton.type = 'button';
+          payloadButton.className = 'btn btn-secondary btn-sm';
+          payloadButton.textContent = i18n[state.lang].payload_show;
+          const payloadOutput = document.createElement('div');
+          payloadOutput.setAttribute('role', 'status');
+          payloadButton.addEventListener('click', () => revealMQPayload(urn, msg.id, payloadOutput, payloadButton));
+          card.appendChild(payloadButton);
+          card.appendChild(payloadOutput);
           container.appendChild(card);
         });
         updateUILanguage();
       })
       .catch(err => {
-        container.innerHTML = `<div style="text-align: center; color: var(--accent-rose); padding: 20px;">Error: ${escapeHTML(err.message)}</div>`;
+        if (sequence !== state.mqMessageSequence) return;
+        container.innerHTML = `<div role="alert" style="text-align: center; color: var(--accent-rose); padding: 20px;">${escapeHTML(i18n[state.lang].message_failed + err.message)}</div>`;
+        document.getElementById('mqMessagePageStatus').textContent = '';
+      });
+    }
+
+    function updateMQMessagePagination() {
+      const page = state.mqMessagePage;
+      const total = state.mqMessageTotal;
+      document.getElementById('mqPrevPage').disabled = page === 0;
+      document.getElementById('mqNextPage').disabled = (page + 1) * state.mqMessageLimit >= total;
+      document.getElementById('mqMessagePageStatus').textContent = i18n[state.lang].message_page
+        .replace('{page}', page + 1).replace('{total}', total);
+    }
+
+    function changeMQMessagePage(direction) {
+      const next = state.mqMessagePage + direction;
+      if (next < 0 || next * state.mqMessageLimit >= state.mqMessageTotal) return;
+      state.mqMessagePage = next;
+      loadDetailMessages();
+    }
+
+    function deleteMQMessage(id) {
+      const urn = currentDetailURN;
+      const prompt = `${i18n[state.lang].message_delete_confirm}\nURN: ${urn}\nID: ${id}`;
+      showConfirmModal(i18n[state.lang].confirm_title, prompt, () => {
+        apiCall('/api/v1/admin/mq/messages', 'DELETE', { urn, id })
+        .then(result => {
+          showToast(i18n[state.lang][result.deleted ? 'message_deleted' : 'message_already_deleted'], 'success');
+          if (currentDetailURN === urn) loadDetailMessages();
+          refreshMQ();
+        })
+        .catch(err => showToast(err.message, 'error'));
+      });
+    }
+
+    function revealMQPayload(urn, id, output, button) {
+      button.disabled = true;
+      output.textContent = i18n[state.lang].payload_loading;
+      apiCall('/api/v1/admin/mq/messages/detail', 'GET', { urn, id })
+      .then(detail => {
+        if (typeof detail.payload !== 'string') throw new Error('Missing encrypted payload');
+        output.textContent = '';
+        const textarea = document.createElement('textarea');
+        textarea.className = 'detail-payload';
+        textarea.readOnly = true;
+        textarea.setAttribute('aria-label', i18n[state.lang].payload);
+        textarea.value = detail.payload;
+        output.appendChild(textarea);
+        const copyButton = document.createElement('button');
+        copyButton.type = 'button';
+        copyButton.className = 'btn btn-secondary btn-sm';
+        copyButton.textContent = i18n[state.lang].payload_copy;
+        copyButton.addEventListener('click', () => copyText(detail.payload));
+        output.appendChild(copyButton);
+        button.style.display = 'none';
+      })
+      .catch(err => {
+        output.textContent = i18n[state.lang].payload_failed + err.message;
+        button.disabled = false;
       });
     }
 

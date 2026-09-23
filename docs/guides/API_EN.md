@@ -87,20 +87,26 @@ Every `/api/v1/admin/...` request requires `X-Admin-Token: <configured token>`. 
 
 | Method and path | Parameters | Result/effect |
 | --- | --- | --- |
-| `GET /api/v1/admin/overview` | None | Runtime, memory, connections, Registry/MQ and policies; `registry_ttl_hours` and `mq_max_msgs_per_urn` expose configured capacities for the console |
+| `GET /api/v1/admin/overview` | None | Runtime, memory, connections, Registry/MQ and policies; `restart_pending` reports a storage-policy restart yet to complete, while `registry_ttl_hours` and `mq_max_msgs_per_urn` expose configured capacities |
 | `GET /api/v1/admin/registry` | None | `entries`, `count` |
 | `DELETE /api/v1/admin/registry` | Required `urn` query | Remove a registration; `{"ok":true}` |
 | `GET /api/v1/admin/mq` | None | Unread `queues`, `count` |
-| `GET /api/v1/admin/mq/messages` | Required `urn`; `status` is `pending` or `history` | Message details array; other status values default to pending |
+| `GET /api/v1/admin/mq/summary` | None | `pending`, `history`, and `expired` with `messages`, `bytes`, and `queues`; disjoint groups, with `expired` meaning unread and expired |
+| `GET /api/v1/admin/mq/messages/page` | Required `urn`; `status` is `pending` (default) or `history`; `limit` 1–200 (default 25); `offset` 0–1000000 (default 0) | `{entries,total,limit,offset}`; metadata only, no ciphertext payload; invalid parameters return `400` |
+| `GET /api/v1/admin/mq/messages/detail` | Required `urn` and `id` | One mailbox-scoped message with metadata and hex-encoded ciphertext `payload`; missing from that mailbox returns `404` |
+| `GET /api/v1/admin/mq/messages` | Required `urn`; `status` is `pending` or `history` | Legacy details array capped at 100 rows and a 2 MiB stored-envelope payload budget; other status values default to pending; new clients should use the paged endpoint |
+| `DELETE /api/v1/admin/mq/messages` | Required `urn` and `id` | Remove only the matching message from that mailbox; `{ok:true,deleted:0 or 1}` is safe to repeat and actual deletion is audited |
 | `DELETE /api/v1/admin/mq/clear` | Required `urn` | Remove both pending and read-history messages for a recipient; `deleted` count |
 | `GET /api/v1/admin/config` | None | Config with admin token redacted as `******` |
+| `PUT /api/v1/admin/config/storage` | JSON `{ "store_user_data": true or false }` | Set an exact storage policy; unchanged value returns `changed:false`, a change clears Registry and restarts; response includes `restart_pending` |
 | `POST /api/v1/admin/config/toggle-storage` | None | Toggle storage, clear Registry and restart Platform |
-| `POST /api/v1/admin/config/toggle-forwarding` | None | Toggle forwarding policy in this process |
+| `PUT /api/v1/admin/config/forwarding` | JSON `{ "forward_to_storage_platforms": true or false }` | Set an exact forwarding policy; response includes `changed`; changes take effect immediately and persist |
+| `POST /api/v1/admin/config/toggle-forwarding` | None | Legacy toggle of forwarding policy; changes take effect immediately and persist |
 | `POST /api/v1/admin/config/set-retention` | Integer `days` from 0 to 36500 | Set read-history retention days; `0` removes history on the next cleanup |
 | `GET /api/v1/admin/peers` | None | Connected non-Registry peers; no remote storage-policy claim |
 | `GET /api/v1/admin/logs` | Optional `limit` (1–500, default 100), `offset` (non-negative, default 0), `level`, `source`, `search` | `entries`, `total`, `limit`, `offset`; search matches message text |
 
-Storage policy changes, queue deletion and Registry eviction change live state; follow the [deployment and backup guide](DEPLOYMENT.md). `toggle-storage` and `set-retention` atomically write the two managed settings to `platform.data_dir/admin-policies.yaml`; that file overrides those fields from the main config on restart. A failed write returns `500` without reporting success. Further `toggle-storage` or `set-retention` requests before the storage-policy restart completes return `409` with `restart_pending: true` and do not overwrite the pending change. `toggle-forwarding` currently changes only process memory; do not assume it persists to the config file.
+Storage policy changes, message or queue deletion, and Registry eviction change live state; follow the [deployment and backup guide](DEPLOYMENT.md). The three managed policies `store_user_data`, `forward_to_storage_platforms`, and `history_retention_days` are atomically written to `platform.data_dir/admin-policies.yaml` and override those fields from the main config on restart; old override files without forwarding preserve the main config value. A failed write returns `500` and leaves the live policy unchanged. During a pending storage-policy restart, further storage policy or `set-retention` requests return `409` with `restart_pending:true`; forwarding may be updated independently without clearing the pending marker.
 
 ## Common responses and troubleshooting
 

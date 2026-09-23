@@ -140,6 +140,7 @@ func TestAdminPolicyOverridesWithReadOnlyMainConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	loaded.Platform.StoreUserData = false
+	loaded.Platform.ForwardToStoragePlatforms = false
 	loaded.Platform.HistoryRetentionDays = 0
 	loaded.API.AdminToken = "environment-secret"
 	if err := SaveAdminPolicies(loaded); err != nil {
@@ -156,7 +157,7 @@ func TestAdminPolicyOverridesWithReadOnlyMainConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.Platform.StoreUserData || reloaded.Platform.HistoryRetentionDays != 0 {
+	if reloaded.Platform.StoreUserData || reloaded.Platform.ForwardToStoragePlatforms || reloaded.Platform.HistoryRetentionDays != 0 {
 		t.Fatalf("policy override not applied after restart: %+v", reloaded.Platform)
 	}
 	if runtime.GOOS != "windows" {
@@ -167,6 +168,27 @@ func TestAdminPolicyOverridesWithReadOnlyMainConfig(t *testing.T) {
 		if info.Mode().Perm() != 0600 {
 			t.Fatalf("policy override permissions: %o", info.Mode().Perm())
 		}
+	}
+}
+
+func TestAdminPolicyOverrideMigrationPreservesBaseForwarding(t *testing.T) {
+	dataDir := t.TempDir()
+	cfgPath := filepath.Join(dataDir, "config.yaml")
+	base := DefaultConfig()
+	base.Platform.DataDir = dataDir
+	base.Platform.ForwardToStoragePlatforms = false
+	if err := Save(cfgPath, base); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, adminPoliciesFilename), []byte("store_user_data: true\nhistory_retention_days: 30\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Platform.ForwardToStoragePlatforms {
+		t.Fatal("legacy override without forwarding must preserve base forwarding policy")
 	}
 }
 

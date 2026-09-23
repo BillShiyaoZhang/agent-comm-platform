@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -34,9 +35,15 @@ func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpk
 	mux.HandleFunc("GET /api/v1/admin/mq", handleAdminMQList(mqStore))
 	mux.HandleFunc("DELETE /api/v1/admin/mq/clear", handleAdminMQClear(mqStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/mq/messages", handleAdminMQMessages(mqStore))
+	mux.HandleFunc("GET /api/v1/admin/mq/messages/page", handleAdminMQMessagesPage(mqStore))
+	mux.HandleFunc("GET /api/v1/admin/mq/messages/detail", handleAdminMQMessageDetail(mqStore))
+	mux.HandleFunc("DELETE /api/v1/admin/mq/messages", handleAdminMQMessageDelete(mqStore, auditLog))
+	mux.HandleFunc("GET /api/v1/admin/mq/summary", handleAdminMQSummary(mqStore))
 	mux.HandleFunc("GET /api/v1/admin/config", handleAdminConfig(cfg, mqStore, policies))
 	mux.HandleFunc("POST /api/v1/admin/config/toggle-storage", handleToggleStorage(cfg, regStore, mqStore, policies, auditLog, policyMu))
-	mux.HandleFunc("POST /api/v1/admin/config/toggle-forwarding", handleToggleForwarding(policies, auditLog))
+	mux.HandleFunc("PUT /api/v1/admin/config/storage", handleSetStorage(cfg, regStore, mqStore, policies, auditLog, policyMu))
+	mux.HandleFunc("POST /api/v1/admin/config/toggle-forwarding", handleToggleForwarding(cfg, mqStore, policies, auditLog, policyMu))
+	mux.HandleFunc("PUT /api/v1/admin/config/forwarding", handleSetForwarding(cfg, mqStore, policies, auditLog, policyMu))
 	mux.HandleFunc("POST /api/v1/admin/config/set-retention", handleSetRetention(cfg, mqStore, policies, auditLog, policyMu))
 	mux.HandleFunc("GET /api/v1/admin/peers", handleAdminPeers(h, regStore))
 	mux.HandleFunc("GET /api/v1/admin/logs", handleAdminLogs(auditLog))
@@ -135,6 +142,7 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 			"stores_user_data":             policies.StoreUserData.Load(),
 			"forward_to_storage_platforms": policies.ForwardToStoragePlatforms.Load(),
 			"history_retention_days":       mqStore.GetHistoryRetentionDays(),
+			"restart_pending":              policies.RegistryResetPending.Load(),
 			"peer_id":                      h.ID().String(),
 			"listen_addrs":                 addrs,
 			"connected_peers":              platformPeersCount,
@@ -255,90 +263,164 @@ func handleAdminConfig(cfg *config.Config, mqStore *mqpkg.Store, policies *Secur
 
 func handleToggleStorage(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		policyMu.Lock()
-		defer policyMu.Unlock()
-		if policies.RegistryResetPending.Load() {
-			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":           "storage policy change is pending restart; wait for the platform to restart before retrying",
-				"restart_pending": true,
-			})
-			return
-		}
-		current := policies.StoreUserData.Load()
-		next := !current
-		updated := *cfg
-		updated.Platform.StoreUserData = next
-		updated.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
-		updated.AdminRegistryResetPending = true
-		if err := config.SaveAdminPolicies(&updated); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "could not persist storage policy: " + err.Error()})
-			return
-		}
-
-		// Clear all registry entries to force re-registration
-		if err := regStore.ClearAllEntries(); err != nil {
-			updated.Platform.StoreUserData = current
-			updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
-			if rollbackErr := config.SaveAdminPolicies(&updated); rollbackErr != nil {
-				log.Printf("[api] failed to roll back storage policy after registry error: %v", rollbackErr)
-				policies.RegistryResetPending.Store(true)
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]interface{}{
-					"error":            "registry reset failed and the new storage policy remains pending on disk; restart is required for recovery before retrying",
-					"recovery_pending": true,
-				})
-				return
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "could not clear registry for storage policy change: " + err.Error()})
-			return
-		}
-		policies.StoreUserData.Store(next)
-		policies.RegistryResetPending.Store(true)
-
-		msg := fmt.Sprintf("Changed platform store user data policy to: %t, triggering registry purge and reboot", next)
-		if auditLog != nil {
-			auditLog.Record("warn", "admin", msg, "")
-		}
-
-		// Gracefully restart the platform in 500ms (Docker compose unless-stopped will pull it back up)
-		restart := policies.restart
-		if restart == nil {
-			restart = func() { os.Exit(0) }
-		}
-		go func() {
-			time.Sleep(500 * time.Millisecond)
-			log.Printf("[api] rebooting platform for security policy change...")
-			restart()
-		}()
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"ok":              true,
-			"store_user_data": next,
-		})
+		updateStorage(w, cfg, regStore, mqStore, policies, auditLog, policyMu, nil)
 	}
 }
 
-func handleToggleForwarding(policies *SecurityPolicies, auditLog *AuditLog) http.HandlerFunc {
+func handleSetStorage(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		current := policies.ForwardToStoragePlatforms.Load()
-		next := !current
-		policies.ForwardToStoragePlatforms.Store(next)
-
-		msg := fmt.Sprintf("Changed platform forwarding to storage platforms policy to: %t", next)
-		if auditLog != nil {
-			auditLog.Record("warn", "admin", msg, "")
+		var input struct {
+			StoreUserData *bool `json:"store_user_data"`
 		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"ok":                           true,
-			"forward_to_storage_platforms": next,
-		})
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&input); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid storage policy JSON"})
+			return
+		}
+		if input.StoreUserData == nil || decoder.Decode(&struct{}{}) != io.EOF {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "exactly one store_user_data boolean is required"})
+			return
+		}
+		updateStorage(w, cfg, regStore, mqStore, policies, auditLog, policyMu, input.StoreUserData)
 	}
+}
+
+// updateStorage preserves the Registry reset transaction for both the exact
+// desired-state endpoint and the legacy toggle endpoint.
+func updateStorage(w http.ResponseWriter, cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex, desired *bool) {
+	policyMu.Lock()
+	defer policyMu.Unlock()
+	if policies.RegistryResetPending.Load() {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":           "storage policy change is pending restart; wait for the platform to restart before retrying",
+			"restart_pending": true,
+		})
+		return
+	}
+	current := policies.StoreUserData.Load()
+	next := !current
+	if desired != nil {
+		next = *desired
+	}
+	if next == current {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok": true, "store_user_data": current, "changed": false, "restart_pending": false,
+		})
+		return
+	}
+	updated := *cfg
+	updated.Platform.StoreUserData = next
+	updated.Platform.ForwardToStoragePlatforms = policies.ForwardToStoragePlatforms.Load()
+	updated.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
+	updated.AdminRegistryResetPending = true
+	if err := config.SaveAdminPolicies(&updated); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "could not persist storage policy: " + err.Error()})
+		return
+	}
+
+	// Clear all registry entries to force re-registration.
+	if err := regStore.ClearAllEntries(); err != nil {
+		updated.Platform.StoreUserData = current
+		updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
+		if rollbackErr := config.SaveAdminPolicies(&updated); rollbackErr != nil {
+			log.Printf("[api] failed to roll back storage policy after registry error: %v", rollbackErr)
+			policies.RegistryResetPending.Store(true)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":            "registry reset failed and the new storage policy remains pending on disk; restart is required for recovery before retrying",
+				"recovery_pending": true,
+			})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "could not clear registry for storage policy change: " + err.Error()})
+		return
+	}
+	policies.StoreUserData.Store(next)
+	policies.RegistryResetPending.Store(true)
+	if auditLog != nil {
+		auditLog.Record("warn", "admin", fmt.Sprintf("Changed platform store user data policy to: %t, triggering registry purge and reboot", next), "")
+	}
+
+	// Gracefully restart the platform in 500ms (Docker compose unless-stopped will pull it back up).
+	restart := policies.restart
+	if restart == nil {
+		restart = func() { os.Exit(0) }
+	}
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		log.Printf("[api] rebooting platform for security policy change...")
+		restart()
+	}()
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok": true, "store_user_data": next, "changed": true, "restart_pending": true,
+	})
+}
+
+func handleToggleForwarding(cfg *config.Config, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		updateForwarding(w, cfg, mqStore, policies, auditLog, policyMu, nil)
+	}
+}
+
+func handleSetForwarding(cfg *config.Config, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			ForwardToStoragePlatforms *bool `json:"forward_to_storage_platforms"`
+		}
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&input); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid forwarding policy JSON"})
+			return
+		}
+		if input.ForwardToStoragePlatforms == nil || decoder.Decode(&struct{}{}) != io.EOF {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "exactly one forward_to_storage_platforms boolean is required"})
+			return
+		}
+		updateForwarding(w, cfg, mqStore, policies, auditLog, policyMu, input.ForwardToStoragePlatforms)
+	}
+}
+
+// updateForwarding serializes policy writes with storage and retention updates.
+// A nil desired value preserves the legacy toggle behavior.
+func updateForwarding(w http.ResponseWriter, cfg *config.Config, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex, desired *bool) {
+	policyMu.Lock()
+	defer policyMu.Unlock()
+	current := policies.ForwardToStoragePlatforms.Load()
+	next := !current
+	if desired != nil {
+		next = *desired
+	}
+	changed := next != current
+	if changed {
+		updated := *cfg
+		updated.Platform.StoreUserData = policies.StoreUserData.Load()
+		updated.Platform.ForwardToStoragePlatforms = next
+		updated.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
+		updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
+		if err := config.SaveAdminPolicies(&updated); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "could not persist forwarding policy: " + err.Error()})
+			return
+		}
+		policies.ForwardToStoragePlatforms.Store(next)
+		if auditLog != nil {
+			auditLog.Record("warn", "admin", fmt.Sprintf("Changed platform forwarding to storage platforms policy to: %t", next), "")
+		}
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":                           true,
+		"forward_to_storage_platforms": next,
+		"changed":                      changed,
+	})
 }
 
 // PeerInfo represents information about a connected libp2p peer.
@@ -466,6 +548,7 @@ func handleSetRetention(cfg *config.Config, mqStore *mqpkg.Store, policies *Secu
 		}
 		updated := *cfg
 		updated.Platform.StoreUserData = policies.StoreUserData.Load()
+		updated.Platform.ForwardToStoragePlatforms = policies.ForwardToStoragePlatforms.Load()
 		updated.Platform.HistoryRetentionDays = days
 		updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
 		if err := config.SaveAdminPolicies(&updated); err != nil {

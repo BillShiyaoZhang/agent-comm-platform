@@ -104,7 +104,7 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 
 ACK 将消息标记为已确认，之后不再作为待收消息返回；并不保证立即物理删除。清理任务定期删除过期记录与超出历史保留期的记录。`history_retention_days: 0` 也在清理任务执行时移除历史。记录清理后不能依赖平台永久去重。
 
-管理台更改 `store_user_data` 或 `history_retention_days` 时，将覆盖值写入 `platform.data_dir/admin-policies.yaml`。启动时只覆盖主配置的这两个策略字段，原有安装没有此文件时仍使用 `config.yaml` 的值。存储策略切换还写入内部 `registry_reset_pending` 标记；重启时先完成 Registry 清理，再清除标记和对外提供服务，防止进程中断留下旧路由。数据目录须可写；初始持久化失败会返回错误，不会执行 Registry 清理或重启。更改主配置的这两个字段前，先检查是否有现存覆盖文件。
+管理台更改 `store_user_data`、`forward_to_storage_platforms` 或 `history_retention_days` 时，将覆盖值写入 `platform.data_dir/admin-policies.yaml`。启动时覆盖主配置中已在文件声明的策略字段；旧覆盖文件没有转发字段时仍使用 `config.yaml` 中的转发值。存储策略切换还写入内部 `registry_reset_pending` 标记；重启时先完成 Registry 清理，再清除标记和对外提供服务，防止进程中断留下旧路由。数据目录须可写；初始持久化失败会返回错误，不会执行 Registry 清理或重启。更改主配置的这些字段前，先检查是否有现存覆盖文件。
 
 未读队列满时拒绝新入队消息，HTTP 返回 429 和 `Retry-After: 5`，已入队消息保留。发送方应保留本地 outbox 并按策略重试；消息过期、容量限制或收件设备长期离线都可能影响最终送达。
 

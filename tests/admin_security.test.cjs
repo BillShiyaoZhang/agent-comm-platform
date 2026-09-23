@@ -8,7 +8,7 @@ function consoleUI() {
   const nodes = new Map();
   function element() {
     return { innerHTML: '', value: '', style: {}, children: [], classList: { add() {}, remove() {} },
-      appendChild(child) { this.children.push(child); }, addEventListener() {} };
+      appendChild(child) { this.children.push(child); }, addEventListener() {}, setAttribute() {} };
   }
   const context = vm.createContext({
     localStorage: { getItem() { return null; } },
@@ -53,7 +53,7 @@ test('message IDs, mailbox names and audit messages are displayed as text', asyn
   const ui = consoleUI(); ui.context.attack = attack;
   ui.run(`state.mqData = [{recipient:attack,count:1,total_size:1,oldest_at:1,newest_at:1}]; renderMQTable();
     state.logsData = [{timestamp:1,level:attack,source:attack,message:attack,details:attack}]; renderLogsStream();
-    apiCall = () => Promise.resolve([{id:attack,sender:attack,payload:attack,size:1,stored_at:1}]); loadDetailMessages();`);
+    apiCall = () => Promise.resolve({entries:[{id:attack,sender:attack,payload:attack,size:1,stored_at:1}],total:1}); loadDetailMessages();`);
   await new Promise(resolve => setImmediate(resolve));
   assertTextOnly(ui.nodes.get('mqTableBody').children[0].innerHTML);
   assertTextOnly(ui.nodes.get('logStreamContainer').children[0].innerHTML);

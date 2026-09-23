@@ -26,9 +26,10 @@ type Config struct {
 // adminPolicyOverrides contains only the settings the admin console may persist.
 // It lives in platform.data_dir so deployments can keep the main config read-only.
 type adminPolicyOverrides struct {
-	StoreUserData        *bool `yaml:"store_user_data"`
-	HistoryRetentionDays *int  `yaml:"history_retention_days"`
-	RegistryResetPending bool  `yaml:"registry_reset_pending"`
+	StoreUserData             *bool `yaml:"store_user_data"`
+	ForwardToStoragePlatforms *bool `yaml:"forward_to_storage_platforms,omitempty"`
+	HistoryRetentionDays      *int  `yaml:"history_retention_days"`
+	RegistryResetPending      bool  `yaml:"registry_reset_pending"`
 }
 
 const adminPoliciesFilename = "admin-policies.yaml"
@@ -161,6 +162,9 @@ func LoadAdminPolicies(cfg *Config) error {
 	if overrides.StoreUserData != nil {
 		cfg.Platform.StoreUserData = *overrides.StoreUserData
 	}
+	if overrides.ForwardToStoragePlatforms != nil {
+		cfg.Platform.ForwardToStoragePlatforms = *overrides.ForwardToStoragePlatforms
+	}
 	if overrides.HistoryRetentionDays != nil {
 		cfg.Platform.HistoryRetentionDays = *overrides.HistoryRetentionDays
 	}
@@ -172,14 +176,16 @@ func LoadAdminPolicies(cfg *Config) error {
 // config and environment-provided admin token are never rewritten by the console.
 func SaveAdminPolicies(cfg *Config) error {
 	storeUserData := cfg.Platform.StoreUserData
+	forwardToStoragePlatforms := cfg.Platform.ForwardToStoragePlatforms
 	historyRetentionDays := cfg.Platform.HistoryRetentionDays
 	if historyRetentionDays < 0 {
 		return fmt.Errorf("history_retention_days must be nonnegative")
 	}
 	data, err := yaml.Marshal(adminPolicyOverrides{
-		StoreUserData:        &storeUserData,
-		HistoryRetentionDays: &historyRetentionDays,
-		RegistryResetPending: cfg.AdminRegistryResetPending,
+		StoreUserData:             &storeUserData,
+		ForwardToStoragePlatforms: &forwardToStoragePlatforms,
+		HistoryRetentionDays:      &historyRetentionDays,
+		RegistryResetPending:      cfg.AdminRegistryResetPending,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal admin policies: %w", err)
