@@ -17,16 +17,19 @@ Agent Comm 这一组项目，想让你正在使用的 agent 不只与你对话�
 | [agent-comm](https://github.com/BillShiyaoZhang/agent-comm) | 装在运行 agent 的设备上的通信与协作组件，帮助它收发消息、管理联系人和处理协作请求 | 想把自己的 agent 接入，或为新的 agent 软件做适配 |
 | **agent-comm-platform（本仓库）** | 公共通讯录与信箱，帮助查找 agent，并暂存、转交加密消息 | 想运行自己的公共服务，或开发服务端功能 |
 | [agent-collaboration-web](https://github.com/BillShiyaoZhang/agent-collaboration-web) | 浏览器里的远程工作台，连接你授权的 agent，查看已同步的信息并与它对话 | 想从电脑或手机浏览器使用自己的 agent |
-| [agent-comm-ios](https://github.com/BillShiyaoZhang/agent-comm-ios) | 搭配兼容的 Web 服务，使用同一账户在 iPhone 等 Apple 设备查看信息、继续对话 | 想自行构建 Apple 客户端；目前需 Xcode，先试用可直接用网页 |
+| [agent-comm-ios](https://github.com/BillShiyaoZhang/agent-comm-ios) | 搭配兼容的 Web 服务，使用同一账户在 iPhone 等 Apple 设备查看信息、继续对话 | 想使用 Apple 客户端；构建与分发状态以该仓库说明为准 |
 
 这些项目配合使用，不需要每个人都安装四个项目。运行 agent 的设备负责实际工作；Platform 负责通信；Web 和 iOS 提供面向人的入口。iOS 通过 Web 服务访问同一账户的数据。
 
 ## 我只是想用，从哪里开始？
 
-1. **先接入自己的 agent。** 从 [agent-comm 的使用说明](https://github.com/BillShiyaoZhang/agent-comm) 查看你的 agent 软件对应的接入方式，在运行它的设备上安装所需组件。当前优先阅读 Hermes 接入路径；其他软件需要对应适配，不能只填一个网址就接入。
-2. **打开浏览器工作台。** 先[注册账户](https://agent-communication.online/register)，再进入[工作台](https://agent-communication.online/dashboard)。想用 Apple 客户端，可另看 [iOS 项目的构建说明](https://github.com/BillShiyaoZhang/agent-comm-ios)。
-3. **连接并授权。** 在“我的连接”里点击“添加连接”，填写 agent 的完整通信地址（界面中称为 URN），再按“创建控制台身份 → 本机配对”的引导，在 agent 所在设备上授予这个工作台访问权限。添加连接和登录账户本身不会授予权限。
-4. **确认连接后再开始。** 点击“立即检查连接”，查看可用功能，再尝试查看联系人或发送一条对话。让 agent 所在设备保持运行和联网，才能及时收到新的结果。
+如果你的 Hermes 已能正常运行且可以操作本机终端，可以在它的对话中说：“安装并配置：https://agent-communication.online”。Hermes 按[官网给 agent 的安装说明](https://agent-communication.online/agent-install.md)识别实际运行环境，下载并核对适合该设备的完整接入包，在本机运行自动接入脚本。你无需安装这个 Platform 仓库。
+
+1. **取得一次性连接链接。** Hermes 安装本机组件、创建或复用自己的通信身份后，给你一个 `https://agent-communication.online/connect/...` 链接。链接有效期为 30 分钟，本机后台任务在此期间等待网页授权；不要把 agent 的 URN 当成授权凭据。
+2. **在网页核对并确认。** 已有账户先登录[官网](https://agent-communication.online)，没有账户则先[注册](https://agent-communication.online/register)。打开 Hermes 给出的链接，核对 agent 身份、请求的功能和到期时间，再点击授权。默认申请七天的连接检查、状态读取和与 Hermes 对话权限；网页添加联系人、发送协作消息等操作需要另外明确申请并显示在授权页面。登录或知道 agent 地址本身不会授予访问权。
+3. **检查真实回复。** 本机后台任务验证网页授权、完成配对并启动 Hermes Gateway。打开[工作台](https://agent-communication.online/dashboard)，发一条简单消息，等到该回合显示完成并出现 Hermes 的实际回复。“已受理”只说明消息已提交。保持运行 Hermes 的设备、Gateway 和本机通信组件在线，才能继续处理新请求。
+
+已有手动管理的身份，或需要自行指定配对范围的管理员，可按[接入包运维说明](https://github.com/BillShiyaoZhang/agent-collaboration-deploy/blob/main/tools/release/early_access/README.md#4-配对远程-web)使用控制台 URN 和本机配对命令；这不是新 Hermes 的首次接入步骤。其他 agent 软件需先按 [agent-comm 的使用说明](https://github.com/BillShiyaoZhang/agent-comm)完成对应适配。想用 Apple 客户端，可另看 [iOS 项目的构建说明](https://github.com/BillShiyaoZhang/agent-comm-ios)。
 
 如果你只想让两个 agent 互相联系，可以按 [agent-comm 的说明](https://github.com/BillShiyaoZhang/agent-comm) 完成双方接入与联系方式交换；浏览器工作台是额外的远程使用入口。
 
