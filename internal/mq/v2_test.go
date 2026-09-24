@@ -7,6 +7,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -278,7 +280,7 @@ func TestV1UpgradeHintWithoutActiveSignedPolicy(t *testing.T) {
 }
 
 func TestV2ManagedEnrollmentDoesNotRetroactivelyAuthorizeV1(t *testing.T) {
-	s := securityStore(t, 10)
+	s := securityStore(t, 0)
 	console, b := securityKey(t), securityKey(t)
 	old := signTestEnvelope(t, console, b.URN(), &pb.EncryptedEnvelope{MessageId: "old-console-v1"})
 	if _, err := s.StoreEnvelope(securityCtx(console), b.URN(), old, 0); err != nil {
@@ -310,6 +312,31 @@ func TestV2ManagedEnrollmentDoesNotRetroactivelyAuthorizeV1(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].MessageId != "new-console-v1" {
 		t.Fatalf("historical v1 was retroactively admitted: %v %v", rows, err)
 	}
+	if n, err := s.Ack(securityCtx(b), b.URN(), []string{"old-console-v1"}); err != nil || n != 0 {
+		t.Fatalf("ACK consumed quarantined pre-enrollment v1: %d %v", n, err)
+	}
+	ackable := signTestEnvelope(t, console, b.URN(), &pb.EncryptedEnvelope{MessageId: "ackable-console-v1"})
+	if _, err := s.StoreEnvelope(securityCtx(console), b.URN(), ackable, 0); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.Ack(securityCtx(b), b.URN(), []string{"ackable-console-v1"}); err != nil || n != 1 {
+		t.Fatalf("ACK failed for deliverable managed v1: %d %v", n, err)
+	}
+	ackBatch := make([]string, maxAckIDs)
+	for i := 0; i < 17; i++ {
+		id := fmt.Sprintf("managed-batch-%02d", i)
+		env := signTestEnvelope(t, console, b.URN(), &pb.EncryptedEnvelope{MessageId: id})
+		if _, err := s.StoreEnvelope(securityCtx(console), b.URN(), env, 0); err != nil {
+			t.Fatal(err)
+		}
+		ackBatch[i] = id
+	}
+	for i := 17; i < len(ackBatch); i++ {
+		ackBatch[i] = fmt.Sprintf("missing-%03d", i)
+	}
+	if n, err := s.Ack(securityCtx(b), b.URN(), ackBatch); err != nil || n != 17 {
+		t.Fatalf("maximum-size ACK did not cross bounded batches: %d %v", n, err)
+	}
 	if err := s.RevokeManaged(context.Background(), cert.Serial); err != nil {
 		t.Fatal(err)
 	}
@@ -319,6 +346,140 @@ func TestV2ManagedEnrollmentDoesNotRetroactivelyAuthorizeV1(t *testing.T) {
 	rows, _, err = s.RetrieveEntry(securityCtx(b), b.URN())
 	if err != nil || len(rows) != 0 {
 		t.Fatal("revoked managed route remained readable")
+	}
+	if n, err := s.Ack(securityCtx(b), b.URN(), []string{"new-console-v1"}); err != nil || n != 0 {
+		t.Fatalf("ACK consumed v1 hidden after managed revocation: %d %v", n, err)
+	}
+	var unread int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE id=? AND read_at=0", "new-console-v1").Scan(&unread); err != nil || unread != 1 {
+		t.Fatalf("revoked v1 unread state changed: %d %v", unread, err)
+	}
+}
+
+func TestV2AckOnlyConsumesCurrentlyDeliverableRows(t *testing.T) {
+	s := securityStore(t, 10)
+	gateway, _ := v2Fixture(t, s, v2.ModeCompliance)
+	recipient := securityKey(t)
+	ctx := securityCtx(recipient)
+	insert := func(id string, expiry int64) {
+		t.Helper()
+		_, err := s.db.Exec(`INSERT INTO v2_messages(id,recipient,envelope,receipt,policy_hash,expiry,stored_at)
+			VALUES(?,?,?,?,?,?,?)`, id, recipient.URN(), []byte("envelope"), []byte("receipt"),
+			v2.PolicyHash(gateway.Policy), expiry, time.Now().Unix())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	insert("current-v2", time.Now().Add(time.Hour).Unix())
+	insert("expired-v2", time.Now().Add(-time.Minute).Unix())
+	if n, err := s.AckV2(ctx, recipient.URN(), []string{"current-v2", "expired-v2"}); err != nil || n != 1 {
+		t.Fatalf("current-policy ACK did not match retrievable rows: %d %v", n, err)
+	}
+	insert("old-epoch-v2", time.Now().Add(time.Hour).Unix())
+	if err := s.EnableV2Policy(context.Background(), gateway.Policy.Epoch+1,
+		v2.EnvelopeHash([]byte("next-policy")), time.Now().Add(time.Hour).Unix(), true,
+		gateway.Policy.ManagedIssuerPublicKey); err != nil {
+		t.Fatal(err)
+	}
+	if rows, err := s.RetrieveV2(ctx, recipient.URN()); err != nil || len(rows) != 0 {
+		t.Fatalf("old epoch was retrievable: %d %v", len(rows), err)
+	}
+	if n, err := s.AckV2(ctx, recipient.URN(), []string{"old-epoch-v2"}); err != nil || n != 0 {
+		t.Fatalf("old epoch was ACKed despite quarantine: %d %v", n, err)
+	}
+	var unread int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM v2_messages WHERE id IN (?,?) AND read_at=0",
+		"expired-v2", "old-epoch-v2").Scan(&unread); err != nil || unread != 2 {
+		t.Fatalf("quarantined v2 unread state changed: %d %v", unread, err)
+	}
+	s.mu.Lock()
+	s.v2PolicyExpiry = time.Now().Add(-time.Second).Unix()
+	s.mu.Unlock()
+	if _, err := s.RetrieveV2(ctx, recipient.URN()); !errors.Is(err, ErrV2Policy) {
+		t.Fatalf("expired policy still served v2 messages: %v", err)
+	}
+	if _, err := s.AckV2(ctx, recipient.URN(), []string{"old-epoch-v2"}); !errors.Is(err, ErrV2Policy) {
+		t.Fatalf("expired policy still accepted v2 ACK: %v", err)
+	}
+	h := V2HTTPHandler(s, gateway)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, signedRead(t, recipient, recipient.URN(), "/api/v2/mq/retrieve"))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expired policy retrieve HTTP = %d", w.Code)
+	}
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, signedPost(t, recipient, "/api/v2/mq/ack", ackReq{RecipientURN: recipient.URN(),
+		Timestamp: time.Now().Unix(), MessageIDs: []string{"old-epoch-v2"}}))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expired policy ACK HTTP = %d", w.Code)
+	}
+}
+
+func TestV2ManagedRetrieveScansPastQuarantinedRows(t *testing.T) {
+	s := securityStore(t, 0)
+	sender, console := securityKey(t), securityKey(t)
+	for i := 0; i < 1000; i++ {
+		id := fmt.Sprintf("hidden-%03d", i)
+		body := []byte("old")
+		if i < 5 {
+			body = bytes.Repeat([]byte("x"), 900<<10)
+		}
+		env := signTestEnvelope(t, sender, console.URN(), &pb.EncryptedEnvelope{MessageId: id, Ciphertext: body})
+		if _, err := s.StoreEnvelope(securityCtx(sender), console.URN(), env, 0); err != nil {
+			t.Fatalf("legacy message %d: %v", i, err)
+		}
+	}
+	if _, err := s.db.Exec("UPDATE messages SET stored_at=? WHERE recipient=?", time.Now().Unix()-60, console.URN()); err != nil {
+		t.Fatal(err)
+	}
+	gateway, issuerPrivate := v2Fixture(t, s, v2.ModeCompliance)
+	cert := &v2.ManagedIdentityCertificate{Version: v2.Version, Role: v2.ManagedConsoleRole,
+		PlatformID: gateway.Policy.PlatformID, URN: console.URN(), IdentityPublicKey: console.PublicKey,
+		NotBefore: time.Now().Add(-time.Minute).Unix(), ExpiresAt: time.Now().Add(time.Hour).Unix(), Serial: "scan-console-cert"}
+	if err := v2.SignManagedCertificate(cert, issuerPrivate); err != nil {
+		t.Fatal(err)
+	}
+	rawCert, err := v2.Canonical(cert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnrollManaged(securityCtx(console), gateway.Policy, rawCert); err != nil {
+		t.Fatal(err)
+	}
+	visible := signTestEnvelope(t, sender, console.URN(), &pb.EncryptedEnvelope{MessageId: "visible-after-hidden"})
+	if _, err := s.StoreEnvelope(securityCtx(sender), console.URN(), visible, 0); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	rows, ids, err := s.RetrieveEntry(securityCtx(console), console.URN())
+	t.Logf("scan 1000 quarantined rows before one managed response: %s", time.Since(started))
+	if err != nil || len(rows) != 1 || len(ids) != 1 || ids[0] != "visible-after-hidden" {
+		t.Fatalf("hidden old rows masked deliverable managed response: %v %v %v", ids, rows, err)
+	}
+	if n, err := s.Ack(securityCtx(console), console.URN(), []string{"hidden-000", ids[0]}); err != nil || n != 1 {
+		t.Fatalf("ACK did not isolate old row from visible response: %d %v", n, err)
+	}
+	var hidden int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE id LIKE 'hidden-%' AND read_at=0").Scan(&hidden); err != nil || hidden != 1000 {
+		t.Fatalf("quarantined prefix was consumed: %d %v", hidden, err)
+	}
+}
+
+func TestV2FrameAckOnlyConsumesUnexpiredRows(t *testing.T) {
+	s := securityStore(t, 10)
+	recipient := securityKey(t)
+	now := time.Now().Unix()
+	for _, row := range []struct {
+		id     string
+		expiry int64
+	}{{"live-frame", now + 3600}, {"expired-frame", now - 1}} {
+		if _, err := s.db.Exec(`INSERT INTO v2_handshake_frames(id,recipient,frame,expiry,stored_at)
+			VALUES(?,?,?,?,?)`, row.id, recipient.URN(), []byte("frame"), row.expiry, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, err := s.AckV2Frames(securityCtx(recipient), recipient.URN(), []string{"live-frame", "expired-frame"}); err != nil || n != 1 {
+		t.Fatalf("frame ACK did not match retrievable rows: %d %v", n, err)
 	}
 }
 

@@ -93,6 +93,10 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN read_at INTEGER NOT NULL DEFAULT 0")
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN stored_at_ns INTEGER NOT NULL DEFAULT 0")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_read_at ON messages(read_at)")
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_v1_retrieve_cursor ON messages(recipient,read_at,stored_at,id)"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create mq retrieval index: %w", err)
+	}
 	if _, err := db.Exec(v2Schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("create v2 mq schema: %w", err)
@@ -343,62 +347,101 @@ func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*prot
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	v2Required := s.v2Required
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, payload, stored_at_ns FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC LIMIT 500",
-		recipientURN, time.Now().Unix())
-	if err != nil {
-		return nil, nil, err
+	grantCache := make(map[string]managedGrant)
+	managedAt := func(urn string, pubkey []byte, storedAtNS int64) (bool, error) {
+		now := time.Now().Unix()
+		if len(s.v2ManagedIssuer) != 32 || now >= s.v2PolicyExpiry {
+			return false, nil
+		}
+		grant, ok := grantCache[urn]
+		if !ok {
+			var err error
+			grant, err = s.loadManagedGrant(ctx, s.v2ManagedIssuer, urn)
+			if err != nil {
+				return false, err
+			}
+			if len(grantCache) < 1024 {
+				grantCache[urn] = grant
+			}
+		}
+		return grant.permits(pubkey, storedAtNS, s.v2PolicyExpiry, now), nil
 	}
 	type pendingV1 struct {
 		id         string
 		data       []byte
+		storedAt   int64
 		storedAtNS int64
-	}
-	var pending []pendingV1
-	for rows.Next() {
-		var item pendingV1
-		if err := rows.Scan(&item.id, &item.data, &item.storedAtNS); err != nil {
-			rows.Close()
-			return nil, nil, err
-		}
-		pending = append(pending, item)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, nil, err
-	}
-	if err := rows.Close(); err != nil {
-		return nil, nil, err
 	}
 	var envs []*proto.EncryptedEnvelope
 	var ids []string
 	totalBytes := 0
-	for _, item := range pending {
-		if totalBytes+len(item.data) > maxRetrieveBytes && len(envs) > 0 {
+	// Filter each small SQL page before applying the 500-message/4 MiB
+	// delivery limits. Hidden old v1 rows must not mask later managed traffic.
+	scanPageSize := 16
+	if !v2Required {
+		scanPageSize = 500 // Preserve the legacy one-query retrieval path.
+	}
+	cursorTime, cursorID := int64(-1<<63), ""
+	for len(envs) < 500 {
+		rows, err := s.db.QueryContext(ctx,
+			"SELECT id,payload,stored_at,stored_at_ns FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) AND (stored_at>? OR (stored_at=? AND id>?)) ORDER BY stored_at,id LIMIT ?",
+			recipientURN, time.Now().Unix(), cursorTime, cursorTime, cursorID, scanPageSize)
+		if err != nil {
+			return nil, nil, err
+		}
+		var pending []pendingV1
+		for rows.Next() {
+			var item pendingV1
+			if err := rows.Scan(&item.id, &item.data, &item.storedAt, &item.storedAtNS); err != nil {
+				rows.Close()
+				return nil, nil, err
+			}
+			pending = append(pending, item)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		if err := rows.Close(); err != nil {
+			return nil, nil, err
+		}
+		if len(pending) == 0 {
 			break
 		}
-		totalBytes += len(item.data)
-		var env proto.EncryptedEnvelope
-		if err := goproto.Unmarshal(item.data, &env); err != nil {
-			continue
-		}
-		if v2Required {
-			managedRecipient, err := s.isManagedAtIssuer(ctx, s.v2ManagedIssuer, s.v2PolicyExpiry, recipientURN, nil, item.storedAtNS)
-			if err != nil {
-				return nil, nil, err
-			}
-			managedSender, err := s.isManagedAtIssuer(ctx, s.v2ManagedIssuer, s.v2PolicyExpiry, env.SenderUrn, env.SenderEd25519Pubkey, item.storedAtNS)
-			if err != nil {
-				return nil, nil, err
-			}
-			if !managedSender && !managedRecipient {
-				// Previously queued v1 Agent-to-Agent rows remain at rest until
-				// expiry but are not delivered under the compliance policy.
+		for _, item := range pending {
+			cursorTime, cursorID = item.storedAt, item.id
+			var env proto.EncryptedEnvelope
+			if err := goproto.Unmarshal(item.data, &env); err != nil {
 				continue
 			}
+			if v2Required {
+				managedRecipient, err := managedAt(recipientURN, nil, item.storedAtNS)
+				if err != nil {
+					return nil, nil, err
+				}
+				if !managedRecipient {
+					managedSender, err := managedAt(env.SenderUrn, env.SenderEd25519Pubkey, item.storedAtNS)
+					if err != nil {
+						return nil, nil, err
+					}
+					if !managedSender {
+						continue
+					}
+				}
+			}
+			if totalBytes+len(item.data) > maxRetrieveBytes && len(envs) > 0 {
+				return envs, ids, nil
+			}
+			totalBytes += len(item.data)
+			envs = append(envs, &env)
+			ids = append(ids, item.id)
+			if len(envs) == 500 {
+				return envs, ids, nil
+			}
 		}
-		envs = append(envs, &env)
-		ids = append(ids, item.id)
+		if len(pending) < scanPageSize {
+			break
+		}
 	}
 	return envs, ids, nil
 }
@@ -414,12 +457,99 @@ func (s *Store) Ack(ctx context.Context, recipientURN string, ids []string) (int
 	if len(ids) > maxAckIDs {
 		return 0, fmt.Errorf("%w: too many ACK IDs", ErrInvalidMessage)
 	}
-	args := make([]interface{}, len(ids)+2)
-	args[0], args[1] = time.Now().Unix(), recipientURN
-	for i, id := range ids {
-		args[i+2] = id
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.v2Required {
+		// A signed recipient may ACK only v1 rows that the current policy
+		// would deliver. Without this filter, an old Agent or a revoked Web
+		// console can silently consume messages hidden by the v2 boundary.
+		type pendingAck struct {
+			id         string
+			payload    []byte
+			storedAtNS int64
+		}
+		type ackIdentity struct {
+			id         string
+			storedAtNS int64
+		}
+		const ackBatchSize = 16 // Keep payload memory bounded even for 1,000 large IDs.
+		allowed := make([]ackIdentity, 0, len(ids))
+		for start := 0; start < len(ids); start += ackBatchSize {
+			end := start + ackBatchSize
+			if end > len(ids) {
+				end = len(ids)
+			}
+			batch := ids[start:end]
+			args := make([]interface{}, len(batch)+2)
+			args[0], args[1] = recipientURN, time.Now().Unix()
+			for i, id := range batch {
+				args[i+2] = id
+			}
+			rows, err := s.db.QueryContext(ctx, "SELECT id,payload,stored_at_ns FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) AND id IN (?"+strings.Repeat(",?", len(batch)-1)+")", args...)
+			if err != nil {
+				return 0, err
+			}
+			var pending []pendingAck
+			for rows.Next() {
+				var item pendingAck
+				if err := rows.Scan(&item.id, &item.payload, &item.storedAtNS); err != nil {
+					rows.Close()
+					return 0, err
+				}
+				pending = append(pending, item)
+			}
+			if err := rows.Err(); err != nil {
+				rows.Close()
+				return 0, err
+			}
+			if err := rows.Close(); err != nil {
+				return 0, err
+			}
+			for _, item := range pending {
+				var env proto.EncryptedEnvelope
+				if err := goproto.Unmarshal(item.payload, &env); err != nil {
+					continue
+				}
+				managedRecipient, err := s.isManagedAtIssuer(ctx, s.v2ManagedIssuer, s.v2PolicyExpiry, recipientURN, nil, item.storedAtNS)
+				if err != nil {
+					return 0, err
+				}
+				managedSender := false
+				if !managedRecipient {
+					managedSender, err = s.isManagedAtIssuer(ctx, s.v2ManagedIssuer, s.v2PolicyExpiry, env.SenderUrn, env.SenderEd25519Pubkey, item.storedAtNS)
+					if err != nil {
+						return 0, err
+					}
+				}
+				if managedRecipient || managedSender {
+					allowed = append(allowed, ackIdentity{item.id, item.storedAtNS})
+				}
+			}
+		}
+		if len(allowed) == 0 {
+			return 0, nil
+		}
+		// Match the exact rows inspected above. An admin may delete a row
+		// while ACK runs, and a new store may reuse its message ID.
+		updateArgs := make([]interface{}, 0, len(allowed)*2+3)
+		updateArgs = append(updateArgs, time.Now().Unix(), recipientURN, time.Now().Unix())
+		for _, item := range allowed {
+			updateArgs = append(updateArgs, item.id, item.storedAtNS)
+		}
+		pairs := strings.TrimSuffix(strings.Repeat("(?,?),", len(allowed)), ",")
+		res, err := s.db.ExecContext(ctx, "UPDATE messages SET read_at=? WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) AND (id,stored_at_ns) IN ("+pairs+")", updateArgs...)
+		if err != nil {
+			return 0, err
+		}
+		n, err := res.RowsAffected()
+		return int(n), err
 	}
-	res, err := s.db.ExecContext(ctx, "UPDATE messages SET read_at=? WHERE recipient=? AND read_at=0 AND id IN (?"+strings.Repeat(",?", len(ids)-1)+")", args...)
+	args := make([]interface{}, len(ids)+3)
+	args[0], args[1], args[2] = time.Now().Unix(), recipientURN, time.Now().Unix()
+	for i, id := range ids {
+		args[i+3] = id
+	}
+	res, err := s.db.ExecContext(ctx, "UPDATE messages SET read_at=? WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) AND id IN (?"+strings.Repeat(",?", len(ids)-1)+")", args...)
 	if err != nil {
 		return 0, err
 	}

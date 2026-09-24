@@ -63,6 +63,10 @@ func V2HTTPHandler(store *Store, gateway *V2Gateway) http.Handler {
 		defer cancel()
 		messages, err := store.RetrieveV2(ctx, urn)
 		if err != nil {
+			if errors.Is(err, ErrV2Policy) {
+				http.Error(w, "signed policy unavailable", http.StatusServiceUnavailable)
+				return
+			}
 			http.Error(w, "retrieve failed", http.StatusInternalServerError)
 			return
 		}
@@ -91,6 +95,10 @@ func V2HTTPHandler(store *Store, gateway *V2Gateway) http.Handler {
 		ctx := coremq.WithAuthenticatedPublicKey(r.Context(), pubkey)
 		n, err := store.AckV2(ctx, req.RecipientURN, req.MessageIDs)
 		if err != nil {
+			if errors.Is(err, ErrV2Policy) {
+				http.Error(w, "signed policy unavailable", http.StatusServiceUnavailable)
+				return
+			}
 			http.Error(w, "ACK failed", http.StatusBadRequest)
 			return
 		}

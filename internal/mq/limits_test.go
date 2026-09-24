@@ -32,6 +32,15 @@ func TestMailboxExpiryAndACKBounds(t *testing.T) {
 	if _, err := s.Ack(securityCtx(owner), owner.URN(), make([]string, maxAckIDs+1)); !errors.Is(err, ErrInvalidMessage) {
 		t.Fatalf("unbounded ACK accepted: %v", err)
 	}
+	if _, err := s.db.Exec("UPDATE messages SET expiry=? WHERE id='ttl'", time.Now().Unix()-1); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _, err := s.RetrieveEntry(securityCtx(owner), owner.URN()); err != nil || len(rows) != 0 {
+		t.Fatalf("expired v1 message was retrievable: %d %v", len(rows), err)
+	}
+	if n, err := s.Ack(securityCtx(owner), owner.URN(), []string{"ttl"}); err != nil || n != 0 {
+		t.Fatalf("expired v1 message was marked read: %d %v", n, err)
+	}
 }
 
 func TestRetrieveBatchesPreserveUnacknowledgedMessages(t *testing.T) {

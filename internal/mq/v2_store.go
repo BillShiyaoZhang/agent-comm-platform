@@ -220,9 +220,10 @@ func (s *Store) RetrieveV2(ctx context.Context, recipient string) ([]V2Message, 
 		return nil, err
 	}
 	s.mu.RLock()
+	defer s.mu.RUnlock()
 	policyHash := s.v2PolicyHash
-	s.mu.RUnlock()
-	if policyHash == "" {
+	policyExpiry := s.v2PolicyExpiry
+	if policyHash == "" || time.Now().Unix() >= policyExpiry {
 		return nil, ErrV2Policy
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT id,envelope,receipt FROM v2_messages
@@ -257,12 +258,17 @@ func (s *Store) AckV2(ctx context.Context, recipient string, ids []string) (int,
 	if len(ids) > maxAckIDs {
 		return 0, fmt.Errorf("%w: too many ACK IDs", ErrInvalidMessage)
 	}
-	args := make([]any, len(ids)+2)
-	args[0], args[1] = time.Now().Unix(), recipient
-	for i, id := range ids {
-		args[i+2] = id
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.v2PolicyHash == "" || time.Now().Unix() >= s.v2PolicyExpiry {
+		return 0, ErrV2Policy
 	}
-	res, err := s.db.ExecContext(ctx, "UPDATE v2_messages SET read_at=? WHERE recipient=? AND read_at=0 AND id IN (?"+strings.Repeat(",?", len(ids)-1)+")", args...)
+	args := make([]any, len(ids)+4)
+	args[0], args[1], args[2], args[3] = time.Now().Unix(), recipient, s.v2PolicyHash, time.Now().Unix()
+	for i, id := range ids {
+		args[i+4] = id
+	}
+	res, err := s.db.ExecContext(ctx, "UPDATE v2_messages SET read_at=? WHERE recipient=? AND policy_hash=? AND read_at=0 AND expiry>? AND id IN (?"+strings.Repeat(",?", len(ids)-1)+")", args...)
 	if err != nil {
 		return 0, err
 	}
@@ -396,12 +402,12 @@ func (s *Store) AckV2Frames(ctx context.Context, recipient string, ids []string)
 	if len(ids) > 100 {
 		return 0, ErrInvalidMessage
 	}
-	args := make([]any, len(ids)+2)
-	args[0], args[1] = time.Now().Unix(), recipient
+	args := make([]any, len(ids)+3)
+	args[0], args[1], args[2] = time.Now().Unix(), recipient, time.Now().Unix()
 	for i, id := range ids {
-		args[i+2] = id
+		args[i+3] = id
 	}
-	res, err := s.db.ExecContext(ctx, "UPDATE v2_handshake_frames SET read_at=? WHERE recipient=? AND read_at=0 AND id IN (?"+strings.Repeat(",?", len(ids)-1)+")", args...)
+	res, err := s.db.ExecContext(ctx, "UPDATE v2_handshake_frames SET read_at=? WHERE recipient=? AND read_at=0 AND expiry>? AND id IN (?"+strings.Repeat(",?", len(ids)-1)+")", args...)
 	if err != nil {
 		return 0, err
 	}
@@ -512,20 +518,43 @@ func (s *Store) isManagedAtIssuer(ctx context.Context, issuer []byte, policyExpi
 	if len(issuer) != 32 || time.Now().Unix() >= policyExpiry {
 		return false, nil
 	}
-	var identityPubkey []byte
-	var notBefore, expiresAt, enrolledAtNS int64
-	var revoked int
-	err := s.db.QueryRowContext(ctx, `SELECT identity_pubkey,not_before,expires_at,enrolled_at_ns,revoked FROM v2_managed_identities
-		WHERE urn=? AND issuer_pubkey=?`, urn, issuer).Scan(&identityPubkey, &notBefore, &expiresAt, &enrolledAtNS, &revoked)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
+	grant, err := s.loadManagedGrant(ctx, issuer, urn)
 	if err != nil {
 		return false, err
 	}
-	now := time.Now().Unix()
-	if revoked != 0 || storedAtNS == 0 || storedAtNS < notBefore*1e9 || storedAtNS < enrolledAtNS || storedAtNS >= expiresAt*1e9 || now >= expiresAt || pubkey != nil && !bytes.Equal(pubkey, identityPubkey) {
-		return false, nil
+	return grant.permits(pubkey, storedAtNS, policyExpiry, time.Now().Unix()), nil
+}
+
+type managedGrant struct {
+	identityPubkey []byte
+	notBefore      int64
+	expiresAt      int64
+	enrolledAtNS   int64
+	revoked        bool
+	found          bool
+}
+
+func (s *Store) loadManagedGrant(ctx context.Context, issuer []byte, urn string) (managedGrant, error) {
+	if len(issuer) != ed25519.PublicKeySize {
+		return managedGrant{}, nil
 	}
-	return true, nil
+	var grant managedGrant
+	var revoked int
+	err := s.db.QueryRowContext(ctx, `SELECT identity_pubkey,not_before,expires_at,enrolled_at_ns,revoked FROM v2_managed_identities
+		WHERE urn=? AND issuer_pubkey=?`, urn, issuer).Scan(&grant.identityPubkey, &grant.notBefore, &grant.expiresAt, &grant.enrolledAtNS, &revoked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return managedGrant{}, nil
+	}
+	if err != nil {
+		return managedGrant{}, err
+	}
+	grant.revoked, grant.found = revoked != 0, true
+	return grant, nil
+}
+
+func (grant managedGrant) permits(pubkey []byte, storedAtNS, policyExpiry, now int64) bool {
+	return grant.found && !grant.revoked && now < policyExpiry &&
+		storedAtNS != 0 && storedAtNS >= grant.notBefore*1e9 && storedAtNS >= grant.enrolledAtNS &&
+		storedAtNS < grant.expiresAt*1e9 && now < grant.expiresAt &&
+		(pubkey == nil || bytes.Equal(pubkey, grant.identityPubkey))
 }

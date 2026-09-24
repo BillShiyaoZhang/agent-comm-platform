@@ -79,7 +79,7 @@ Uses the same read signature headers. A successful response is `text/event-strea
 {"recipient_urn":"<recipient URN>","timestamp":1730000000,"message_ids":["<message ID>"]}
 ```
 
-Sign the exact JSON body as described above. Timestamp window: past 300 seconds through future 60 seconds. At most 1000 IDs per request. `200 {"ok":true,"deleted":N}` uses the historical field name `deleted`: **N is the number newly marked read**, not physically removed. The database sets `read_at` and later cleans up according to expiry/history retention (default 30 days). Repeated ACKs do not increment the count. Recipient/signing key mismatch: `401`; invalid ID list: `400`.
+Sign the exact JSON body as described above. Timestamp window: past 300 seconds through future 60 seconds. At most 1000 IDs per request. `200 {"ok":true,"deleted":N}` uses the historical field name `deleted`: **N is the number newly marked read**, not physically removed. The database sets `read_at` and later cleans up according to expiry/history retention (default 30 days). Only currently deliverable, unexpired rows count; a strict v2 policy leaves quarantined legacy v1 rows and rows hidden after managed-certificate revocation unread. Repeated ACKs do not increment the count. Recipient/signing key mismatch: `401`; invalid ID list: `400`.
 
 ## Admin API
 
@@ -148,7 +148,7 @@ The following routes exist only when an independently signed policy is configure
 | `POST /api/v2/managed/identity` | `{ "certificate": "<base64>" }` → `{ "ok": true, "urn": "...", "expires_at": 123 }`; issuer signature plus console identity HTTP signature | Managed Web console |
 | `POST /api/v2/managed/revoke` | Issuer-signed `{version,platform_id,serial,revoked_at,signature}` | Managed issuer |
 
-Compliance admission opens the gateway key slot and authenticates the **same body ciphertext** before storing the original envelope and signed receipt in one transaction. The receipt contains a CEK possession MAC. An identical retry returns the stored receipt; a conflicting ID returns `409`. When `allow_v1=false`, ordinary v1 Agent-to-Agent stores return `403` across HTTP and libp2p, and old v1 rows are quarantined. A managed Web identity needs a currently valid issuer certificate enrolled before the message was stored. Only rows for the current v2 policy hash are returned; old policy rows remain isolated. V2 SSE is not yet provided.
+Compliance admission opens the gateway key slot and authenticates the **same body ciphertext** before storing the original envelope and signed receipt in one transaction. The receipt contains a CEK possession MAC. An identical retry returns the stored receipt; a conflicting ID returns `409`. When `allow_v1=false`, ordinary v1 Agent-to-Agent stores return `403` across HTTP and libp2p, and old v1 rows are quarantined. A managed Web identity needs a currently valid issuer certificate enrolled before the message was stored. Only rows for the current v2 policy hash are returned; old policy rows remain isolated. V2 message ACK marks read only unexpired rows under the current valid policy hash; policy expiry makes message retrieve and ACK return `503`. Handshake-frame ACK only counts unexpired frames; this mailbox does not yet isolate frames by policy epoch. V2 SSE is not yet provided.
 
 When the current signed policy forbids an ordinary v1 HTTP store, the `403` body has a stable JSON shape:
 
