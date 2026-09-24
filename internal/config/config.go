@@ -19,6 +19,7 @@ type Config struct {
 	Registry RegistryConfig `yaml:"registry"`
 	Relay    RelayConfig    `yaml:"relay"`
 	MQ       MQConfig       `yaml:"mq"`
+	V2       V2Config       `yaml:"v2"`
 	API      APIConfig      `yaml:"api"`
 	// AdminRegistryResetPending is an internal recovery marker, never part of config.yaml.
 	AdminRegistryResetPending bool `yaml:"-" json:"-"`
@@ -75,6 +76,16 @@ type MQConfig struct {
 	DefaultTTLDays int    `yaml:"default_ttl_days"`
 	MaxMsgsPerURN  int    `yaml:"max_msgs_per_urn"`
 	HTTPEnabled    bool   `yaml:"http_enabled"`
+}
+
+// V2 is an explicitly provisioned signed policy. The legacy platform.mode
+// display field never enables gateway admission by itself.
+type V2Config struct {
+	Enabled                 bool   `yaml:"enabled"`
+	PolicyFile              string `yaml:"policy_file"`
+	PolicyRootPublicKeyFile string `yaml:"policy_root_public_key_file"`
+	GatewayPrivateKeyFile   string `yaml:"gateway_private_key_file"`
+	ReceiptPrivateKeyFile   string `yaml:"receipt_private_key_file"`
 }
 
 type APIConfig struct {
@@ -142,6 +153,11 @@ func Load(path string) (*Config, error) {
 	}
 	if err := LoadAdminPolicies(cfg); err != nil {
 		return nil, err
+	}
+	if cfg.V2.Enabled {
+		if cfg.V2.PolicyFile == "" || cfg.V2.PolicyRootPublicKeyFile == "" || cfg.V2.ReceiptPrivateKeyFile == "" {
+			return nil, fmt.Errorf("v2 requires policy_file, policy_root_public_key_file, and receipt_private_key_file")
+		}
 	}
 	return cfg, nil
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
@@ -44,7 +45,7 @@ type Server struct {
 }
 
 // New creates and configures the HTTP server with all API routes mounted.
-func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, hostID string, h host.Host, cfgPath string) *Server {
+func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, hostID string, h host.Host, cfgPath string, v2Gateway ...*mqpkg.V2Gateway) *Server {
 	mux := http.NewServeMux()
 
 	policies := &SecurityPolicies{}
@@ -83,7 +84,14 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 		return !entry.StoresUserData
 	}
 	mqStore.SetStoragePolicy(isStoreAllowedMQ, isForwardAllowedMQ)
-	mux.Handle("/api/v1/mq/", mqpkg.HTTPHandler(mqStore, isStoreAllowedMQ, isForwardAllowedMQ))
+	var gateway *mqpkg.V2Gateway
+	if len(v2Gateway) > 0 {
+		gateway = v2Gateway[0]
+	}
+	mux.Handle("/api/v1/mq/", mqpkg.HTTPHandler(mqStore, isStoreAllowedMQ, isForwardAllowedMQ, gateway))
+	if gateway != nil {
+		mux.Handle("/api/v2/", mqpkg.V2HTTPHandler(mqStore, gateway))
+	}
 
 	// Audit Log (persistent to SQLite)
 	var auditLog *AuditLog
@@ -100,11 +108,12 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 	// Bootstrap info API
 	mux.HandleFunc("/api/v1/bootstrap", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		storesUserDataVal := "false"
-		if policies.StoreUserData.Load() {
-			storesUserDataVal = "true"
-		}
-		w.Write([]byte(`{"peer_id":"` + hostID + `","stores_user_data":` + storesUserDataVal + `}`))
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(struct {
+			PeerID         string                 `json:"peer_id"`
+			StoresUserData bool                   `json:"stores_user_data"`
+			V2             *mqpkg.PolicyDiscovery `json:"v2,omitempty"`
+		}{hostID, policies.StoreUserData.Load(), mqpkg.DescribeV2Policy(r.Context(), mqStore, gateway)})
 	})
 
 	// Health check

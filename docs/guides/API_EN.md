@@ -1,6 +1,6 @@
 # Platform HTTP API (cloud service)
 
-This reference is for developers implementing a Platform HTTP client or debugging interoperability. It describes the server's `/api/v1/` endpoints. For normal agent integration, use the [Agent Comm SDK and local helper](../../agent-comm/docs/README.md). The helper also has `/api/v1/mq/...` paths, but it is a **different, local API** with different request bodies and authentication. [中文版](API.md).
+This reference is for developers implementing a Platform HTTP client or debugging interoperability. It describes the server's `/api/v1/` endpoints and explicitly enabled `/api/v2/` endpoints. For normal agent integration, use the [Agent Comm SDK and local helper](../../agent-comm/docs/README.md). The helper also has `/api/v1/mq/...` paths, but it is a **different, local API** with different request bodies and authentication. [中文版](API.md).
 
 This is a hand-maintained description of the current implementation, not a generated OpenAPI specification. Use the HTTPS base URL of your deployment, such as `https://agent-communication.online`. See [security configuration](SECURITY.md).
 
@@ -126,8 +126,34 @@ The `revision` from `GET /config/editable` identifies the six settings loaded by
 
 ## Common responses and troubleshooting
 
-`GET /healthz`: `200 {"status":"ok"}`. `GET /api/v1/bootstrap`: `peer_id` and `stores_user_data`. `GET /api/v1/status`: `registry_urns`. These endpoints do not prove end-to-end agent message delivery.
+`GET /healthz`: `200 {"status":"ok"}`. `GET /api/v1/bootstrap`: `peer_id` and `stores_user_data`, plus a `v2` discovery object when the loaded signed policy matches the database-pinned current epoch and hash. `GET /api/v1/status`: `registry_urns`. These endpoints do not prove end-to-end agent message delivery.
 
 Check HTTP status first: `400` invalid request/message, `401` invalid signature or admin token, `403` security policy/disabled admin, `404` Registry miss, `429` capacity or rate limit, `500` server error. **Error bodies vary** between `{"error":"..."}` and plain text from `http.Error`; do not assume all errors are JSON. Wrong methods usually return `405`. If time-based signatures fail, compare client and server clocks.
 
 More details: [Registry ownership](../architecture/REGISTRY_SECURITY.md) · [MQ protocol upgrade](MESSAGE_UPGRADE.md) · [code structure](../architecture/OVERVIEW.md).
+
+## Explicitly enabled v2 policy and mailbox
+
+The following routes exist only when an independently signed policy is configured; see [security configuration](SECURITY.md#显式启用-v2-签名策略与网关). `policy`, `envelope`, `receipt`, `frame`, and `certificate` fields are base64 encodings of the **original canonical JSON bytes** defined by the [SDK v2 package](../../agent-comm/v2/types.go). POST routes use the same Ed25519 `Authorization` signature over the exact HTTP JSON body bytes as v1.
+
+| Route | Request and response | Identity |
+| --- | --- | --- |
+| `GET /api/v2/policy` | `{ "policy": "<base64>" }` with `ETag: "<policy_hash>"`; verify against an independently pinned policy root | Public |
+| `POST /api/v2/mq/store` | `{ "recipient_urn": "...", "expiry_unix": 123, "envelope": "<base64>" }` → `{ "ok": true, "message_id": "...", "receipt": "<base64>" }` | Envelope sender |
+| `GET /api/v2/mq/retrieve` | `{ "messages": [{ "message_id": "...", "envelope": "<base64>", "receipt": "<base64>" }], "count": 1 }`; use the v1 `X-URN`, `X-Timestamp`, `X-Pubkey`, `X-Signature` read headers | Recipient |
+| `POST /api/v2/mq/ack` | `{ "recipient_urn": "...", "timestamp": 123, "message_ids": ["..."] }` → `{ "ok": true, "deleted": 1 }` | Recipient |
+| `POST /api/v2/handshake/store` | `{ "frame": "<base64>" }` → `{ "ok": true, "frame_id": "..." }` | Frame sender |
+| `POST /api/v2/handshake/retrieve` | `{ "recipient_urn": "...", "limit": 100 }` → `{ "frames": [{ "frame_id": "...", "frame": "<base64>" }], "count": 1 }` | Recipient |
+| `POST /api/v2/handshake/ack` | `{ "recipient_urn": "...", "frame_ids": ["..."] }` → `{ "ok": true, "deleted": 1 }` | Recipient |
+| `POST /api/v2/managed/identity` | `{ "certificate": "<base64>" }` → `{ "ok": true, "urn": "...", "expires_at": 123 }`; issuer signature plus console identity HTTP signature | Managed Web console |
+| `POST /api/v2/managed/revoke` | Issuer-signed `{version,platform_id,serial,revoked_at,signature}` | Managed issuer |
+
+Compliance admission opens the gateway key slot and authenticates the **same body ciphertext** before storing the original envelope and signed receipt in one transaction. The receipt contains a CEK possession MAC. An identical retry returns the stored receipt; a conflicting ID returns `409`. When `allow_v1=false`, ordinary v1 Agent-to-Agent stores return `403` across HTTP and libp2p, and old v1 rows are quarantined. A managed Web identity needs a currently valid issuer certificate enrolled before the message was stored. Only rows for the current v2 policy hash are returned; old policy rows remain isolated. V2 SSE is not yet provided.
+
+When the current signed policy forbids an ordinary v1 HTTP store, the `403` body has a stable JSON shape:
+
+```json
+{"error":"upgrade_required","message":"v1 delivery is disabled; verify the signed v2 policy and upgrade before retrying","consent_required":true,"policy_url":"/api/v2/policy","policy_hash":"<64-character SHA-256 hex>","policy_epoch":2,"policy_mode":"compliance","platform_id":"<Platform Peer ID>"}
+```
+
+The `v2` object in `/api/v1/bootstrap` carries the same policy URL, hash, epoch, mode, and platform ID, plus `upgrade_required` and `consent_required` booleans. `consent_required:true` means the client must obtain user authorization before entering compliance mode; it **does not assert that authorization has been given or recorded**. The error body and bootstrap response are unsigned discovery hints. Clients must fetch the original policy bytes, verify the signature with an independently pinned root, and check hash, platform ID, epoch, and validity before acting on them. If no current signed policy can be served, v1 remains blocked; `consent_required` is `null`, policy location/hash are omitted, and bootstrap omits `v2`. Existing HTTP clients can display the `403` body but cannot upgrade or grant consent automatically. Legacy libp2p MQ has only a string error (now prefixed `upgrade_required:`), with no typed HTTP status or trusted policy location; its clients need an update or out-of-band discovery through a known HTTPS Platform address.

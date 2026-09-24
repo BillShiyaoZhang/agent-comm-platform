@@ -19,9 +19,13 @@ import (
 )
 
 // HTTPHandler returns an http.Handler for the MQ REST API.
-func HTTPHandler(store *Store, isStoreAllowed func() bool, isForwardAllowed func(recipientURN string) bool) http.Handler {
+func HTTPHandler(store *Store, isStoreAllowed func() bool, isForwardAllowed func(recipientURN string) bool, gateway ...*V2Gateway) http.Handler {
+	var v2Gateway *V2Gateway
+	if len(gateway) != 0 {
+		v2Gateway = gateway[0]
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/mq/store", auth.VerifySignatureMiddleware(handleStore(store, isStoreAllowed, isForwardAllowed)))
+	mux.HandleFunc("POST /api/v1/mq/store", auth.VerifySignatureMiddleware(handleStore(store, isStoreAllowed, isForwardAllowed, v2Gateway)))
 	mux.HandleFunc("GET /api/v1/mq/retrieve", handleRetrieve(store))
 	mux.HandleFunc("GET /api/v1/mq/subscribe", handleSubscribe(store))
 	mux.HandleFunc("POST /api/v1/mq/ack", auth.VerifySignatureMiddleware(handleAck(store)))
@@ -35,7 +39,7 @@ type storeReq struct {
 	PayloadProto []byte `json:"payload_proto"`
 }
 
-func handleStore(store *Store, isStoreAllowed func() bool, isForwardAllowed func(recipientURN string) bool) http.HandlerFunc {
+func handleStore(store *Store, isStoreAllowed func() bool, isForwardAllowed func(recipientURN string) bool, gateway *V2Gateway) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isStoreAllowed != nil && !isStoreAllowed() {
 			w.Header().Set("Content-Type", "application/json")
@@ -86,6 +90,21 @@ func handleStore(store *Store, isStoreAllowed func() bool, isForwardAllowed func
 		}
 		id, err := store.StoreEnvelope(coremq.WithAuthenticatedPublicKey(r.Context(), authPubkey), req.RecipientURN, &env, req.ExpiryUnix)
 		if err != nil {
+			if errors.Is(err, ErrV1Policy) {
+				// Keep 403: deployed v1 HTTP clients already surface its response
+				// body and Web's managed enrollment recovery recognizes this status.
+				// The hint itself is untrusted until the client verifies the
+				// signed policy against its separately pinned policy root.
+				policy := DescribeV2Policy(r.Context(), store, gateway)
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Cache-Control", "no-store")
+				if policy != nil && policy.UpgradeRequired {
+					w.Header().Set("Link", "</api/v2/policy>; rel=\"describedby\"; type=\"application/json\"")
+				}
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(NewV1UpgradeNotice(policy))
+				return
+			}
 			if errors.Is(err, ErrInvalidMessage) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return

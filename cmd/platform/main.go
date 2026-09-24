@@ -24,6 +24,7 @@ import (
 	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	"github.com/BillShiyaoZhang/agent-comm/mq"
 	"github.com/BillShiyaoZhang/agent-comm/registry"
+	"github.com/BillShiyaoZhang/agent-comm/v2"
 )
 
 func main() {
@@ -77,6 +78,17 @@ func main() {
 	for _, addr := range h.Addrs() {
 		log.Printf("  %s/p2p/%s", addr, h.ID())
 	}
+	var v2Gateway *mqpkg.V2Gateway
+	if cfg.V2.Enabled {
+		v2Gateway, err = mqpkg.LoadV2Gateway(cfg.V2.PolicyFile, cfg.V2.PolicyRootPublicKeyFile,
+			cfg.V2.GatewayPrivateKeyFile, cfg.V2.ReceiptPrivateKeyFile, h.ID().String())
+		if err != nil {
+			log.Fatalf("load v2 signed gateway policy: %v", err)
+		}
+		if v2Gateway.Policy.Mode == v2.ModeCompliance && cfg.Relay.Enabled {
+			log.Fatal("compliance v2 policy requires relay.enabled=false; transparent libp2p relay cannot inspect message frames")
+		}
+	}
 
 	// ── Registry ─────────────────────────────────────────────────────────────
 	regSrv := registry.NewServer(h, regStore)
@@ -109,8 +121,15 @@ func main() {
 		log.Fatalf("create mq store: %v", err)
 	}
 	defer mqStore.Close()
+	if v2Gateway != nil {
+		requireV2 := !v2Gateway.Policy.AllowV1
+		if err := mqStore.EnableV2Policy(ctx, v2Gateway.Policy.Epoch, v2.PolicyHash(v2Gateway.Policy), v2Gateway.Policy.ExpiresAt,
+			requireV2, v2Gateway.Policy.ManagedIssuerPublicKey); err != nil {
+			log.Fatalf("pin v2 policy epoch: %v", err)
+		}
+	}
 	// Install shared storage policy before exposing the libp2p MQ handler.
-	apiSrv := api.New(cfg, regStore, mqStore, h.ID().String(), h, *cfgPath)
+	apiSrv := api.New(cfg, regStore, mqStore, h.ID().String(), h, *cfgPath, v2Gateway)
 	_, err = mq.NewServer(h, mqStore)
 	if err != nil {
 		log.Fatalf("create mq server: %v", err)

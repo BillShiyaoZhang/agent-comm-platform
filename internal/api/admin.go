@@ -248,7 +248,7 @@ func handleAdminMQClear(mqStore *mqpkg.Store, auditLog *AuditLog) http.HandlerFu
 		}
 
 		if auditLog != nil {
-			auditLog.Record("warn", "mq", "Purged MQ queue for: "+urn, "deleted "+itoa(deleted)+" messages")
+			auditLog.Record("warn", "mq", "Purged MQ queue for: "+urn, "deleted "+itoa(deleted)+" queue entries")
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"ok":      true,

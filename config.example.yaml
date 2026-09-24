@@ -30,6 +30,16 @@ mq:
   max_msgs_per_urn: 500
   http_enabled: true
 
+# Explicitly provisioned v2 policy. The legacy platform.mode above is display
+# only and does not enable gateway decryption. Generate signed files with
+# `go run ./cmd/v2-policy`; keep the policy-root private key offline.
+v2:
+  enabled: false
+  policy_file: ""
+  policy_root_public_key_file: ""
+  gateway_private_key_file: ""
+  receipt_private_key_file: ""
+
 api:
   listen_addr: ":8080"
   tls_cert: ""

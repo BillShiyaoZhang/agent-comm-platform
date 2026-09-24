@@ -1,6 +1,6 @@
 # Platform HTTP API（云端）
 
-本页供编写 Platform 客户端、排查 HTTP 互操作问题的开发者使用，描述当前服务端的 `/api/v1/` 接口。普通 Agent 接入优先使用 [Agent Comm SDK 与本机 helper](../../agent-comm/docs/README.md)：helper 也有 `/api/v1/mq/...` 路径，但它是**设备上的另一套接口**，请求体和认证不能与本页互换。English: [Platform HTTP API](API_EN.md)。
+本页供编写 Platform 客户端、排查 HTTP 互操作问题的开发者使用，描述当前服务端的 `/api/v1/` 和显式启用的 `/api/v2/` 接口。普通 Agent 接入优先使用 [Agent Comm SDK 与本机 helper](../../agent-comm/docs/README.md)：helper 也有 `/api/v1/mq/...` 路径，但它是**设备上的另一套接口**，请求体和认证不能与本页互换。English: [Platform HTTP API](API_EN.md)。
 
 以下是当前实现的手写接口参考，不是自动生成的 OpenAPI 规范。部署时以实际域名或反向代理的 HTTPS 基地址为准，例如 `https://agent-communication.online`。服务端可单独监听 HTTP，但公开使用时应配置 HTTPS 入口；见[运行与安全配置](SECURITY.md)。
 
@@ -159,8 +159,34 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 
 ## 通用响应与排错
 
-`GET /healthz` 返回 `200 {"status":"ok"}`；`GET /api/v1/bootstrap` 返回 `peer_id`、`stores_user_data`；`GET /api/v1/status` 返回 `registry_urns`。这些只能说明 HTTP 处理器可用或提供计数，不能证明双 Agent 消息流程成功。
+`GET /healthz` 返回 `200 {"status":"ok"}`；`GET /api/v1/bootstrap` 返回 `peer_id`、`stores_user_data`，当已加载的签名 v2 策略与数据库固定的当前 epoch/摘要一致时，额外返回 `v2` 发现对象；`GET /api/v1/status` 返回 `registry_urns`。这些只能说明 HTTP 处理器可用或提供计数，不能证明双 Agent 消息流程成功。
 
 客户端应先看 HTTP 状态码：`400` 请求字段/消息无效、`401` 签名或管理令牌验证失败、`403` 安全策略或禁用的管理接口、`404` Registry 未找到、`429` 容量或速率限制、`500` 服务端错误。**错误体格式不统一**：部分是 `{"error":"..."}`，部分是纯文本 `http.Error`；不要要求所有错误都可按 JSON 解析。方法不匹配通常是 `405`。时间签名失败时，先检查客户端与服务器的时钟。
 
 更多行为和验证依据：[Registry 所有权](../architecture/REGISTRY_SECURITY.md) · [消息协议升级](MESSAGE_UPGRADE.md) · [平台代码结构](../architecture/OVERVIEW.md)。
+
+## 显式启用的 v2 策略与信箱
+
+只有部署了[签名策略与密钥](SECURITY.md#显式启用-v2-签名策略与网关)后，下列 `/api/v2/` 路径才可用。v2 规范 JSON 字节和密码学格式由 [SDK v2 包](../../agent-comm/v2/types.go)定义；HTTP JSON 中的 `policy`、`envelope`、`receipt`、`frame` 和 `certificate` 均为这些**原始字节的 base64**，不是解析后再生成的对象。POST 请求沿用 v1 的 `Authorization: Ed25519 <签名 hex>:<公钥 hex>`，签名覆盖实际发送的 JSON 请求体字节。
+
+| 方法与路径 | 请求与响应 | 身份 |
+| --- | --- | --- |
+| `GET /api/v2/policy` | `{ "policy": "<base64>" }`；响应含 `ETag: "<policy_hash>"`，Agent 须用带外固定的根公钥验签，并固定最高 epoch | 无 |
+| `POST /api/v2/mq/store` | `{ "recipient_urn": "...", "expiry_unix": 123, "envelope": "<base64>" }` → `{ "ok": true, "message_id": "...", "receipt": "<base64>" }` | 信封发送者 |
+| `GET /api/v2/mq/retrieve` | `{ "messages": [{ "message_id": "...", "envelope": "<base64>", "receipt": "<base64>" }], "count": 1 }`；与 v1 相同的 `X-URN`、`X-Timestamp`、`X-Pubkey`、`X-Signature` 读取签名头 | 收件者 |
+| `POST /api/v2/mq/ack` | `{ "recipient_urn": "...", "timestamp": 123, "message_ids": ["..."] }` → `{ "ok": true, "deleted": 1 }` | 收件者 |
+| `POST /api/v2/handshake/store` | `{ "frame": "<base64>" }` → `{ "ok": true, "frame_id": "..." }`；只准入签名、当前策略绑定的 Init/Accept/Finished 固定格式帧 | 帧发送者 |
+| `POST /api/v2/handshake/retrieve` | `{ "recipient_urn": "...", "limit": 100 }` → `{ "frames": [{ "frame_id": "...", "frame": "<base64>" }], "count": 1 }` | 收件者 |
+| `POST /api/v2/handshake/ack` | `{ "recipient_urn": "...", "frame_ids": ["..."] }` → `{ "ok": true, "deleted": 1 }` | 收件者 |
+| `POST /api/v2/managed/identity` | `{ "certificate": "<base64>" }` → `{ "ok": true, "urn": "...", "expires_at": 123 }`；证书由策略指定的 Web 签发密钥签署，请求体由证书中的控制台身份密钥签署 | Web 控制台身份 |
+| `POST /api/v2/managed/revoke` | 签发者签署 `{version,platform_id,serial,revoked_at,signature}`，撤销证书序号 | 策略指定的 Web 签发者 |
+
+`compliance` 入队必须成功打开平台密钥槽和同一份正文密文，回执结果为 `decrypted-admitted` 并包含绑定原始信封的持钥 MAC；`private` 回执为 `accepted-uninspected`。相同 ID、相同原始信封的重试返回原回执；相同 ID 的不同字节返回 `409`。超额返回 `429`。策略/准入冲突返回 `409`，v1 非托管端点在 `allow_v1=false` 时返回 `403`。Web 托管端点须先登记有效证书；旧 v1 行只有在写入当时已登记的托管身份参与时才可取回。当前实现没有 v2 SSE，也不会把旧 v1 或旧 v2 策略行升级为当前合规消息。
+
+普通 v1 HTTP 入队被当前签名策略禁止时，`403` 响应为固定 JSON 格式，例如：
+
+```json
+{"error":"upgrade_required","message":"v1 delivery is disabled; verify the signed v2 policy and upgrade before retrying","consent_required":true,"policy_url":"/api/v2/policy","policy_hash":"<64 位 SHA-256 hex>","policy_epoch":2,"policy_mode":"compliance","platform_id":"<平台 Peer ID>"}
+```
+
+`/api/v1/bootstrap` 的 `v2` 对象也提供同名策略地址、摘要、epoch、模式、平台 ID，以及 `upgrade_required`、`consent_required` 布尔值。`consent_required:true` 只表示切换到合规模式前客户端必须取得用户授权，**不表示平台已经取得或记录了授权**。错误体和 bootstrap 本身未签名，只用于发现：客户端必须读取 `policy_url` 的原始策略字节，以独立固定的根公钥验签并核对摘要、平台 ID、epoch、有效期，然后由本地客户端处理用户选择。有效策略不可提供时，v1 仍拒收；错误体的 `consent_required` 为 `null` 且不附策略地址/摘要，bootstrap 不附 `v2` 对象。旧 HTTP 客户端可显示 403 错误体，但不会自动升级或代用户同意。旧 libp2p MQ 协议只有字符串错误（现以 `upgrade_required:` 开头），没有机器可读的 HTTP 状态或可信策略地址；需升级客户端或通过已知 HTTPS 平台地址另行发现策略。

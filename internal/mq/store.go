@@ -17,6 +17,7 @@ import (
 	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	"github.com/BillShiyaoZhang/agent-comm/mq"
 	proto "github.com/BillShiyaoZhang/agent-comm/proto"
+	"github.com/BillShiyaoZhang/agent-comm/v2"
 	goproto "google.golang.org/protobuf/proto"
 	_ "modernc.org/sqlite"
 )
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS messages (
   recipient    TEXT NOT NULL,
   payload      BLOB NOT NULL,
   expiry       INTEGER NOT NULL,
-  stored_at    INTEGER NOT NULL
+  stored_at    INTEGER NOT NULL,
+  stored_at_ns INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_recipient ON messages(recipient);
 CREATE INDEX IF NOT EXISTS idx_expiry    ON messages(expiry);
@@ -47,6 +49,10 @@ type Store struct {
 	storeAllowed    func() bool
 	forwardAllowed  func(string) bool
 	subscriberCount int
+	v2Required      bool
+	v2PolicyHash    string
+	v2PolicyExpiry  int64
+	v2ManagedIssuer []byte
 }
 
 var _ mq.Store = (*Store)(nil)
@@ -54,6 +60,10 @@ var _ mq.Store = (*Store)(nil)
 var ErrQueueFull = errors.New("recipient mailbox is full; retry later")
 var ErrSubscriberLimit = errors.New("subscriber limit reached; retry later")
 var ErrInvalidMessage = errors.New("invalid message")
+
+// The legacy libp2p MQ response has only a free-form error string. Keep a
+// stable prefix for older clients that surface it, while HTTP uses typed JSON.
+var ErrV1Policy = errors.New("upgrade_required: v1 delivery prohibited by signed v2 policy; see platform HTTPS /api/v2/policy")
 
 const (
 	maxEnvelopeBytes     = 1 << 20
@@ -78,10 +88,22 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("create mq schema: %w", err)
 	}
-	// Migration: add read_at column if it doesn't exist
+	// Existing v1 databases may lack these fields; the all_messages view below
+	// is created only after they are present.
 	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN read_at INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE messages ADD COLUMN stored_at_ns INTEGER NOT NULL DEFAULT 0")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_read_at ON messages(read_at)")
-
+	if _, err := db.Exec(v2Schema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create v2 mq schema: %w", err)
+	}
+	// Safe for databases from early v2 development; duplicate-column errors
+	// mean the schema already has these fields.
+	_, _ = db.Exec("ALTER TABLE v2_policy_state ADD COLUMN require_v2 INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE v2_policy_state ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE v2_policy_state ADD COLUMN issuer_pubkey BLOB")
+	_, _ = db.Exec("ALTER TABLE v2_managed_identities ADD COLUMN enrolled_at_ns INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("UPDATE v2_managed_identities SET enrolled_at_ns=? WHERE enrolled_at_ns=0", time.Now().UnixNano())
 	s := &Store{
 		db:                   db,
 		done:                 make(chan struct{}),
@@ -90,6 +112,16 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 		historyRetentionDays: 30,
 		subscribers:          make(map[string][]chan *proto.EncryptedEnvelope),
 	}
+	// A previously pinned no-v1 policy remains fail-closed even if an operator
+	// accidentally disables v2 configuration on the next process start. Only
+	// EnableV2Policy with a valid signed policy reopens managed exceptions.
+	var priorRequired int
+	err = db.QueryRow("SELECT require_v2 FROM v2_policy_state WHERE singleton=1").Scan(&priorRequired)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		db.Close()
+		return nil, fmt.Errorf("load pinned v2 policy state: %w", err)
+	}
+	s.v2Required = priorRequired != 0
 	go s.cleanupLoop()
 	return s, nil
 }
@@ -99,6 +131,22 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *proto.EncryptedEnvelope, expiryUnix int64) (string, error) {
 	if env == nil || len(env.MessageId) > 256 || goproto.Size(env) > maxEnvelopeBytes {
 		return "", fmt.Errorf("%w: envelope exceeds size limit", ErrInvalidMessage)
+	}
+	s.mu.RLock()
+	v2Required := s.v2Required
+	s.mu.RUnlock()
+	if v2Required {
+		managedSender, err := s.IsManagedAt(ctx, env.SenderUrn, env.SenderEd25519Pubkey, time.Now().UnixNano())
+		if err != nil {
+			return "", err
+		}
+		managedRecipient, err := s.IsManagedAt(ctx, recipientURN, nil, time.Now().UnixNano())
+		if err != nil {
+			return "", err
+		}
+		if !managedSender && !managedRecipient {
+			return "", ErrV1Policy
+		}
 	}
 	s.mu.RLock()
 	storeAllowed, forwardAllowed := s.storeAllowed, s.forwardAllowed
@@ -124,6 +172,7 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 	if expiryUnix == 0 || expiryUnix > maxExpiry {
 		expiryUnix = maxExpiry
 	}
+	storedAt := time.Now()
 	payload, err := goproto.Marshal(env)
 	if err != nil {
 		return "", fmt.Errorf("marshal envelope: %w", err)
@@ -136,9 +185,42 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 		return "", err
 	}
 	defer tx.Rollback()
+	// Recheck the active policy in the same SQLite transaction as insertion.
+	// A policy switch cannot race a v1 insert after the initial fast check.
+	var required int
+	var issuer []byte
+	var policyExpiry int64
+	policyErr := tx.QueryRowContext(ctx, "SELECT require_v2,issuer_pubkey,expires_at FROM v2_policy_state WHERE singleton=1").Scan(&required, &issuer, &policyExpiry)
+	if policyErr != nil && !errors.Is(policyErr, sql.ErrNoRows) {
+		return "", policyErr
+	}
+	if policyErr == nil && time.Now().Unix() >= policyExpiry {
+		return "", ErrV1Policy
+	}
+	if required != 0 {
+		var managed int
+		nowUnix := time.Now().Unix()
+		err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM v2_managed_identities WHERE issuer_pubkey=? AND revoked=0
+			AND not_before<=? AND enrolled_at_ns<=? AND expires_at>?
+			AND ((urn=? AND identity_pubkey=?) OR urn=?)`, issuer, nowUnix, time.Now().UnixNano(), nowUnix,
+			env.SenderUrn, env.SenderEd25519Pubkey, recipientURN).Scan(&managed)
+		if err != nil {
+			return "", err
+		}
+		if managed == 0 {
+			return "", ErrV1Policy
+		}
+	}
+	var v2Collision int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM v2_messages WHERE id=?", msgID).Scan(&v2Collision); err != nil {
+		return "", err
+	}
+	if v2Collision != 0 {
+		return "", fmt.Errorf("message ID conflict")
+	}
 	res, err := tx.ExecContext(ctx,
-		"INSERT OR IGNORE INTO messages (id, recipient, payload, expiry, stored_at) VALUES (?, ?, ?, ?, ?)",
-		msgID, recipientURN, payload, expiryUnix, time.Now().Unix())
+		"INSERT OR IGNORE INTO messages (id, recipient, payload, expiry, stored_at, stored_at_ns) VALUES (?, ?, ?, ?, ?, ?)",
+		msgID, recipientURN, payload, expiryUnix, storedAt.Unix(), storedAt.UnixNano())
 	if err != nil {
 		return "", fmt.Errorf("insert message: %w", err)
 	}
@@ -159,7 +241,7 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 	}
 	if s.maxPerURN > 0 {
 		var pending int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?)`, recipientURN, time.Now().Unix()).Scan(&pending); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?)) + (SELECT COUNT(*) FROM v2_messages WHERE recipient=? AND read_at=0 AND expiry>?)`, recipientURN, time.Now().Unix(), recipientURN, time.Now().Unix()).Scan(&pending); err != nil {
 			return "", fmt.Errorf("quota check: %w", err)
 		}
 		if pending > s.maxPerURN {
@@ -169,7 +251,7 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 	if err := tx.Commit(); err != nil {
 		return "", err
 	}
-	s.NotifySubscribers(recipientURN, env)
+	s.NotifySubscribers(recipientURN, env, storedAt.UnixNano())
 	return msgID, nil
 }
 
@@ -219,16 +301,23 @@ func (s *Store) UnregisterSubscriber(urn string, ch chan *proto.EncryptedEnvelop
 }
 
 // NotifySubscribers sends an envelope to all subscribers of a URN.
-func (s *Store) NotifySubscribers(urn string, env *proto.EncryptedEnvelope) {
+func (s *Store) NotifySubscribers(urn string, env *proto.EncryptedEnvelope, storedAtNS int64) {
 	s.mu.RLock()
+	defer s.mu.RUnlock()
+	required := s.v2Required
+	if required {
+		managedSender, senderErr := s.isManagedAtIssuer(context.Background(), s.v2ManagedIssuer, s.v2PolicyExpiry, env.SenderUrn, env.SenderEd25519Pubkey, storedAtNS)
+		managedRecipient, recipientErr := s.isManagedAtIssuer(context.Background(), s.v2ManagedIssuer, s.v2PolicyExpiry, urn, nil, storedAtNS)
+		if senderErr != nil || recipientErr != nil || !managedSender && !managedRecipient {
+			return
+		}
+	}
 	chans, ok := s.subscribers[urn]
 	if !ok || len(chans) == 0 {
-		s.mu.RUnlock()
 		return
 	}
 	chansCopy := make([]chan *proto.EncryptedEnvelope, len(chans))
 	copy(chansCopy, chans)
-	s.mu.RUnlock()
 
 	for _, ch := range chansCopy {
 		select {
@@ -251,35 +340,67 @@ func (s *Store) RetrieveEntry(ctx context.Context, recipientURN string) ([]*prot
 	if err := mq.AuthorizeRecipient(ctx, recipientURN); err != nil {
 		return nil, nil, err
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v2Required := s.v2Required
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, payload FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC LIMIT 500",
+		"SELECT id, payload, stored_at_ns FROM messages WHERE recipient=? AND read_at=0 AND (expiry=0 OR expiry>?) ORDER BY stored_at ASC LIMIT 500",
 		recipientURN, time.Now().Unix())
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
-
+	type pendingV1 struct {
+		id         string
+		data       []byte
+		storedAtNS int64
+	}
+	var pending []pendingV1
+	for rows.Next() {
+		var item pendingV1
+		if err := rows.Scan(&item.id, &item.data, &item.storedAtNS); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		pending = append(pending, item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, nil, err
+	}
 	var envs []*proto.EncryptedEnvelope
 	var ids []string
 	totalBytes := 0
-	for rows.Next() {
-		var id string
-		var data []byte
-		if err := rows.Scan(&id, &data); err != nil {
-			continue
-		}
-		if totalBytes+len(data) > maxRetrieveBytes && len(envs) > 0 {
+	for _, item := range pending {
+		if totalBytes+len(item.data) > maxRetrieveBytes && len(envs) > 0 {
 			break
 		}
-		totalBytes += len(data)
+		totalBytes += len(item.data)
 		var env proto.EncryptedEnvelope
-		if err := goproto.Unmarshal(data, &env); err != nil {
+		if err := goproto.Unmarshal(item.data, &env); err != nil {
 			continue
 		}
+		if v2Required {
+			managedRecipient, err := s.isManagedAtIssuer(ctx, s.v2ManagedIssuer, s.v2PolicyExpiry, recipientURN, nil, item.storedAtNS)
+			if err != nil {
+				return nil, nil, err
+			}
+			managedSender, err := s.isManagedAtIssuer(ctx, s.v2ManagedIssuer, s.v2PolicyExpiry, env.SenderUrn, env.SenderEd25519Pubkey, item.storedAtNS)
+			if err != nil {
+				return nil, nil, err
+			}
+			if !managedSender && !managedRecipient {
+				// Previously queued v1 Agent-to-Agent rows remain at rest until
+				// expiry but are not delivered under the compliance policy.
+				continue
+			}
+		}
 		envs = append(envs, &env)
-		ids = append(ids, id)
+		ids = append(ids, item.id)
 	}
-	return envs, ids, rows.Err()
+	return envs, ids, nil
 }
 
 // Ack updates read_at for the given message IDs, marking them as read history.
@@ -318,8 +439,8 @@ type QueueStat struct {
 // ListQueueStats returns statistics about active unread message queues in the system.
 func (s *Store) ListQueueStats(ctx context.Context) ([]*QueueStat, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT recipient, COUNT(*), SUM(LENGTH(payload)), MIN(stored_at), MAX(stored_at)
-		FROM messages
+		SELECT recipient, COUNT(*), SUM(stored_size), MIN(stored_at), MAX(stored_at)
+		FROM all_messages
 		WHERE read_at = 0 AND (expiry = 0 OR expiry > ?)
 		GROUP BY recipient
 		ORDER BY COUNT(*) DESC`, time.Now().Unix())
@@ -391,11 +512,11 @@ func (s *Store) listMessagesPage(ctx context.Context, recipientURN, status strin
 	}
 	defer tx.Rollback()
 	var total int
-	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM messages WHERE "+where, args...).Scan(&total); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM all_messages WHERE "+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	pageArgs := append(append([]any{}, args...), limit, offset)
-	rows, err := tx.QueryContext(ctx, "SELECT id, payload, expiry, stored_at, read_at FROM messages WHERE "+where+" ORDER BY "+order+" LIMIT ? OFFSET ?", pageArgs...)
+	rows, err := tx.QueryContext(ctx, "SELECT id, payload, stored_size, expiry, stored_at, read_at FROM all_messages WHERE "+where+" ORDER BY "+order+" LIMIT ? OFFSET ?", pageArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -407,8 +528,9 @@ func (s *Store) listMessagesPage(ctx context.Context, recipientURN, status strin
 	for rows.Next() {
 		var id string
 		var payload []byte
+		var storedSize int
 		var expiry, storedAt, readAt int64
-		if err := rows.Scan(&id, &payload, &expiry, &storedAt, &readAt); err != nil {
+		if err := rows.Scan(&id, &payload, &storedSize, &expiry, &storedAt, &readAt); err != nil {
 			return nil, 0, err
 		}
 
@@ -416,7 +538,7 @@ func (s *Store) listMessagesPage(ctx context.Context, recipientURN, status strin
 			break
 		}
 		includeThisPayload := includePayload && legacyBytes+len(payload) <= legacyPayloadBudget
-		detail := messageDetailFromStored(id, payload, expiry, storedAt, readAt, includeThisPayload)
+		detail := messageDetailFromStored(id, payload, storedSize, expiry, storedAt, readAt, includeThisPayload)
 		if includePayload && !includeThisPayload {
 			detail.PayloadTruncated = true
 		}
@@ -440,8 +562,17 @@ func (s *Store) listMessagesPage(ctx context.Context, recipientURN, status strin
 	return details, total, nil
 }
 
-func messageDetailFromStored(id string, payload []byte, expiry, storedAt, readAt int64, includePayload bool) *MessageDetail {
-	detail := &MessageDetail{ID: id, Size: len(payload), StoredAt: storedAt, ReadAt: readAt, Expiry: expiry}
+func messageDetailFromStored(id string, payload []byte, storedSize int, expiry, storedAt, readAt int64, includePayload bool) *MessageDetail {
+	detail := &MessageDetail{ID: id, Size: storedSize, StoredAt: storedAt, ReadAt: readAt, Expiry: expiry}
+	if len(payload) > 0 && payload[0] == '{' {
+		if v2env, err := v2.ParseEnvelope(payload); err == nil {
+			detail.Sender = v2env.Header.SenderURN
+			if includePayload {
+				detail.Payload = hex.EncodeToString(v2env.Ciphertext)
+			}
+		}
+		return detail
+	}
 	var env proto.EncryptedEnvelope
 	if err := goproto.Unmarshal(payload, &env); err == nil {
 		detail.Sender = env.GetSenderUrn()
@@ -457,8 +588,9 @@ func messageDetailFromStored(id string, payload []byte, expiry, storedAt, readAt
 // oversized row is refused rather than expanding an unbounded HTTP response.
 func (s *Store) GetMessageDetail(ctx context.Context, recipientURN, id string) (*MessageDetail, error) {
 	var payload []byte
+	var storedSize int
 	var expiry, storedAt, readAt int64
-	err := s.db.QueryRowContext(ctx, "SELECT payload, expiry, stored_at, read_at FROM messages WHERE recipient=? AND id=?", recipientURN, id).Scan(&payload, &expiry, &storedAt, &readAt)
+	err := s.db.QueryRowContext(ctx, "SELECT payload, stored_size, expiry, stored_at, read_at FROM all_messages WHERE recipient=? AND id=?", recipientURN, id).Scan(&payload, &storedSize, &expiry, &storedAt, &readAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -468,18 +600,33 @@ func (s *Store) GetMessageDetail(ctx context.Context, recipientURN, id string) (
 	if len(payload) > maxEnvelopeBytes {
 		return nil, fmt.Errorf("stored message exceeds envelope size limit")
 	}
-	return messageDetailFromStored(id, payload, expiry, storedAt, readAt, true), nil
+	return messageDetailFromStored(id, payload, storedSize, expiry, storedAt, readAt, true), nil
 }
 
 // DeleteMessage removes exactly one message in the specified recipient mailbox.
 // Repeating the operation is safe and reports zero deleted rows.
 func (s *Store) DeleteMessage(ctx context.Context, recipientURN, id string) (int, error) {
-	res, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE recipient=? AND id=?", recipientURN, id)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
-	n, err := res.RowsAffected()
-	return int(n), err
+	defer tx.Rollback()
+	deleted := int64(0)
+	for _, table := range []string{"messages", "v2_messages"} {
+		res, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE recipient=? AND id=?", recipientURN, id)
+		if err != nil {
+			return 0, err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, err
+		}
+		deleted += n
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return int(deleted), nil
 }
 
 type SummaryBucket struct {
@@ -502,15 +649,15 @@ func (s *Store) SummarizeMessages(ctx context.Context) (*QueueSummary, error) {
 	err := s.db.QueryRowContext(ctx, `
 		SELECT
 		COALESCE(SUM(CASE WHEN read_at=0 AND (expiry=0 OR expiry>?) THEN 1 ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN read_at=0 AND (expiry=0 OR expiry>?) THEN LENGTH(payload) ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN read_at=0 AND (expiry=0 OR expiry>?) THEN stored_size ELSE 0 END),0),
 		COUNT(DISTINCT CASE WHEN read_at=0 AND (expiry=0 OR expiry>?) THEN recipient END),
 		COALESCE(SUM(CASE WHEN read_at>0 THEN 1 ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN read_at>0 THEN LENGTH(payload) ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN read_at>0 THEN stored_size ELSE 0 END),0),
 		COUNT(DISTINCT CASE WHEN read_at>0 THEN recipient END),
 		COALESCE(SUM(CASE WHEN read_at=0 AND expiry>0 AND expiry<=? THEN 1 ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN read_at=0 AND expiry>0 AND expiry<=? THEN LENGTH(payload) ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN read_at=0 AND expiry>0 AND expiry<=? THEN stored_size ELSE 0 END),0),
 		COUNT(DISTINCT CASE WHEN read_at=0 AND expiry>0 AND expiry<=? THEN recipient END)
-		FROM messages`, now, now, now, now, now, now).Scan(
+		FROM all_messages`, now, now, now, now, now, now).Scan(
 		&summary.Pending.Messages, &summary.Pending.Bytes, &summary.Pending.Queues,
 		&summary.History.Messages, &summary.History.Bytes, &summary.History.Queues,
 		&summary.Expired.Messages, &summary.Expired.Bytes, &summary.Expired.Queues,
@@ -520,12 +667,27 @@ func (s *Store) SummarizeMessages(ctx context.Context) (*QueueSummary, error) {
 
 // PurgeQueue deletes all messages for a recipient.
 func (s *Store) PurgeQueue(ctx context.Context, recipient string) (int, error) {
-	res, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE recipient = ?", recipient)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
-	n, _ := res.RowsAffected()
-	return int(n), nil
+	defer tx.Rollback()
+	deleted := int64(0)
+	for _, table := range []string{"messages", "v2_messages", "v2_handshake_frames"} {
+		res, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE recipient=?", recipient)
+		if err != nil {
+			return 0, err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, err
+		}
+		deleted += n
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return int(deleted), nil
 }
 
 // Close closes the database.
@@ -553,12 +715,24 @@ func (s *Store) cleanupLoop() {
 		if _, err := s.db.Exec("DELETE FROM messages WHERE expiry>0 AND expiry<?", now); err != nil {
 			log.Printf("[mq] cleanup error: %v", err)
 		}
+		if _, err := s.db.Exec("DELETE FROM v2_messages WHERE expiry<?", now); err != nil {
+			log.Printf("[mq] v2 cleanup error: %v", err)
+		}
+		if _, err := s.db.Exec("DELETE FROM v2_handshake_frames WHERE expiry<?", now); err != nil {
+			log.Printf("[mq] v2 handshake cleanup error: %v", err)
+		}
 		// 2. Delete historical messages older than retention days
 		retentionDays := atomic.LoadInt32(&s.historyRetentionDays)
 		if retentionDays >= 0 {
 			retentionSeconds := int64(retentionDays) * 24 * 3600
 			if _, err := s.db.Exec("DELETE FROM messages WHERE read_at>0 AND read_at<?", now-retentionSeconds); err != nil {
 				log.Printf("[mq] history cleanup error: %v", err)
+			}
+			if _, err := s.db.Exec("DELETE FROM v2_messages WHERE read_at>0 AND read_at<?", now-retentionSeconds); err != nil {
+				log.Printf("[mq] v2 history cleanup error: %v", err)
+			}
+			if _, err := s.db.Exec("DELETE FROM v2_handshake_frames WHERE read_at>0 AND read_at<?", now-retentionSeconds); err != nil {
+				log.Printf("[mq] v2 handshake history cleanup error: %v", err)
 			}
 		}
 	}

@@ -36,7 +36,7 @@ agent-comm-platform/
 
 本机 helper 的可靠发送路径使用 HTTPS MQ。传统 Go SDK 还提供单独的 P2P/Double Ratchet 路径。两者的加密方式和确认含义见 [开发指南](../guides/DEVELOPMENT.md)。
 
-早期设计中的代持接收方密钥、解密审查网关和完整联邦路由未由当前代码实现。配置中的 `platform.mode` 不能作为这些能力已经可用的依据。实际策略以 Registry/MQ 存储边界和对应测试为准。
+早期设计中的**代持接收方密钥**和完整联邦路由没有实现。显式配置 v2 签名策略后，HTTP v2 MQ 实现指定网关私钥解密、正文认证与签名回执，并将原始信封和回执原子保存；v1 HTTP/libp2p MQ 共享存储层按该策略拒绝普通 Agent 间旧协议。透明 Relay 在合规 v2 下必须关闭。配置中的 `platform.mode` 仍只是显示字段，不能作为密码学模式已经启用的依据。详情见[开发指南](../guides/DEVELOPMENT.md)与[安全配置](../guides/SECURITY.md)。
 
 ## 修改与验证
 

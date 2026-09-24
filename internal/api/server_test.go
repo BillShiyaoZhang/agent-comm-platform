@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +13,7 @@ import (
 	"github.com/BillShiyaoZhang/agent-comm-platform/internal/config"
 	mqpkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/mq"
 	registrypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/registry"
+	"github.com/BillShiyaoZhang/agent-comm/v2"
 )
 
 func TestRateLimiter(t *testing.T) {
@@ -354,6 +357,69 @@ func TestBootstrapAndStatusEndpoints(t *testing.T) {
 				t.Errorf("expected redirect to %q, got %q", want, got)
 			}
 		})
+	}
+}
+
+func TestBootstrapDiscoversOnlyCurrentSignedV2Policy(t *testing.T) {
+	regStore, err := registrypkg.NewStore(":memory:", 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer regStore.Close()
+	mqStore, err := mqpkg.NewStore(":memory:", 7, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mqStore.Close()
+	rootPub, rootPrivate, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiptPub, receiptPrivate, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Unix()
+	policy := &v2.Policy{Version: v2.Version, PlatformID: "test-peer-id", Epoch: 1,
+		NotBefore: now - 60, ExpiresAt: now + 3600, Mode: v2.ModePrivate, Suite: v2.Suite,
+		ReceiptKeyID: "receipt-1", ReceiptPublicKey: receiptPub}
+	if err := v2.SignPolicy(policy, rootPrivate); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := v2.Canonical(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mqStore.EnableV2Policy(context.Background(), policy.Epoch, v2.PolicyHash(policy), policy.ExpiresAt, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	gateway := &mqpkg.V2Gateway{Policy: policy, RawPolicy: raw, Root: rootPub, ReceiptPrivate: receiptPrivate}
+	cfg := &config.Config{API: config.APIConfig{ListenAddr: ":8080"}}
+	handler := New(cfg, regStore, mqStore, "test-peer-id", nil, "", gateway).srv.Handler
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/bootstrap", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("bootstrap: %d %s", w.Code, w.Body.String())
+	}
+	var response struct {
+		PeerID         string                 `json:"peer_id"`
+		StoresUserData bool                   `json:"stores_user_data"`
+		V2             *mqpkg.PolicyDiscovery `json:"v2"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil || response.V2 == nil {
+		t.Fatalf("bootstrap omitted v2 discovery: %v %s", err, w.Body.String())
+	}
+	if response.PeerID != policy.PlatformID || response.V2.PolicyHash != v2.PolicyHash(policy) || response.V2.PolicyURL != "/api/v2/policy" || !response.V2.UpgradeRequired || response.V2.ConsentRequired {
+		t.Fatalf("unexpected v2 discovery: %+v", response)
+	}
+	if err := mqStore.EnableV2Policy(context.Background(), 2, v2.EnvelopeHash([]byte("new policy")), now+3600, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/bootstrap", nil))
+	response.V2 = nil
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil || response.V2 != nil {
+		t.Fatalf("bootstrap advertised stale policy: %+v %v", response, err)
 	}
 }
 

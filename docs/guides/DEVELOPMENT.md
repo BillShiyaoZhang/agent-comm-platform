@@ -88,6 +88,8 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 
 配置文件保留 `platform.mode` 字段。该字段本身不代表已实现消息解密审查或合规网关；当前实际存储和转发行为由存储策略配置控制。
 
+显式配置 `v2.enabled` 和经独立根验证的签名策略后，新增 `/api/v2/policy`、`/api/v2/mq/` 与 `/api/v2/handshake/` HTTP 路径。合规模式下平台先解开指定网关密钥槽并认证正文，再把原始 v2 信封与签名准入回执原子入队；v1 Agent↔Agent 经 HTTP 和 libp2p 共用的 MQ 存储层拒收。托管 Web 控制台仅凭策略中指定签发者的短期证书获得 v1 路由例外，不能显示成 Agent↔Agent 的隐私或合规证明。密钥生成、签发、部署和旧行隔离见[运行与安全配置](SECURITY.md#显式启用-v2-签名策略与网关)；v2 目前没有 libp2p 应用入口或 SSE，要求检查正文的部署须关闭透明 Relay。
+
 ## 配置与消息保留
 
 完整字段见 [config.example.yaml](../../config.example.yaml)。默认示例包含：
