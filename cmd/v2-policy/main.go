@@ -29,6 +29,10 @@ const (
 	// Canonical JSON policy epochs must round-trip through the Web console's
 	// JavaScript number type without losing precision.
 	maxSafeEpoch uint64 = 1<<53 - 1
+	// A persistent policy keeps the existing wire format and remains valid for
+	// already installed v2 clients, which require expires_at > now. Year 3000
+	// is representable by Go, JavaScript Date and Windows Python timestamps.
+	persistentPolicyExpiry int64 = 32503680000
 )
 
 func main() {
@@ -40,7 +44,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: v2-policy keygen --out-dir DIR | sign --keys-dir DIR --platform-id PEER_ID --mode private|compliance --epoch N --out FILE")
+		return errors.New("usage: v2-policy keygen --out-dir DIR | sign --keys-dir DIR --platform-id PEER_ID --mode private|compliance --epoch N --out FILE [--persistent | --valid-for DURATION]")
 	}
 	switch args[0] {
 	case "keygen":
@@ -60,7 +64,8 @@ func run(args []string) error {
 		mode := flags.String("mode", "", "private or compliance")
 		epoch := flags.Uint64("epoch", 0, "monotonically increasing policy epoch")
 		out := flags.String("out", "", "new signed policy JSON file")
-		validFor := flags.Duration("valid-for", 7*24*time.Hour, "policy lifetime")
+		validFor := flags.Duration("valid-for", 0, "explicit short policy lifetime (one minute to 30 days); omitted means persistent")
+		persistent := flags.Bool("persistent", false, "explicitly sign a long-lived policy (the default; valid until year 3000)")
 		allowV1 := flags.Bool("allow-v1", false, "allow legacy v1 only under a private policy")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
@@ -71,13 +76,22 @@ func run(args []string) error {
 		if *epoch > maxSafeEpoch {
 			return fmt.Errorf("epoch must not exceed %d (2^53-1) for Web JSON interoperability", maxSafeEpoch)
 		}
-		if *validFor < time.Minute || *validFor > 30*24*time.Hour {
+		validForSet := false
+		flags.Visit(func(f *flag.Flag) {
+			if f.Name == "valid-for" {
+				validForSet = true
+			}
+		})
+		if *persistent && validForSet {
+			return errors.New("--persistent and --valid-for are mutually exclusive")
+		}
+		if validForSet && (*validFor < time.Minute || *validFor > 30*24*time.Hour) {
 			return errors.New("--valid-for must be between one minute and 30 days")
 		}
 		if *mode == v2.ModeCompliance && *allowV1 {
 			return errors.New("generic v1 cannot be allowed in compliance mode")
 		}
-		return sign(*dir, *platformID, *mode, *epoch, *out, *validFor, *allowV1)
+		return sign(*dir, *platformID, *mode, *epoch, *out, *validFor, *allowV1, *persistent || !validForSet)
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
@@ -156,7 +170,7 @@ func keyID(prefix string, public []byte) string {
 	return prefix + ":" + hex.EncodeToString(digest[:16])
 }
 
-func sign(dir, platformID, mode string, epoch uint64, out string, validFor time.Duration, allowV1 bool) error {
+func sign(dir, platformID, mode string, epoch uint64, out string, validFor time.Duration, allowV1, persistent bool) error {
 	if epoch == 0 || epoch > maxSafeEpoch {
 		return fmt.Errorf("epoch must be between 1 and %d (2^53-1) for Web JSON interoperability", maxSafeEpoch)
 	}
@@ -187,6 +201,9 @@ func sign(dir, platformID, mode string, epoch uint64, out string, validFor time.
 		NotBefore: now.Add(-time.Minute).Unix(), ExpiresAt: now.Add(validFor).Unix(),
 		Mode: mode, Suite: v2.Suite, ReceiptKeyID: keyID("receipt", receiptPublic),
 		ReceiptPublicKey: receiptPublic, AllowV1: allowV1, ManagedIssuerPublicKey: issuerPublic,
+	}
+	if persistent {
+		policy.ExpiresAt = persistentPolicyExpiry
 	}
 	if mode == v2.ModeCompliance {
 		gatewayRaw, err := readKey(dir, gatewayPrivateFile, 32)

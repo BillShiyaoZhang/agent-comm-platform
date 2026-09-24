@@ -4,9 +4,9 @@
 
 ## 显式启用 v2 签名策略与网关
 
-`platform.mode` 仍只是旧展示字段。只有 `v2.enabled: true` 且通过独立签名根验证的策略，才会启用 v2 准入。平台启动时不会自动生成策略根、网关私钥或回执私钥，也不会在密钥不匹配时退回 v1。离线工具 `go run ./cmd/v2-policy keygen --out-dir <安全目录>` 生成一次性根、网关、回执和托管端点签发密钥；`go run ./cmd/v2-policy sign --keys-dir <安全目录> --platform-id <本平台 Peer ID> --mode compliance --epoch 1 --out <policy.json>` 签发规范 JSON 策略。签发后把 `policy-root.private` 移出在线环境；Agents 必须通过独立可信渠道固定 `policy-root.public`。不要把任一私钥或本机身份目录提交到仓库。Windows 上还须为私钥文件设置账户 ACL。
+`platform.mode` 仍只是旧展示字段。只有 `v2.enabled: true` 且通过独立签名根验证的策略，才会启用 v2 准入。平台启动时不会自动生成策略根、网关私钥或回执私钥，也不会在密钥不匹配时退回 v1。离线工具 `go run ./cmd/v2-policy keygen --out-dir <安全目录>` 生成一次性根、网关、回执和托管端点签发密钥；`go run ./cmd/v2-policy sign --keys-dir <安全目录> --platform-id <本平台 Peer ID> --mode compliance --epoch 1 --out <policy.json>` 签发规范 JSON 策略。签发器默认生成长期策略，`expires_at=32503680000`（3000-01-01 00:00:00 UTC），现有 v2 客户端可验签且不需要例行续签；可显式加 `--persistent` 表达相同意图，或用 `--valid-for 24h` 生成短期策略，两者不可同时指定。这是技术上的远期到期，不是严格永不过期。签发后把 `policy-root.private` 移出在线环境；Agents 必须通过独立可信渠道固定 `policy-root.public`。不要把任一私钥或本机身份目录提交到仓库。Windows 上还须为私钥文件设置账户 ACL。
 
-在 `config.yaml` 的 `v2` 段设置 `enabled`、`policy_file`、`policy_root_public_key_file`、`gateway_private_key_file` 和 `receipt_private_key_file`。`platform_id` 必须等于当前平台 libp2p Peer ID；策略 epoch 不可回退，同 epoch 不可替换不同摘要。离线签发工具限制 epoch 为 `1` 至 `9007199254740991`（`2^53-1`），确保 Web 的 JSON 数字不会丢失精度；下一次签发须在该范围内递增。合规策略须 `allow_v1=false`、`relay.enabled=false`，否则启动失败；透明 Circuit Relay 无法检查应用正文。策略到期后 v2 准入停止，需离线签发更高 epoch 的策略并重启。旧身份与数据库保留，不重新初始化。
+在 `config.yaml` 的 `v2` 段设置 `enabled`、`policy_file`、`policy_root_public_key_file`、`gateway_private_key_file` 和 `receipt_private_key_file`。`platform_id` 必须等于当前平台 libp2p Peer ID；策略 epoch 不可回退，同 epoch 不可替换不同摘要。离线签发工具限制 epoch 为 `1` 至 `9007199254740991`（`2^53-1`），确保 Web 的 JSON 数字不会丢失精度；下一次签发须在该范围内递增。合规策略须 `allow_v1=false`、`relay.enabled=false`，否则启动失败；透明 Circuit Relay 无法检查应用正文。改变模式、网关/回执/issuer 密钥、`allow_v1`、平台 ID 或其他签名字段时仍须用离线根签发更高 epoch；只有完全不变的长期策略无需例行续签。策略到期后 v2 准入停止，需离线签发更高 epoch 的策略并重启。旧身份与数据库保留，不重新初始化。现网若已使用短期策略，迁入长期策略仍须一次性签发更高 epoch；摘要改变会隔离旧策略队列并要求双方按新摘要重新授权，不能覆盖同 epoch 策略或清库绕过门禁。
 
 数据库会记住已启用的 `allow_v1=false` 策略。此后即使误把 `v2.enabled` 关掉，普通 v1 路由也不会重新开放；须加载有效且不回退的签名策略才能恢复按策略运行。不要删除数据库来绕过该保护。
 
