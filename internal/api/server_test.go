@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -420,6 +421,47 @@ func TestBootstrapDiscoversOnlyCurrentSignedV2Policy(t *testing.T) {
 	response.V2 = nil
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil || response.V2 != nil {
 		t.Fatalf("bootstrap advertised stale policy: %+v %v", response, err)
+	}
+}
+
+func TestServerPassesV2PolicyToAdminConfigEditor(t *testing.T) {
+	regStore, err := registrypkg.NewStore(":memory:", 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer regStore.Close()
+	mqStore, err := mqpkg.NewStore(":memory:", 7, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mqStore.Close()
+	cfg := config.DefaultConfig()
+	cfg.Platform.DataDir = t.TempDir()
+	cfg.Relay.Enabled = false
+	cfg.API.AdminToken = "test-admin-token"
+	gateway := &mqpkg.V2Gateway{Policy: &v2.Policy{Mode: v2.ModeCompliance}}
+	server := New(cfg, regStore, mqStore, "test-peer-id", nil, "", gateway)
+	if server.AuditLog != nil {
+		defer server.AuditLog.Close()
+	}
+	handler := server.srv.Handler
+	get := httptest.NewRequest(http.MethodGet, "/api/v1/admin/config/editable", nil)
+	get.Header.Set("X-Admin-Token", cfg.API.AdminToken)
+	state := httptest.NewRecorder()
+	handler.ServeHTTP(state, get)
+	var current struct {
+		Revision string `json:"revision"`
+	}
+	if state.Code != http.StatusOK || json.Unmarshal(state.Body.Bytes(), &current) != nil || current.Revision == "" {
+		t.Fatalf("GET editable config: %d %s", state.Code, state.Body.String())
+	}
+	preview := httptest.NewRequest(http.MethodPost, "/api/v1/admin/config/editable/preview", strings.NewReader(
+		`{"expected_revision":"`+current.Revision+`","changes":{"relay.enabled":true}}`))
+	preview.Header.Set("X-Admin-Token", cfg.API.AdminToken)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, preview)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "compliance v2 policy requires relay.enabled=false") {
+		t.Fatalf("server preview allowed relay under compliance: %d %s", w.Code, w.Body.String())
 	}
 }
 

@@ -151,7 +151,7 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 | `registry.ttl_hours` | 整数 1–8760 | 以后注册或续期时使用新 TTL；已有记录的过期时间不追溯修改 |
 | `mq.default_ttl_days` | 整数 1–3650 | 以后入队消息的默认及最长 TTL；已有消息的到期时间不追溯修改 |
 | `mq.max_msgs_per_urn` | 整数 1–100000 | 以后写入时检查每个收件人未读队列上限；已有消息不因降低上限而删除 |
-| `relay.enabled` | 布尔值 | 启停 Relay 服务；关闭可能影响经此平台中继的连接 |
+| `relay.enabled` | 布尔值 | 启停 Relay 服务；关闭可能影响经此平台中继的连接。已加载签名 v2 合规策略时，有效修订号下预览和提交 `true` 均返回 `400`，因为透明 Relay 与该策略不兼容 |
 | `relay.max_reservations` | 整数 1–100000 | 调整 Relay 预约容量 |
 | `relay.max_circuit_duration` | Go 时长字符串，10 秒至 24 小时，如 `"2m"` | 调整每条 Relay circuit 的时长上限 |
 

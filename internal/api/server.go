@@ -103,7 +103,7 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 	}
 
 	// Admin API
-	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h, auditLog, policies, cfgPath))
+	mux.Handle("/api/v1/admin/", AdminHandler(cfg, regStore, mqStore, h, auditLog, policies, cfgPath, gateway))
 
 	// Bootstrap info API
 	mux.HandleFunc("/api/v1/bootstrap", func(w http.ResponseWriter, r *http.Request) {

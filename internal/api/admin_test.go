@@ -70,7 +70,7 @@ func TestAdminAPIs(t *testing.T) {
 		t.Fatalf("save initial config: %v", err)
 	}
 
-	adminHandler := AdminHandler(cfg, regStore, mqStore, h, auditLog, policies, cfgPath)
+	adminHandler := AdminHandler(cfg, regStore, mqStore, h, auditLog, policies, cfgPath, nil)
 
 	t.Run("Unauthorized - No Token", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/admin/overview", nil)
@@ -580,7 +580,7 @@ func TestAdminFiltering(t *testing.T) {
 		t.Fatalf("save config: %v", err)
 	}
 
-	adminHandler := AdminHandler(cfg, regStore, mqStore, h, nil, policies, cfgPath)
+	adminHandler := AdminHandler(cfg, regStore, mqStore, h, nil, policies, cfgPath, nil)
 
 	localPeerID := h.ID().String()
 
@@ -681,7 +681,7 @@ func TestAdminPolicyWriteFailureDoesNotChangeLiveState(t *testing.T) {
 	policies := &SecurityPolicies{restart: func() { t.Error("restart on failed policy write") }}
 	policies.StoreUserData.Store(true)
 	mqStore.SetHistoryRetentionDays(30)
-	handler := AdminHandler(cfg, regStore, mqStore, h, nil, policies, "")
+	handler := AdminHandler(cfg, regStore, mqStore, h, nil, policies, "", nil)
 
 	for _, endpoint := range []string{
 		"/api/v1/admin/config/toggle-storage",

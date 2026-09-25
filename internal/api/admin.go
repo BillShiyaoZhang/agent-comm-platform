@@ -26,7 +26,7 @@ import (
 var startTime = time.Now()
 
 // AdminHandler returns an http.Handler serving all admin APIs, wrapped with token auth.
-func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog, policies *SecurityPolicies, _ string) http.Handler {
+func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, auditLog *AuditLog, policies *SecurityPolicies, _ string, gateway *mqpkg.V2Gateway) http.Handler {
 	mux := http.NewServeMux()
 	policyMu := &sync.Mutex{}
 	previewKey := make([]byte, 32)
@@ -46,8 +46,8 @@ func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpk
 	mux.HandleFunc("GET /api/v1/admin/mq/summary", handleAdminMQSummary(mqStore))
 	mux.HandleFunc("GET /api/v1/admin/config", handleAdminConfig(cfg, mqStore, policies))
 	mux.HandleFunc("GET /api/v1/admin/config/editable", handleEditableConfig(cfg, policies))
-	mux.HandleFunc("POST /api/v1/admin/config/editable/preview", handleEditableConfigPreview(cfg, regStore, mqStore, h, policies, policyMu, previewKey))
-	mux.HandleFunc("PUT /api/v1/admin/config/editable", handleEditableConfigSave(cfg, mqStore, policies, auditLog, policyMu, previewKey))
+	mux.HandleFunc("POST /api/v1/admin/config/editable/preview", handleEditableConfigPreview(cfg, regStore, mqStore, h, policies, policyMu, previewKey, gateway))
+	mux.HandleFunc("PUT /api/v1/admin/config/editable", handleEditableConfigSave(cfg, mqStore, policies, auditLog, policyMu, previewKey, gateway))
 	mux.HandleFunc("POST /api/v1/admin/config/toggle-storage", handleToggleStorage(cfg, regStore, mqStore, policies, auditLog, policyMu))
 	mux.HandleFunc("PUT /api/v1/admin/config/storage", handleSetStorage(cfg, regStore, mqStore, policies, auditLog, policyMu))
 	mux.HandleFunc("POST /api/v1/admin/config/toggle-forwarding", handleToggleForwarding(cfg, mqStore, policies, auditLog, policyMu))

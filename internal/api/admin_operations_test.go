@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/BillShiyaoZhang/agent-comm/crypto"
 	coremq "github.com/BillShiyaoZhang/agent-comm/mq"
 	pb "github.com/BillShiyaoZhang/agent-comm/proto"
+	"github.com/BillShiyaoZhang/agent-comm/v2"
 	golibp2p "github.com/libp2p/go-libp2p"
 )
 
@@ -31,7 +33,7 @@ type adminOperationsFixture struct {
 	audit    *AuditLog
 }
 
-func newAdminOperationsFixture(t *testing.T) *adminOperationsFixture {
+func newAdminOperationsFixture(t *testing.T, gateways ...*mqpkg.V2Gateway) *adminOperationsFixture {
 	t.Helper()
 	dir := t.TempDir()
 	reg, err := registrypkg.NewStore(filepath.Join(dir, "registry.db"), 24)
@@ -65,8 +67,12 @@ func newAdminOperationsFixture(t *testing.T) *adminOperationsFixture {
 	policies.StoreUserData.Store(cfg.Platform.StoreUserData)
 	policies.ForwardToStoragePlatforms.Store(cfg.Platform.ForwardToStoragePlatforms)
 	mq.SetHistoryRetentionDays(cfg.Platform.HistoryRetentionDays)
+	var gateway *mqpkg.V2Gateway
+	if len(gateways) > 0 {
+		gateway = gateways[0]
+	}
 	return &adminOperationsFixture{
-		handler: AdminHandler(cfg, reg, mq, h, audit, policies, cfgPath),
+		handler: AdminHandler(cfg, reg, mq, h, audit, policies, cfgPath, gateway),
 		cfg:     cfg, cfgPath: cfgPath, mq: mq, policies: policies, audit: audit,
 	}
 }
@@ -335,6 +341,90 @@ func TestEditableConfigPreviewConfirmAndRestartPersistence(t *testing.T) {
 	}
 	if strings.Contains(string(override), "mq_default_ttl_days:") {
 		t.Fatal("unchanged field unexpectedly pinned as an admin override")
+	}
+}
+
+func TestEditableConfigRejectsRelayUnderSignedCompliancePolicy(t *testing.T) {
+	gateway := &mqpkg.V2Gateway{Policy: &v2.Policy{Mode: v2.ModeCompliance}}
+	f := newAdminOperationsFixture(t, gateway)
+	// The legacy display mode is deliberately private; the signed policy governs.
+	f.cfg.Relay.Enabled = false
+	if err := config.Save(f.cfgPath, f.cfg); err != nil {
+		t.Fatal(err)
+	}
+	get := f.request(t, http.MethodGet, "/api/v1/admin/config/editable", "")
+	var state struct {
+		Revision string `json:"revision"`
+	}
+	if get.Code != http.StatusOK || json.Unmarshal(get.Body.Bytes(), &state) != nil {
+		t.Fatalf("GET: %d %s", get.Code, get.Body.String())
+	}
+	changes := `{"relay.enabled":true}`
+	preview := f.request(t, http.MethodPost, "/api/v1/admin/config/editable/preview",
+		`{"expected_revision":"`+state.Revision+`","changes":`+changes+`}`)
+	if preview.Code != http.StatusBadRequest || !strings.Contains(preview.Body.String(), "compliance v2 policy requires relay.enabled=false") {
+		t.Fatalf("compliance preview: %d %s", preview.Code, preview.Body.String())
+	}
+
+	// Call the save handler with an otherwise valid token to verify that the
+	// persistence boundary enforces the same constraint independently.
+	key := []byte("test-only-preview-key")
+	targetCfg := *f.cfg
+	targetCfg.Relay.Enabled = true
+	requestChanges := map[string]json.RawMessage{"relay.enabled": json.RawMessage("true")}
+	token := editableConfirmationToken(key, state.Revision, editableSettings(&targetCfg), requestChanges,
+		time.Now().Add(editablePreviewLifetime))
+	if !validEditableConfirmationToken(key, state.Revision, editableSettings(&targetCfg), requestChanges, token, time.Now()) {
+		t.Fatal("test confirmation token is invalid")
+	}
+	handler := handleEditableConfigSave(f.cfg, f.mq, f.policies, f.audit, &sync.Mutex{}, key, gateway)
+	save := httptest.NewRecorder()
+	handler.ServeHTTP(save, httptest.NewRequest(http.MethodPut, "/api/v1/admin/config/editable", strings.NewReader(
+		`{"expected_revision":"`+state.Revision+`","changes":`+changes+`,"confirmation_token":"`+token+`"}`)))
+	if save.Code != http.StatusBadRequest || !strings.Contains(save.Body.String(), "compliance v2 policy requires relay.enabled=false") {
+		t.Fatalf("compliance save: %d %s", save.Code, save.Body.String())
+	}
+	if f.policies.ConfigRestartPending.Load() {
+		t.Fatal("rejected relay change scheduled a restart")
+	}
+	if _, err := os.Stat(filepath.Join(f.cfg.Platform.DataDir, "admin-policies.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("rejected relay change wrote admin policies: %v", err)
+	}
+}
+
+func TestEditableConfigAllowsRelayUnderSignedPrivatePolicy(t *testing.T) {
+	gateway := &mqpkg.V2Gateway{Policy: &v2.Policy{Mode: v2.ModePrivate}}
+	f := newAdminOperationsFixture(t, gateway)
+	// The legacy display mode must not prevent a valid private-policy edit.
+	f.cfg.Platform.Mode = "compliance"
+	f.cfg.Relay.Enabled = false
+	if err := config.Save(f.cfgPath, f.cfg); err != nil {
+		t.Fatal(err)
+	}
+	get := f.request(t, http.MethodGet, "/api/v1/admin/config/editable", "")
+	var state struct {
+		Revision string `json:"revision"`
+	}
+	if get.Code != http.StatusOK || json.Unmarshal(get.Body.Bytes(), &state) != nil {
+		t.Fatalf("GET: %d %s", get.Code, get.Body.String())
+	}
+	changes := `{"relay.enabled":true}`
+	preview := f.request(t, http.MethodPost, "/api/v1/admin/config/editable/preview",
+		`{"expected_revision":"`+state.Revision+`","changes":`+changes+`}`)
+	var impact struct {
+		ConfirmationToken string `json:"confirmation_token"`
+	}
+	if preview.Code != http.StatusOK || json.Unmarshal(preview.Body.Bytes(), &impact) != nil || impact.ConfirmationToken == "" {
+		t.Fatalf("private-policy preview: %d %s", preview.Code, preview.Body.String())
+	}
+	save := f.request(t, http.MethodPut, "/api/v1/admin/config/editable",
+		`{"expected_revision":"`+state.Revision+`","changes":`+changes+`,"confirmation_token":"`+impact.ConfirmationToken+`"}`)
+	if save.Code != http.StatusOK || !f.policies.ConfigRestartPending.Load() {
+		t.Fatalf("private-policy save: %d %s", save.Code, save.Body.String())
+	}
+	loaded, err := config.Load(f.cfgPath)
+	if err != nil || !loaded.Relay.Enabled {
+		t.Fatalf("private-policy relay override not persisted: %+v, %v", loaded, err)
 	}
 }
 

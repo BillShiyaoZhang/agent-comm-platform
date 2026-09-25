@@ -19,6 +19,7 @@ import (
 	"github.com/BillShiyaoZhang/agent-comm-platform/internal/config"
 	mqpkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/mq"
 	registrypkg "github.com/BillShiyaoZhang/agent-comm-platform/internal/registry"
+	"github.com/BillShiyaoZhang/agent-comm/v2"
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
@@ -132,7 +133,7 @@ func decodeEditableRequest(w http.ResponseWriter, r *http.Request) (editableRequ
 	return input, nil
 }
 
-func applyEditableChanges(cfg *config.Config, changes map[string]json.RawMessage) error {
+func applyEditableChanges(cfg *config.Config, changes map[string]json.RawMessage, gateway *mqpkg.V2Gateway) error {
 	wasRelayEnabled := cfg.Relay.Enabled
 	for key, raw := range changes {
 		switch key {
@@ -188,6 +189,11 @@ func applyEditableChanges(cfg *config.Config, changes map[string]json.RawMessage
 			}
 		}
 	}
+	// A signed compliance policy rejects transparent Relay at startup. Check
+	// the already verified policy here so a console edit cannot cause a restart loop.
+	if gateway != nil && gateway.Policy != nil && gateway.Policy.Mode == v2.ModeCompliance && cfg.Relay.Enabled {
+		return fmt.Errorf("compliance v2 policy requires relay.enabled=false; transparent libp2p relay cannot inspect message frames")
+	}
 	return nil
 }
 
@@ -223,7 +229,7 @@ func handleEditableConfig(cfg *config.Config, policies *SecurityPolicies) http.H
 	}
 }
 
-func handleEditableConfigPreview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, policies *SecurityPolicies, policyMu *sync.Mutex, previewKey []byte) http.HandlerFunc {
+func handleEditableConfigPreview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, policies *SecurityPolicies, policyMu *sync.Mutex, previewKey []byte, gateway *mqpkg.V2Gateway) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		input, err := decodeEditableRequest(w, r)
 		if err != nil {
@@ -246,7 +252,7 @@ func handleEditableConfigPreview(cfg *config.Config, regStore *registrypkg.Store
 			return
 		}
 		updated := *cfg
-		if err := applyEditableChanges(&updated, input.Changes); err != nil {
+		if err := applyEditableChanges(&updated, input.Changes, gateway); err != nil {
 			policyMu.Unlock()
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -289,7 +295,7 @@ func handleEditableConfigPreview(cfg *config.Config, regStore *registrypkg.Store
 	}
 }
 
-func handleEditableConfigSave(cfg *config.Config, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex, previewKey []byte) http.HandlerFunc {
+func handleEditableConfigSave(cfg *config.Config, mqStore *mqpkg.Store, policies *SecurityPolicies, auditLog *AuditLog, policyMu *sync.Mutex, previewKey []byte, gateway *mqpkg.V2Gateway) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		input, err := decodeEditableRequest(w, r)
 		if err != nil {
@@ -316,7 +322,7 @@ func handleEditableConfigSave(cfg *config.Config, mqStore *mqpkg.Store, policies
 			return
 		}
 		updated := *cfg
-		if err := applyEditableChanges(&updated, input.Changes); err != nil {
+		if err := applyEditableChanges(&updated, input.Changes, gateway); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			return

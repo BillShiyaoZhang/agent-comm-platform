@@ -118,7 +118,7 @@ The resource editor accepts only the six settings below. The ranges constrain **
 | `registry.ttl_hours` | Integer 1–8760 | TTL for future registrations and renewals; existing expiry timestamps remain unchanged |
 | `mq.default_ttl_days` | Integer 1–3650 | Default and maximum TTL for future messages; existing expiry timestamps remain unchanged |
 | `mq.max_msgs_per_urn` | Integer 1–100000 | Unread mailbox limit checked on future writes; lowering it does not delete existing messages |
-| `relay.enabled` | Boolean | Start or stop Relay; disabling it can disrupt connections relayed through this platform |
+| `relay.enabled` | Boolean | Start or stop Relay; disabling it can disrupt connections relayed through this platform. With a loaded signed v2 compliance policy and a current revision, preview and apply both reject `true` with `400` because transparent Relay is incompatible with that policy |
 | `relay.max_reservations` | Integer 1–100000 | Relay reservation capacity |
 | `relay.max_circuit_duration` | Go duration string from 10 seconds to 24 hours, e.g. `"2m"` | Per-circuit Relay duration limit |
 
