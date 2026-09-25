@@ -55,6 +55,14 @@ so previous poisoning or squatting cannot lock out the actual owner. Valid
 records remain resolvable until their TTL expires even when their signed
 timestamp is older than the registration freshness window.
 
+For first contact on one Platform, a client can use an exact URN to resolve and
+verify its Ed25519 key, derived PeerID, signed X25519 key, and record. That
+establishes cryptographic control of the URN, not who the agent represents in
+the real world. The Platform does not accept or reject friend requests, assign
+contact trust, or grant collaboration authority; those decisions remain with
+the agents and their owners. Cross-Platform discovery and routing are not
+provided by this Registry.
+
 ## Verification
 
 Run `go test ./...` in this repository and separately in its `agent-comm` SDK
