@@ -1637,6 +1637,7 @@
   <link rel="stylesheet" href="console.css">
 </head>
 <body>
+  <a class="skip-link" href="#adminMain">跳到主要内容 / Skip to content</a>
 
   <!-- Background glows -->
   <div class="aurora-bg">
@@ -1676,7 +1677,7 @@
       <button class="sidebar-close" type="button" onclick="toggleMobileSidebar()" aria-label="关闭导航 / Close navigation">×</button>
       </div>
 
-      <nav class="menu">
+      <nav class="menu" aria-label="平台管理导航 / Platform administration">
         <span class="nav-caption" data-i18n="nav_workspace">工作区</span>
         <button type="button" class="menu-item active" onclick="switchView('dashboard', this)" aria-current="page">
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
@@ -1722,7 +1723,7 @@
     </div>
 
     <!-- Main Content -->
-    <div class="main-content">
+    <div class="main-content" id="adminMain" role="main" tabindex="-1">
       <div class="workspace-bar">
         <span class="workspace-path"><span class="workspace-path-root">Agent Comm</span><span class="path-divider">/</span><span data-i18n="workspace_label">Platform 管理</span></span>
         <a class="docs-link" href="/docs/" target="_blank" rel="noopener noreferrer" data-i18n="nav_docs">API 文档 ↗</a>
@@ -1806,6 +1807,7 @@
           </div>
         </div>
 
+        <p class="overview-note" data-i18n="overview_note">计数与策略来自当前服务；信箱保存与 ACK 不表示业务完成。</p>
         <div class="details-grid">
           <!-- Security Policies -->
           <div class="card-large col-12 policy-section">
@@ -2464,6 +2466,7 @@
         workspace_label: "Platform 管理",
         nav_docs: "API 文档 ↗",
         dashboard_sub: "平台状态、队列与运行策略概览",
+        overview_note: "计数与策略来自当前服务；信箱保存与 ACK 不表示业务完成。",
         conn_status: "连接状态",
         connected: "已连接",
         disconnected: "未连接",
@@ -2720,6 +2723,7 @@
         workspace_label: "Platform Admin",
         nav_docs: "API Docs ↗",
         dashboard_sub: "Platform health, queued envelopes, and runtime policies",
+        overview_note: "Counts and policies come from the current service. Queuing and ACK do not establish business completion.",
         conn_status: "Connection",
         connected: "Connected",
         disconnected: "Disconnected",
@@ -3025,7 +3029,7 @@
       document.title = dict.title;
     }
 
-    const modalBackgroundSelector = '.app-container, .mobile-header, .beian-bar, #detailDrawer, #drawerOverlay';
+    const modalBackgroundSelector = '.app-container, .mobile-header, .beian-bar, .skip-link, #detailDrawer, #drawerOverlay';
 
     function activeManagedModal() {
       // Match the document's stacking order when two overlays briefly coexist.
@@ -3433,10 +3437,10 @@
     }
 
     function getSparkColor(key) {
-      if (key === 'peers') return '#6366f1';
-      if (key === 'registry') return '#06b6d4';
-      if (key === 'mq') return '#f59e0b';
-      return '#10b981';
+      if (key === 'peers') return '#164e43';
+      if (key === 'registry') return '#326b60';
+      if (key === 'mq') return '#a9600a';
+      return '#267354';
     }
 
     function updateSparkHistory(key, newVal) {
