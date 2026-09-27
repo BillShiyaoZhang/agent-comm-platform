@@ -80,7 +80,7 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 
 ## 加密与授权边界
 
-- **客户端完成信封加解密。** 当前 HTTPS MQ/helper 信封使用静态 X25519 共享密钥、AES-GCM 和 Ed25519 签名；此路径不提供 Double Ratchet 的前向保密保证。Double Ratchet 属于 SDK 的实时流能力。
+- **客户端完成信封加解密。** 旧 v1 HTTPS MQ/helper 信封使用静态 X25519 共享密钥、AES-GCM 和 Ed25519 签名；此路径不提供 Double Ratchet 的前向保密保证。Double Ratchet 属于 SDK 的实时流能力。v2 的 `private` 与 `compliance` 另由签名策略约束；合规网关会解密获准的新消息。
 - **签名绑定发送对象。** 信封签名绑定发送者、接收者、消息 ID 和加密字段。平台拒绝未签名、被篡改、目标不匹配或与调用身份不一致的信封。
 - **通讯录校验所有者。** 每次注册、更新和续期都要求 URN 对应的 Ed25519 签名，PeerID 必须由同一公钥派生。使用 `RegisterWithSignature` 和 `registry.BuildSignedMsg`；HTTP SDK client 会签名。旧无签名入口被禁用，旧无效行被排除在查询结果之外。地址列表不在现有记录签名覆盖范围内，连接仍需验证 libp2p 身份。完整边界与升级步骤见 [REGISTRY_SECURITY.md](../architecture/REGISTRY_SECURITY.md)。
 - **收件与确认鉴权。** retrieve、subscribe 和 ACK 必须绑定收件人身份。相同 ID、相同信封的存储重试可去重；相同 ID 的不同内容被拒绝。业务层仍需自己的幂等与授权。
@@ -88,7 +88,7 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 
 配置文件保留 `platform.mode` 字段。该字段本身不代表已实现消息解密审查或合规网关；当前实际存储和转发行为由存储策略配置控制。
 
-显式配置 `v2.enabled` 和经独立根验证的签名策略后，新增 `/api/v2/policy`、`/api/v2/mq/` 与 `/api/v2/handshake/` HTTP 路径。合规模式下平台先解开指定网关密钥槽并认证正文，再把原始 v2 信封与签名准入回执原子入队；v1 Agent↔Agent 经 HTTP 和 libp2p 共用的 MQ 存储层拒收。托管 Web 控制台仅凭策略中指定签发者的短期证书获得 v1 路由例外，不能显示成 Agent↔Agent 的隐私或合规证明。密钥生成、签发、部署和旧行隔离见[运行与安全配置](SECURITY.md#显式启用-v2-签名策略与网关)；v2 目前没有 libp2p 应用入口或 SSE，要求检查正文的部署须关闭透明 Relay。
+显式配置 `v2.enabled` 和经独立根验证的签名策略后，新增 `/api/v2/policy`、`/api/v2/mq/` 与 `/api/v2/handshake/` HTTP 路径。合规模式下平台先解开指定网关密钥槽并认证正文，再把原始 v2 信封、签名准入回执以及按保存策略启用的明文归档在同一 SQLite 事务提交；v1 Agent↔Agent 经 HTTP 和 libp2p 共用的 MQ 存储层拒收。托管 Web 控制台仅凭策略中指定签发者的短期证书获得 v1 路由例外，不能显示成 Agent↔Agent 的隐私或合规证明。密钥生成、签发、部署和旧行隔离见[运行与安全配置](SECURITY.md#显式启用-v2-签名策略与网关)；v2 目前没有 libp2p 应用入口或 SSE，要求检查正文的部署须关闭透明 Relay。
 
 ## 配置与消息保留
 
@@ -99,14 +99,19 @@ Hermes 等接入方使用本机 helper 的持久 inbox/outbox：
 | `registry.ttl_hours` | `24` | Registry 记录的有效时间；客户端需要续期 |
 | `mq.default_ttl_days` | `7` | 未显式指定过期时间时，消息的保存期限 |
 | `mq.max_msgs_per_urn` | `500` | 每个收件人未读队列的容量 |
-| `platform.history_retention_days` | `30` | 已确认消息历史的保留上限，仍受消息自身过期时间限制 |
+| `platform.history_retention_days` | `30` | 已确认 MQ 密文历史的保留上限，仍受消息自身过期时间限制 |
+| `platform.compliance_retention_days` | `30` | 独立合规明文归档保存天数，按平台接收 `stored_at` 计算；`0` 停止新留存并清理已有归档 |
 | `platform.store_user_data` | `true` | 是否接受消息信箱存储 |
 | `platform.forward_to_storage_platforms` | `true` | 是否允许面向被登记为存储数据的平台身份的相关操作 |
 | `api.admin_token` | 空 | 空值关闭管理 API；也可由 `PLATFORM_ADMIN_TOKEN` 环境变量设置 |
 
 ACK 将消息标记为已确认，之后不再作为待收消息返回；并不保证立即物理删除。清理任务定期删除过期记录与超出历史保留期的记录。`history_retention_days: 0` 也在清理任务执行时移除历史。记录清理后不能依赖平台永久去重。
 
-管理台的三项即时策略 `store_user_data`、`forward_to_storage_platforms`、`history_retention_days` 写入 `platform.data_dir/admin-policies.yaml`。启动时，覆盖文件中出现的字段覆盖只读主配置 `config.yaml`；旧覆盖文件没有转发字段时仍使用主配置值。存储策略切换还写入内部 `registry_reset_pending` 标记；重启时先完成 Registry 清理，再清除标记和对外提供服务，防止进程中断留下旧路由。数据目录须可写；初始持久化失败会返回错误，不会执行 Registry 清理或重启。
+合规明文独立保存在 MQ 数据库的 `compliance_messages` 表，仅合法 v2 `compliance` 准入生成；`private`、v1 托管控制台例外和握手不留存，升级前的消息不回填。保存期限独立于 MQ TTL、ACK、密文历史清理和队列删除；轮换网关密钥或切换模式不隐藏仍在保存期内的归档。管理员通过“合规消息”页按发送/接收 URN 分页读取元数据，详情接口读取单条完整正文。缩短保留期先在事务中清理超期归档再生效，`0` 清理已有并停止新留存；到期记录即时从查询中隐藏，常规清理约每五分钟运行。延长保留期不能恢复已清理明文。清理是逻辑删除，不保证物理擦除或备份删除。
+
+独立的有界去重记录不含正文，保存信封摘要、收件人、原回执及签名有效期至信封到期，使 ACK、队列删除、归档到期或停止留存后的同字节重试仍返回原回执，不重新生成明文归档。
+
+管理台的四项策略 `store_user_data`、`forward_to_storage_platforms`、`history_retention_days`、`compliance_retention_days` 写入 `platform.data_dir/admin-policies.yaml`。合规保存天数在线生效，无需重启；写入失败不会报告成功。启动时，覆盖文件中出现的字段覆盖只读主配置 `config.yaml`；旧覆盖文件没有转发字段时仍使用主配置值。存储策略切换还写入内部 `registry_reset_pending` 标记；重启时先完成 Registry 清理，再清除标记和对外提供服务，防止进程中断留下旧路由。数据目录须可写；初始持久化失败会返回错误，不会执行 Registry 清理或重启。
 
 管理台另可编辑六项**启动时生效**的资源设置。它们经 `GET /api/v1/admin/config/editable` 提供的当前运行修订号、只读 `POST /api/v1/admin/config/editable/preview` 预览及确认令牌，最后由 `PUT /api/v1/admin/config/editable` 写入同一覆盖文件并自动重启。修订号只反映当前进程已加载的六项值，直接编辑磁盘文件需要重启才会改变该修订号；过时修订号或待重启状态拒绝预览/提交。写入前按范围验证，写入失败不触发重启；无变化提交仍须预览确认，但不重启。覆盖文件中六项字段与主配置的对应关系如下，具体范围和用户可见影响见 [管理接口](API.md#管理接口)。
 
@@ -119,7 +124,7 @@ ACK 将消息标记为已确认，之后不再作为待收消息返回；并不�
 | `relay.max_reservations` | `relay_max_reservations` |
 | `relay.max_circuit_duration` | `relay_max_circuit_duration` |
 
-编辑主配置中的九项受管理字段前，先检查现存覆盖文件；启动时覆盖文件中的对应值优先。管理范围仅约束新写入的覆盖值，旧主配置中不在新范围内的值仍可加载，修改其他字段也不会顺带改写它。身份、数据库和数据目录、监听、TLS、管理令牌、可信代理与 HTTP 限流仍只通过服务器部署配置管理。`platform.mode` 目前只用于显示；`libp2p.external_addrs`、`registry.http_enabled`、`mq.http_enabled` 当前不改变运行行为。
+编辑主配置中的十项受管理字段前，先检查现存覆盖文件；启动时覆盖文件中的对应值优先。管理范围仅约束新写入的覆盖值，旧主配置中不在新范围内的值仍可加载，修改其他字段也不会顺带改写它。身份、数据库和数据目录、监听、TLS、管理令牌、可信代理与 HTTP 限流仍只通过服务器部署配置管理。`platform.mode` 目前只用于显示；`libp2p.external_addrs`、`registry.http_enabled`、`mq.http_enabled` 当前不改变运行行为。
 
 未读队列满时拒绝新入队消息，HTTP 返回 429 和 `Retry-After: 5`，已入队消息保留。发送方应保留本地 outbox 并按策略重试；消息过期、容量限制或收件设备长期离线都可能影响最终送达。
 

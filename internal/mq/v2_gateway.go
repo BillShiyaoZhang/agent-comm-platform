@@ -99,9 +99,13 @@ func (g *V2Gateway) CheckCurrent() error {
 }
 
 // AdmitV2 verifies the signed envelope, decrypts exactly that ciphertext in
-// compliance mode, signs a CEK proof, then atomically stores both original
-// bytes. Decrypted plaintext is never added to the mailbox or log.
+// compliance mode, signs a CEK proof, then atomically stores the original
+// envelope, receipt, and optional compliance history. Plaintext stays out of
+// the delivery mailbox and logs.
 func (g *V2Gateway) AdmitV2(ctx context.Context, store *Store, sender ed25519.PublicKey, recipient string, raw []byte, requestedExpiry int64) (string, []byte, error) {
+	if len(raw) == 0 || len(raw) > maxEnvelopeBytes {
+		return "", nil, fmt.Errorf("%w: v2 envelope exceeds limit", ErrInvalidMessage)
+	}
 	// An already admitted, byte-identical envelope may be retried after the
 	// platform has switched epochs or the old policy has expired. Authenticate
 	// its sender first, then return only the receipt committed with those exact
@@ -153,7 +157,13 @@ func (g *V2Gateway) AdmitV2(ctx context.Context, store *Store, sender ed25519.Pu
 	if err != nil {
 		return "", nil, err
 	}
-	storedReceipt, err := store.StoreV2(ctx, recipient, env.Header.MessageID, v2.PolicyHash(g.Policy), raw, rawReceipt, env.Header.Expiry)
+	var compliance *ComplianceMessage
+	if g.Policy.Mode == v2.ModeCompliance {
+		compliance = &ComplianceMessage{ID: env.Header.MessageID, Sender: env.Header.SenderURN, Recipient: recipient,
+			Expiry: env.Header.Expiry, PolicyHash: env.Header.PolicyHash, PolicyEpoch: env.Header.PolicyEpoch,
+			ContentType: env.Header.ContentType, Plaintext: string(plaintext)}
+	}
+	storedReceipt, err := store.storeV2(ctx, recipient, env.Header.MessageID, v2.PolicyHash(g.Policy), raw, rawReceipt, env.Header.Expiry, compliance)
 	if err != nil {
 		return "", nil, err
 	}

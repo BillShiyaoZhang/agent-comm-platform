@@ -28,16 +28,17 @@ type Config struct {
 // adminPolicyOverrides contains only the settings the admin console may persist.
 // It lives in platform.data_dir so deployments can keep the main config read-only.
 type adminPolicyOverrides struct {
-	StoreUserData             *bool   `yaml:"store_user_data"`
-	ForwardToStoragePlatforms *bool   `yaml:"forward_to_storage_platforms,omitempty"`
-	HistoryRetentionDays      *int    `yaml:"history_retention_days"`
-	RegistryResetPending      bool    `yaml:"registry_reset_pending"`
-	RegistryTTLHours          *int    `yaml:"registry_ttl_hours,omitempty"`
-	MQDefaultTTLDays          *int    `yaml:"mq_default_ttl_days,omitempty"`
-	MQMaxMsgsPerURN           *int    `yaml:"mq_max_msgs_per_urn,omitempty"`
-	RelayEnabled              *bool   `yaml:"relay_enabled,omitempty"`
-	RelayMaxReservations      *int    `yaml:"relay_max_reservations,omitempty"`
-	RelayMaxCircuitDuration   *string `yaml:"relay_max_circuit_duration,omitempty"`
+	StoreUserData             *bool                          `yaml:"store_user_data"`
+	ForwardToStoragePlatforms *bool                          `yaml:"forward_to_storage_platforms,omitempty"`
+	HistoryRetentionDays      *int                           `yaml:"history_retention_days"`
+	ComplianceRetentionDays   *strictComplianceRetentionDays `yaml:"compliance_retention_days,omitempty"`
+	RegistryResetPending      bool                           `yaml:"registry_reset_pending"`
+	RegistryTTLHours          *int                           `yaml:"registry_ttl_hours,omitempty"`
+	MQDefaultTTLDays          *int                           `yaml:"mq_default_ttl_days,omitempty"`
+	MQMaxMsgsPerURN           *int                           `yaml:"mq_max_msgs_per_urn,omitempty"`
+	RelayEnabled              *bool                          `yaml:"relay_enabled,omitempty"`
+	RelayMaxReservations      *int                           `yaml:"relay_max_reservations,omitempty"`
+	RelayMaxCircuitDuration   *string                        `yaml:"relay_max_circuit_duration,omitempty"`
 }
 
 const adminPoliciesFilename = "admin-policies.yaml"
@@ -48,6 +49,44 @@ type PlatformConfig struct {
 	StoreUserData             bool   `yaml:"store_user_data"`
 	ForwardToStoragePlatforms bool   `yaml:"forward_to_storage_platforms"`
 	HistoryRetentionDays      int    `yaml:"history_retention_days"`
+	ComplianceRetentionDays   int    `yaml:"compliance_retention_days"`
+}
+
+// YAML's default integer decoder also converts floating point scalars. Reject
+// them here so a configured duration never silently changes through truncation.
+type strictComplianceRetentionDays int
+
+func (days *strictComplianceRetentionDays) UnmarshalYAML(node *yaml.Node) error {
+	if node.Tag != "!!int" {
+		return fmt.Errorf("compliance_retention_days must be an integer from 0 to 36500")
+	}
+	var value int
+	if err := node.Decode(&value); err != nil {
+		return err
+	}
+	if err := ValidateComplianceRetentionDays(value); err != nil {
+		return err
+	}
+	*days = strictComplianceRetentionDays(value)
+	return nil
+}
+
+func (cfg *PlatformConfig) UnmarshalYAML(node *yaml.Node) error {
+	type plain PlatformConfig
+	decoded := plain(*cfg)
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == "compliance_retention_days" {
+			var days strictComplianceRetentionDays
+			if err := node.Content[i+1].Decode(&days); err != nil {
+				return err
+			}
+		}
+	}
+	if err := node.Decode(&decoded); err != nil {
+		return err
+	}
+	*cfg = PlatformConfig(decoded)
+	return nil
 }
 
 type IdentityConfig struct {
@@ -106,6 +145,7 @@ func DefaultConfig() *Config {
 			StoreUserData:             true,
 			ForwardToStoragePlatforms: true,
 			HistoryRetentionDays:      30,
+			ComplianceRetentionDays:   30,
 		},
 		Identity: IdentityConfig{KeysDir: "./data/keys"},
 		Libp2p: Libp2pConfig{
@@ -154,6 +194,9 @@ func Load(path string) (*Config, error) {
 	if err := LoadAdminPolicies(cfg); err != nil {
 		return nil, err
 	}
+	if err := ValidateComplianceRetentionDays(cfg.Platform.ComplianceRetentionDays); err != nil {
+		return nil, err
+	}
 	if cfg.V2.Enabled {
 		if cfg.V2.PolicyFile == "" || cfg.V2.PolicyRootPublicKeyFile == "" || cfg.V2.ReceiptPrivateKeyFile == "" {
 			return nil, fmt.Errorf("v2 requires policy_file, policy_root_public_key_file, and receipt_private_key_file")
@@ -172,6 +215,12 @@ func LoadAdminPolicies(cfg *Config) error {
 	}
 	if overrides.HistoryRetentionDays != nil && *overrides.HistoryRetentionDays < 0 {
 		return fmt.Errorf("admin policies history_retention_days must be nonnegative")
+	}
+	if overrides.ComplianceRetentionDays != nil {
+		if err := ValidateComplianceRetentionDays(int(*overrides.ComplianceRetentionDays)); err != nil {
+			return fmt.Errorf("admin policies: %w", err)
+		}
+		cfg.Platform.ComplianceRetentionDays = int(*overrides.ComplianceRetentionDays)
 	}
 	if overrides.StoreUserData != nil {
 		cfg.Platform.StoreUserData = *overrides.StoreUserData
@@ -311,12 +360,17 @@ func saveAdminPolicies(cfg *Config, overrides adminPolicyOverrides) error {
 	storeUserData := cfg.Platform.StoreUserData
 	forwardToStoragePlatforms := cfg.Platform.ForwardToStoragePlatforms
 	historyRetentionDays := cfg.Platform.HistoryRetentionDays
+	complianceRetentionDays := strictComplianceRetentionDays(cfg.Platform.ComplianceRetentionDays)
+	if err := ValidateComplianceRetentionDays(int(complianceRetentionDays)); err != nil {
+		return err
+	}
 	if historyRetentionDays < 0 {
 		return fmt.Errorf("history_retention_days must be nonnegative")
 	}
 	overrides.StoreUserData = &storeUserData
 	overrides.ForwardToStoragePlatforms = &forwardToStoragePlatforms
 	overrides.HistoryRetentionDays = &historyRetentionDays
+	overrides.ComplianceRetentionDays = &complianceRetentionDays
 	overrides.RegistryResetPending = cfg.AdminRegistryResetPending
 	data, err := yaml.Marshal(overrides)
 	if err != nil {
@@ -344,6 +398,14 @@ func saveAdminPolicies(cfg *Config, overrides adminPolicyOverrides) error {
 	}
 	if err := os.Rename(tmp.Name(), filepath.Join(cfg.Platform.DataDir, adminPoliciesFilename)); err != nil {
 		return fmt.Errorf("replace admin policies: %w", err)
+	}
+	return nil
+}
+
+// ValidateComplianceRetentionDays bounds both startup and live plaintext retention.
+func ValidateComplianceRetentionDays(days int) error {
+	if days < 0 || days > 36500 {
+		return fmt.Errorf("compliance_retention_days must be an integer from 0 to 36500")
 	}
 	return nil
 }

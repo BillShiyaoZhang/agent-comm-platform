@@ -341,6 +341,7 @@ func handleEditableConfigSave(cfg *config.Config, mqStore *mqpkg.Store, policies
 		updated.Platform.StoreUserData = policies.StoreUserData.Load()
 		updated.Platform.ForwardToStoragePlatforms = policies.ForwardToStoragePlatforms.Load()
 		updated.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
+		updated.Platform.ComplianceRetentionDays = mqStore.GetComplianceRetentionDays()
 		updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
 		keys := make([]string, 0, len(changed))
 		for _, change := range changed {

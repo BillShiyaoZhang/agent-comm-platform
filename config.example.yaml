@@ -5,6 +5,10 @@ platform:
   forward_to_storage_platforms: true # Whether the platform allows forwarding/connecting to other platforms that store user data
   history_retention_days: 30        # How many days to keep delivered/read historical messages in the queue (0 to delete immediately)
 
+  # Verified v2 compliance plaintext history, counted from platform admission.
+  # Independent of ACK and delivery TTL; 0 disables and clears plaintext history.
+  compliance_retention_days: 30
+
 identity:
   keys_dir: "./data/keys"
 

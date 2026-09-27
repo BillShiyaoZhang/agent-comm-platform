@@ -37,12 +37,15 @@ CREATE INDEX IF NOT EXISTS idx_expiry    ON messages(expiry);
 
 // Store is the SQLite-backed MQ store.
 type Store struct {
-	db                   *sql.DB
-	done                 chan struct{}
-	closeOnce            sync.Once
-	defaultTTL           time.Duration
-	maxPerURN            int
-	historyRetentionDays int32
+	db                             *sql.DB
+	done                           chan struct{}
+	closeOnce                      sync.Once
+	defaultTTL                     time.Duration
+	maxPerURN                      int
+	historyRetentionDays           int32
+	complianceMu                   sync.RWMutex
+	complianceRetentionDays        int
+	complianceRetentionInitialized atomic.Bool
 
 	mu              sync.RWMutex
 	subscribers     map[string][]chan *proto.EncryptedEnvelope
@@ -101,6 +104,10 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("create v2 mq schema: %w", err)
 	}
+	if _, err := db.Exec(complianceSchema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create compliance history schema: %w", err)
+	}
 	// Safe for databases from early v2 development; duplicate-column errors
 	// mean the schema already has these fields.
 	_, _ = db.Exec("ALTER TABLE v2_policy_state ADD COLUMN require_v2 INTEGER NOT NULL DEFAULT 0")
@@ -109,12 +116,13 @@ func NewStore(dbPath string, defaultTTLDays, maxPerURN int) (*Store, error) {
 	_, _ = db.Exec("ALTER TABLE v2_managed_identities ADD COLUMN enrolled_at_ns INTEGER NOT NULL DEFAULT 0")
 	_, _ = db.Exec("UPDATE v2_managed_identities SET enrolled_at_ns=? WHERE enrolled_at_ns=0", time.Now().UnixNano())
 	s := &Store{
-		db:                   db,
-		done:                 make(chan struct{}),
-		defaultTTL:           time.Duration(defaultTTLDays) * 24 * time.Hour,
-		maxPerURN:            maxPerURN,
-		historyRetentionDays: 30,
-		subscribers:          make(map[string][]chan *proto.EncryptedEnvelope),
+		db:                      db,
+		done:                    make(chan struct{}),
+		defaultTTL:              time.Duration(defaultTTLDays) * 24 * time.Hour,
+		maxPerURN:               maxPerURN,
+		historyRetentionDays:    30,
+		complianceRetentionDays: 30,
+		subscribers:             make(map[string][]chan *proto.EncryptedEnvelope),
 	}
 	// A previously pinned no-v1 policy remains fail-closed even if an operator
 	// accidentally disables v2 configuration on the next process start. Only
@@ -216,7 +224,9 @@ func (s *Store) StoreEnvelope(ctx context.Context, recipientURN string, env *pro
 		}
 	}
 	var v2Collision int
-	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM v2_messages WHERE id=?", msgID).Scan(&v2Collision); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM v2_messages WHERE id=?) +
+		(SELECT COUNT(*) FROM v2_compliance_admissions WHERE id=?) +
+		(SELECT COUNT(*) FROM compliance_messages WHERE id=?)`, msgID, msgID, msgID).Scan(&v2Collision); err != nil {
 		return "", err
 	}
 	if v2Collision != 0 {
@@ -840,30 +850,37 @@ func (s *Store) cleanupLoop() {
 			return
 		case <-tick.C:
 		}
-		now := time.Now().Unix()
-		// 1. Delete expired messages
-		if _, err := s.db.Exec("DELETE FROM messages WHERE expiry>0 AND expiry<?", now); err != nil {
+		if err := s.cleanup(context.Background(), time.Now().Unix()); err != nil {
 			log.Printf("[mq] cleanup error: %v", err)
 		}
-		if _, err := s.db.Exec("DELETE FROM v2_messages WHERE expiry<?", now); err != nil {
-			log.Printf("[mq] v2 cleanup error: %v", err)
+	}
+}
+
+// cleanup keeps delivery rows, ACK history, and compliance plaintext on their
+// separate retention clocks. The admission hashes expire with the signed
+// envelope: after that point identical bytes cannot be newly admitted.
+func (s *Store) cleanup(ctx context.Context, now int64) error {
+	s.complianceMu.RLock()
+	defer s.complianceMu.RUnlock()
+	s.complianceRetentionInitialized.Store(true)
+	var failures []error
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE expiry>0 AND expiry<=?", now); err != nil {
+		failures = append(failures, err)
+	}
+	for _, table := range []string{"v2_messages", "v2_handshake_frames", "v2_compliance_admissions"} {
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM "+table+" WHERE expiry<=?", now); err != nil {
+			failures = append(failures, err)
 		}
-		if _, err := s.db.Exec("DELETE FROM v2_handshake_frames WHERE expiry<?", now); err != nil {
-			log.Printf("[mq] v2 handshake cleanup error: %v", err)
-		}
-		// 2. Delete historical messages older than retention days
-		retentionDays := atomic.LoadInt32(&s.historyRetentionDays)
-		if retentionDays >= 0 {
-			retentionSeconds := int64(retentionDays) * 24 * 3600
-			if _, err := s.db.Exec("DELETE FROM messages WHERE read_at>0 AND read_at<?", now-retentionSeconds); err != nil {
-				log.Printf("[mq] history cleanup error: %v", err)
-			}
-			if _, err := s.db.Exec("DELETE FROM v2_messages WHERE read_at>0 AND read_at<?", now-retentionSeconds); err != nil {
-				log.Printf("[mq] v2 history cleanup error: %v", err)
-			}
-			if _, err := s.db.Exec("DELETE FROM v2_handshake_frames WHERE read_at>0 AND read_at<?", now-retentionSeconds); err != nil {
-				log.Printf("[mq] v2 handshake history cleanup error: %v", err)
+	}
+	if days := atomic.LoadInt32(&s.historyRetentionDays); days >= 0 {
+		for _, table := range []string{"messages", "v2_messages", "v2_handshake_frames"} {
+			if _, err := s.db.ExecContext(ctx, "DELETE FROM "+table+" WHERE read_at>0 AND read_at<=?", now-int64(days)*24*3600); err != nil {
+				failures = append(failures, err)
 			}
 		}
 	}
+	if err := deleteExpiredCompliance(ctx, s.db, s.complianceRetentionDays, now); err != nil {
+		failures = append(failures, err)
+	}
+	return errors.Join(failures...)
 }

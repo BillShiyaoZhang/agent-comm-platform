@@ -34,7 +34,7 @@ func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpk
 		panic("could not initialize admin config preview key: " + err.Error())
 	}
 
-	mux.HandleFunc("GET /api/v1/admin/overview", handleOverview(cfg, regStore, mqStore, h, policies))
+	mux.HandleFunc("GET /api/v1/admin/overview", handleOverview(cfg, regStore, mqStore, h, policies, gateway))
 	mux.HandleFunc("GET /api/v1/admin/registry", handleAdminRegistryList(h, regStore))
 	mux.HandleFunc("DELETE /api/v1/admin/registry", handleAdminRegistryEvict(regStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/mq", handleAdminMQList(mqStore))
@@ -44,6 +44,9 @@ func AdminHandler(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpk
 	mux.HandleFunc("GET /api/v1/admin/mq/messages/detail", handleAdminMQMessageDetail(mqStore))
 	mux.HandleFunc("DELETE /api/v1/admin/mq/messages", handleAdminMQMessageDelete(mqStore, auditLog))
 	mux.HandleFunc("GET /api/v1/admin/mq/summary", handleAdminMQSummary(mqStore))
+	mux.HandleFunc("GET /api/v1/admin/compliance/messages", handleAdminComplianceMessages(mqStore))
+	mux.HandleFunc("GET /api/v1/admin/compliance/messages/detail", handleAdminComplianceMessageDetail(mqStore))
+	mux.HandleFunc("POST /api/v1/admin/config/set-compliance-retention", handleSetComplianceRetention(cfg, mqStore, policies, auditLog, policyMu))
 	mux.HandleFunc("GET /api/v1/admin/config", handleAdminConfig(cfg, mqStore, policies))
 	mux.HandleFunc("GET /api/v1/admin/config/editable", handleEditableConfig(cfg, policies))
 	mux.HandleFunc("POST /api/v1/admin/config/editable/preview", handleEditableConfigPreview(cfg, regStore, mqStore, h, policies, policyMu, previewKey, gateway))
@@ -82,7 +85,7 @@ func adminAuth(adminToken string, next http.Handler) http.Handler {
 	})
 }
 
-func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, policies *SecurityPolicies) http.HandlerFunc {
+func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, h host.Host, policies *SecurityPolicies, gateway *mqpkg.V2Gateway) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var m runtime.MemStats
 		runtime.ReadMemStats(&m)
@@ -139,7 +142,20 @@ func handleOverview(cfg *config.Config, regStore *registrypkg.Store, mqStore *mq
 			}
 		}
 
+		_, complianceCount, err := mqStore.ListComplianceMessagesPage(r.Context(), "", "", 1, 0)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "could not load compliance history statistics"})
+			return
+		}
+		signedMode := ""
+		if gateway != nil && gateway.Policy != nil {
+			signedMode = gateway.Policy.Mode
+		}
 		resp := map[string]interface{}{
+			"v2_policy_mode":               signedMode,
+			"compliance_retention_days":    mqStore.GetComplianceRetentionDays(),
+			"compliance_messages_count":    complianceCount,
 			"status":                       "ok",
 			"uptime_seconds":               int64(time.Since(startTime).Seconds()),
 			"go_version":                   runtime.Version(),
@@ -264,6 +280,7 @@ func handleAdminConfig(cfg *config.Config, mqStore *mqpkg.Store, policies *Secur
 		redacted.Platform.StoreUserData = policies.StoreUserData.Load()
 		redacted.Platform.ForwardToStoragePlatforms = policies.ForwardToStoragePlatforms.Load()
 		redacted.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
+		redacted.Platform.ComplianceRetentionDays = mqStore.GetComplianceRetentionDays()
 		redacted.API.AdminToken = "******"
 		json.NewEncoder(w).Encode(redacted)
 	}
@@ -324,6 +341,7 @@ func updateStorage(w http.ResponseWriter, cfg *config.Config, regStore *registry
 	updated.Platform.StoreUserData = next
 	updated.Platform.ForwardToStoragePlatforms = policies.ForwardToStoragePlatforms.Load()
 	updated.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
+	updated.Platform.ComplianceRetentionDays = mqStore.GetComplianceRetentionDays()
 	updated.AdminRegistryResetPending = true
 	if err := config.SaveAdminPolicies(&updated); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -413,6 +431,7 @@ func updateForwarding(w http.ResponseWriter, cfg *config.Config, mqStore *mqpkg.
 		updated.Platform.StoreUserData = policies.StoreUserData.Load()
 		updated.Platform.ForwardToStoragePlatforms = next
 		updated.Platform.HistoryRetentionDays = mqStore.GetHistoryRetentionDays()
+		updated.Platform.ComplianceRetentionDays = mqStore.GetComplianceRetentionDays()
 		updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
 		if err := config.SaveAdminPolicies(&updated); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -558,6 +577,7 @@ func handleSetRetention(cfg *config.Config, mqStore *mqpkg.Store, policies *Secu
 		updated.Platform.StoreUserData = policies.StoreUserData.Load()
 		updated.Platform.ForwardToStoragePlatforms = policies.ForwardToStoragePlatforms.Load()
 		updated.Platform.HistoryRetentionDays = days
+		updated.Platform.ComplianceRetentionDays = mqStore.GetComplianceRetentionDays()
 		updated.AdminRegistryResetPending = policies.RegistryResetPending.Load()
 		if err := config.SaveAdminPolicies(&updated); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)

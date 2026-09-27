@@ -125,13 +125,24 @@ func (s *Store) ExistingV2Receipt(ctx context.Context, recipient, id string, env
 	var storedRecipient string
 	var storedEnvelope, receipt []byte
 	err := s.db.QueryRowContext(ctx, "SELECT recipient,envelope,receipt FROM v2_messages WHERE id=?", id).Scan(&storedRecipient, &storedEnvelope, &receipt)
+	if err == nil {
+		if storedRecipient != recipient || !bytes.Equal(storedEnvelope, envelope) {
+			return nil, false, ErrV2Conflict
+		}
+		return receipt, true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, err
+	}
+	var hash string
+	err = s.db.QueryRowContext(ctx, "SELECT recipient,envelope_hash,receipt FROM v2_compliance_admissions WHERE id=?", id).Scan(&storedRecipient, &hash, &receipt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {
 		return nil, false, err
 	}
-	if storedRecipient != recipient || !bytes.Equal(storedEnvelope, envelope) {
+	if storedRecipient != recipient || hash != v2.EnvelopeHash(envelope) {
 		return nil, false, ErrV2Conflict
 	}
 	return receipt, true, nil
@@ -140,6 +151,21 @@ func (s *Store) ExistingV2Receipt(ctx context.Context, recipient, id string, env
 // StoreV2 atomically publishes an already verified envelope and signed
 // admission receipt. The transaction also checks quota and cross-version IDs.
 func (s *Store) StoreV2(ctx context.Context, recipient, id, policyHash string, envelope, receipt []byte, expiry int64) ([]byte, error) {
+	return s.storeV2(ctx, recipient, id, policyHash, envelope, receipt, expiry, nil)
+}
+
+// storeV2 is called with plaintext only by the gateway after signature, AEAD,
+// and declared body validation. Queue, receipt, retry hash, and body publish in
+// one transaction; any failure leaves all four unchanged.
+func (s *Store) storeV2(ctx context.Context, recipient, id, policyHash string, envelope, receipt []byte, expiry int64, compliance *ComplianceMessage) ([]byte, error) {
+	s.complianceMu.RLock()
+	defer s.complianceMu.RUnlock()
+	if compliance != nil {
+		s.complianceRetentionInitialized.Store(true)
+	}
+	if compliance != nil && (compliance.ID != id || compliance.Recipient != recipient || compliance.PolicyHash != policyHash || compliance.Expiry != expiry || compliance.Sender == "" || compliance.PolicyEpoch == 0 || compliance.ContentType != v2.ContentTypeAgentJSON || len(compliance.Plaintext) == 0 || len(compliance.Plaintext) > maxEnvelopeBytes) {
+		return nil, fmt.Errorf("%w: invalid compliance history", ErrInvalidMessage)
+	}
 	if id == "" || len(id) > 256 || recipient == "" || len(envelope) == 0 || len(envelope) > maxEnvelopeBytes || len(receipt) == 0 || len(receipt) > 8192 {
 		return nil, fmt.Errorf("%w: v2 envelope or receipt exceeds limit", ErrInvalidMessage)
 	}
@@ -180,6 +206,25 @@ func (s *Store) StoreV2(ctx context.Context, recipient, id, policyHash string, e
 	if v1Collision != 0 {
 		return nil, ErrV2Conflict
 	}
+	var priorRecipient, priorHash string
+	var priorReceipt []byte
+	err = tx.QueryRowContext(ctx, "SELECT recipient,envelope_hash,receipt FROM v2_compliance_admissions WHERE id=?", id).Scan(&priorRecipient, &priorHash, &priorReceipt)
+	if err == nil {
+		if priorRecipient != recipient || priorHash != v2.EnvelopeHash(envelope) {
+			return nil, ErrV2Conflict
+		}
+		return priorReceipt, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	var archived int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM compliance_messages WHERE id=?", id).Scan(&archived); err != nil {
+		return nil, err
+	}
+	if archived != 0 {
+		return nil, ErrV2Conflict
+	}
 	res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO v2_messages(id,recipient,envelope,receipt,policy_hash,expiry,stored_at)
 		VALUES(?,?,?,?,?,?,?)`, id, recipient, envelope, receipt, policyHash, expiry, now)
 	if err != nil {
@@ -207,6 +252,20 @@ func (s *Store) StoreV2(ctx context.Context, recipient, id, policyHash string, e
 		}
 		if pending > s.maxPerURN {
 			return nil, ErrQueueFull
+		}
+	}
+	if compliance != nil {
+		// Preserve only a hash and the signed receipt for retry detection after
+		// delivery deletion or body deletion. Zero retention still records it.
+		if _, err := tx.ExecContext(ctx, `INSERT INTO v2_compliance_admissions(id,recipient,envelope_hash,receipt,expiry)
+			VALUES(?,?,?,?,?)`, id, recipient, v2.EnvelopeHash(envelope), receipt, expiry); err != nil {
+			return nil, err
+		}
+		if s.complianceRetentionDays > 0 {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO compliance_messages(id,sender,recipient,stored_at,expiry,policy_hash,policy_epoch,content_type,plaintext)
+				VALUES(?,?,?,?,?,?,?,?,?)`, id, compliance.Sender, recipient, now, expiry, policyHash, compliance.PolicyEpoch, compliance.ContentType, compliance.Plaintext); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {

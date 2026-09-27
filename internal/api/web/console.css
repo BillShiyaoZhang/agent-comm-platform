@@ -287,3 +287,23 @@ input[type="checkbox"]:checked { background: var(--primary); border-color: var(-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+/* Compliance archive controls follow the console forms and detail panels. */
+.compliance-retention-card { margin-bottom: 20px; }
+.compliance-retention-form { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.compliance-retention-form > label { font-size: .9rem; font-weight: 650; }
+.compliance-retention-form .retention-control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.compliance-retention-form input { width: 100px; min-height: 40px; padding: 8px 10px; border: 1px solid #c4d0dc; border-radius: 8px; background: #fff; color: var(--text-main); }
+.compliance-note { color: var(--text-muted); font-size: .8rem; line-height: 1.65; margin: 13px 0 10px; }
+.compliance-filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
+.compliance-filters > div { flex: 1; min-width: min(240px, 100%); }
+.compliance-filters label { display: block; color: var(--text-muted); font-size: .78rem; margin-bottom: 5px; }
+.compliance-filters input { width: 100%; min-height: 40px; padding: 8px 11px; border: 1px solid #c4d0dc; border-radius: 8px; background: #fff; color: var(--text-main); }
+.compliance-identifier { max-width: 270px; overflow-wrap: anywhere; font-family: monospace; }
+.compliance-detail-meta { display: grid; gap: 12px; margin: 0 0 24px; }
+.compliance-detail-meta span { display: block; color: var(--text-muted); font-size: .76rem; margin-bottom: 3px; }
+.compliance-detail-meta strong { display: block; font-size: .82rem; font-weight: 500; overflow-wrap: anywhere; }
+.compliance-plaintext { white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; border: 1px solid #dce5ed; border-radius: 8px; background: #f6f9fc; color: #253c54; font: .8rem/1.6 monospace; }
+@media (max-width: 640px) {
+  .compliance-filters > div { flex-basis: 100%; }
+  .compliance-retention-form { align-items: flex-start; flex-direction: column; }
+}
