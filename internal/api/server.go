@@ -55,6 +55,9 @@ func New(cfg *config.Config, regStore *registrypkg.Store, mqStore *mqpkg.Store, 
 
 	// Set retention days on MQ Store
 	mqStore.SetHistoryRetentionDays(cfg.Platform.HistoryRetentionDays)
+	if err := mqStore.SetComplianceRetentionDays(cfg.Platform.ComplianceRetentionDays); err != nil {
+		panic(fmt.Sprintf("apply compliance retention before serving: %v", err))
+	}
 
 	// Registry API
 	isForwardAllowedRegistry := func(urn string) bool {

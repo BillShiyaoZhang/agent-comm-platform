@@ -1702,6 +1702,10 @@
           <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span data-i18n="tab_config">系统配置</span>
         </button>
+        <button id="complianceNav" type="button" class="menu-item" onclick="switchView('compliance', this)">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M7 3h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+          <span data-i18n="tab_compliance">合规消息历史</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -2121,6 +2125,56 @@
         </div>
       </div>
 
+      <!-- Compliance plaintext archive is independent of the delivery mailbox. -->
+      <div class="view-pane" id="pane-compliance">
+        <div class="header-bar">
+          <div class="header-title">
+            <h1 data-i18n="tab_compliance">合规消息历史</h1>
+            <p data-i18n="compliance_scope">仅保留通过 v2 合规签名策略成功准入的消息明文；不回填旧消息，v1 托管例外不含正文。</p>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" onclick="refreshComplianceMessages()" data-i18n="refresh">刷新</button>
+        </div>
+
+        <div class="admin-summary" aria-label="合规留存概览 / Compliance archive overview">
+          <div class="admin-summary-item"><span data-i18n="compliance_signed_mode">当前签名策略模式</span><strong id="compliancePolicyMode">--</strong></div>
+          <div class="admin-summary-item"><span data-i18n="compliance_archive_count">留存明文总数</span><strong id="complianceArchiveCount">--</strong></div>
+          <div class="admin-summary-item"><span data-i18n="compliance_retention">明文保存天数</span><strong id="complianceRetentionCurrent">--</strong></div>
+        </div>
+        <div class="card-large compliance-retention-card">
+          <form class="compliance-retention-form" onsubmit="submitComplianceRetention(event)">
+            <label for="complianceRetentionInput" data-i18n="compliance_retention">明文保存天数</label>
+            <div class="retention-control">
+              <input id="complianceRetentionInput" type="number" min="0" max="36500" step="1" value="30" oninput="complianceRetentionChanged()">
+              <span data-i18n="days_label">天</span>
+              <button id="complianceRetentionSave" type="submit" class="btn btn-secondary btn-sm" data-i18n="compliance_save">保存</button>
+            </div>
+          </form>
+          <p class="compliance-note" data-i18n="compliance_retention_note">默认 30 天，从平台接收时间起算，与投递 TTL 和 ACK 无关。缩短时立即删除超期历史；0 停止新明文留存并立即清空历史。切换到 private 后，保留期内的旧合规历史仍可查看。</p>
+          <p id="complianceRetentionStatus" class="admin-inline-status" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="card-large">
+          <form class="compliance-filters" onsubmit="filterComplianceMessages(event)">
+            <div><label for="complianceSender" data-i18n="compliance_sender_filter">发送方 URN（精确匹配）</label><input id="complianceSender" type="text" autocomplete="off"></div>
+            <div><label for="complianceRecipient" data-i18n="compliance_recipient_filter">接收方 URN（精确匹配）</label><input id="complianceRecipient" type="text" autocomplete="off"></div>
+            <button type="submit" class="btn btn-secondary btn-sm" data-i18n="compliance_filter">筛选</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="resetComplianceFilters()" data-i18n="compliance_filter_reset">清除筛选</button>
+          </form>
+          <p id="complianceStatus" class="admin-inline-status" role="status" aria-live="polite"></p>
+          <div class="table-container">
+            <table id="complianceTable">
+              <thead><tr><th data-i18n="msg_id">消息 ID</th><th data-i18n="sender">发送方</th><th data-i18n="recipient">接收方 URN</th><th data-i18n="stored_at">存入时间</th><th data-i18n="actions">操作</th></tr></thead>
+              <tbody id="complianceTableBody"><tr><td colspan="5" class="table-empty" data-i18n="compliance_unloaded">选择此页面或刷新以读取合规消息历史</td></tr></tbody>
+            </table>
+          </div>
+          <div class="admin-page-controls">
+            <button id="compliancePrevPage" type="button" class="btn btn-secondary btn-sm" onclick="changeCompliancePage(-1)" disabled data-i18n="previous_page">上一页</button>
+            <span id="compliancePageStatus" role="status" aria-live="polite"></span>
+            <button id="complianceNextPage" type="button" class="btn btn-secondary btn-sm" onclick="changeCompliancePage(1)" disabled data-i18n="next_page">下一页</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 5. Activity Logs Pane [New] -->
       <div class="view-pane" id="pane-logs">
         <div class="header-bar">
@@ -2373,6 +2427,20 @@
       mqMessagePage: 0,
       mqMessageLimit: 25,
       mqMessageTotal: 0,
+      complianceEntries: [],
+      compliancePage: 0,
+      complianceLimit: 25,
+      complianceTotal: 0,
+      complianceFilters: { sender: '', recipient: '' },
+      complianceLoading: false,
+      complianceListStatus: 'compliance_unloaded',
+      complianceListSequence: 0,
+      complianceDetailSequence: 0,
+      complianceDetailID: null,
+      complianceRetentionDays: 30,
+      complianceRetentionDirty: false,
+      complianceRetentionSubmitting: false,
+      complianceRetentionSequence: 0,
       activeView: 'dashboard',
       sortConfig: {
         registry: { key: 'URN', desc: false },
@@ -2609,6 +2677,41 @@
         read_at: "读取时间",
         expiry: "失效时间",
         payload: "加密载荷 (Payload Hex)",
+        tab_compliance: "合规消息历史",
+        compliance_scope: "仅保留通过 v2 合规签名策略成功准入的消息明文；不回填旧消息，v1 托管例外不含正文。",
+        compliance_signed_mode: "当前签名策略模式",
+        compliance_policy_off: "未启用 v2 签名策略",
+        compliance_archive_count: "留存明文总数",
+        compliance_retention: "明文保存天数",
+        compliance_retention_note: "默认 30 天，从平台接收时间起算，与投递 TTL 和 ACK 无关。缩短时立即删除超期历史；0 停止新明文留存并立即清空历史。切换到 private 后，保留期内的旧合规历史仍可查看。",
+        compliance_save: "保存",
+        compliance_sender_filter: "发送方 URN（精确匹配）",
+        compliance_recipient_filter: "接收方 URN（精确匹配）",
+        compliance_filter: "筛选",
+        compliance_filter_reset: "清除筛选",
+        compliance_unloaded: "选择此页面或刷新以读取合规消息历史",
+        compliance_loading: "正在读取合规消息历史…",
+        compliance_loaded: "合规消息历史已读取",
+        compliance_empty: "没有符合条件的留存合规消息",
+        compliance_failed: "合规消息历史读取失败：",
+        compliance_page: "第 {page}/{pages} 页 · 共 {total} 条",
+        compliance_inspect: "查看明文",
+        compliance_detail_title: "合规消息正文",
+        compliance_detail_loading: "正在读取消息正文…",
+        compliance_detail_failed: "正文读取失败，消息可能已超过保留期：",
+        compliance_plaintext: "明文正文（JSON）",
+        compliance_policy_hash: "准入策略 Hash",
+        compliance_policy_epoch: "准入策略 Epoch",
+        compliance_content_type: "正文类型",
+        compliance_delivery_expiry: "投递失效时间（不影响明文保留）",
+        compliance_invalid_retention: "请输入 0–36500 之间的整数天数",
+        compliance_retention_editing: "正在编辑明文保存天数，尚未保存",
+        compliance_retention_saving: "正在保存明文保存天数…",
+        compliance_retention_saved: "明文保存天数已保存：{days} 天",
+        compliance_retention_failed: "明文保存天数保存失败：",
+        compliance_retention_confirm_title: "确认缩短明文保留时间",
+        compliance_retention_confirm: "明文保存天数将从 {current} 天改为 {days} 天，立即永久删除已超过新保留期的合规历史。保留时间从平台接收消息时起算。",
+        compliance_retention_zero_confirm: "设置为 0 天将停止新消息的明文留存，并立即永久删除所有已留存的合规历史。确认继续？",
       },
       en: {
         title: "Agent Comm Platform Console",
@@ -2830,6 +2933,41 @@
         read_at: "Read At",
         expiry: "Expiry",
         payload: "Encrypted Payload (Hex)",
+        tab_compliance: "Compliance message history",
+        compliance_scope: "Only plaintext from messages admitted under the signed v2 compliance policy is retained. Older messages are not backfilled; the managed v1 exception has no archived body.",
+        compliance_signed_mode: "Current signed policy mode",
+        compliance_policy_off: "v2 signed policy disabled",
+        compliance_archive_count: "Retained plaintext messages",
+        compliance_retention: "Plaintext retention days",
+        compliance_retention_note: "Default: 30 days from platform receipt, independent of delivery TTL and ACK. Shortening retention immediately deletes expired history; 0 stops new plaintext retention and immediately clears all history. Earlier compliance history remains available within retention after switching to private.",
+        compliance_save: "Save",
+        compliance_sender_filter: "Sender URN (exact match)",
+        compliance_recipient_filter: "Recipient URN (exact match)",
+        compliance_filter: "Filter",
+        compliance_filter_reset: "Clear filters",
+        compliance_unloaded: "Open this page or refresh to load compliance message history",
+        compliance_loading: "Loading compliance message history…",
+        compliance_loaded: "Compliance message history loaded",
+        compliance_empty: "No retained compliance messages match these filters",
+        compliance_failed: "Failed to load compliance message history: ",
+        compliance_page: "Page {page}/{pages} · {total} messages",
+        compliance_inspect: "View plaintext",
+        compliance_detail_title: "Compliance message body",
+        compliance_detail_loading: "Loading message body…",
+        compliance_detail_failed: "Failed to load the body; retention may have expired: ",
+        compliance_plaintext: "Plaintext body (JSON)",
+        compliance_policy_hash: "Admission policy hash",
+        compliance_policy_epoch: "Admission policy epoch",
+        compliance_content_type: "Content type",
+        compliance_delivery_expiry: "Delivery expiry (independent of plaintext retention)",
+        compliance_invalid_retention: "Enter an integer from 0 to 36500 days",
+        compliance_retention_editing: "Editing plaintext retention; changes have not been saved",
+        compliance_retention_saving: "Saving plaintext retention…",
+        compliance_retention_saved: "Plaintext retention saved: {days} days",
+        compliance_retention_failed: "Failed to save plaintext retention: ",
+        compliance_retention_confirm_title: "Confirm shorter plaintext retention",
+        compliance_retention_confirm: "Plaintext retention will change from {current} to {days} days, immediately and permanently deleting compliance history older than the new retention period. Retention starts when the platform receives the message.",
+        compliance_retention_zero_confirm: "Setting 0 days stops plaintext retention for new messages and immediately and permanently deletes all retained compliance history. Continue?",
       }
     };
 
@@ -2865,6 +3003,9 @@
       renderConfigCurrentLabels();
       renderConfigDiagnostics();
       if (state.configPreview) renderConfigPreview();
+      renderCompliancePolicyValues();
+      renderComplianceTable();
+      updateCompliancePagination();
     }
 
     // Apply translations to all DOM elements with data-i18n attributes
@@ -2958,7 +3099,7 @@
         verifyHealthAndLoad();
       }
 
-      // Keyboard shortcuts: 1-6 switch views, Esc close modal/drawers, R refresh active
+      // Keyboard shortcuts: 1-7 switch views, Esc close modal/drawers, R refresh active
       window.addEventListener('keydown', (e) => {
         const modal = activeManagedModal();
         if (modal) {
@@ -2976,7 +3117,7 @@
           refreshActiveView();
         }
 
-        // 1-6 keys for navigation (when not focused on input fields)
+        // 1-7 keys for navigation (when not focused on input fields)
         if (!isEditing && !e.ctrlKey && !e.metaKey) {
           const menuItems = document.querySelectorAll('.menu-item');
           if (e.key === '1') switchView('dashboard', menuItems[0]);
@@ -2985,6 +3126,7 @@
           if (e.key === '4') switchView('mq', menuItems[3]);
           if (e.key === '5') switchView('logs', menuItems[4]);
           if (e.key === '6') switchView('config', menuItems[5]);
+          if (e.key === '7') switchView('compliance', menuItems[6]);
         }
       });
     });
@@ -3041,6 +3183,7 @@
         refreshPeers();
         refreshLogs();
         refreshConfig();
+        if (state.activeView === 'compliance') refreshComplianceMessages();
 
         // Setup background synchronization tasks
         if (statsTimer) clearInterval(statsTimer);
@@ -3068,6 +3211,7 @@
 
     function clearToken(showToastMessage = true, toastType = 'success', toastText = 'Connection closed') {
       sessionStorage.removeItem('admin_token');
+      resetComplianceSession();
 
       // An expired token can be reported while a destructive confirmation is open.
       // Remove that dialog and its pending action before offering a new login.
@@ -3104,10 +3248,12 @@
       else if (state.activeView === 'mq') refreshMQ();
       else if (state.activeView === 'logs') refreshLogs();
       else if (state.activeView === 'config') refreshConfig();
+      else if (state.activeView === 'compliance') refreshComplianceMessages();
     }
 
     // Tab switcher
     function switchView(viewName, element) {
+      if (state.complianceDetailID !== null) closeDrawer();
       state.activeView = viewName;
       document.querySelectorAll('.view-pane').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.menu-item').forEach(m => {
@@ -3392,8 +3538,10 @@
 
     // Refresh Overview stats
     function refreshOverview(forceShowToast = false) {
-      apiCall('/api/v1/admin/overview')
+      const retentionSequence = state.complianceRetentionSequence;
+      return apiCall('/api/v1/admin/overview')
       .then(data => {
+        if (retentionSequence !== state.complianceRetentionSequence) return;
         renderOverview(data);
         document.getElementById('healthDot').className = 'status-dot online';
         document.getElementById('healthText').textContent = i18n[state.lang].connected;
@@ -3402,6 +3550,7 @@
         }
       })
       .catch(err => {
+        if (retentionSequence !== state.complianceRetentionSequence) return;
         console.error('Overview refresh failed', err);
         document.getElementById('healthDot').className = 'status-dot';
         document.getElementById('healthText').textContent = state.lang === 'zh' ? '同步失败' : 'Refresh failed';
@@ -3413,6 +3562,7 @@
       state.lastOverviewUptime = Number(data.uptime_seconds);
       state.latestOverview = data;
       renderConfigPolicyValues();
+      renderCompliancePolicyValues();
       state.registryTTLHours = Number(data.registry_ttl_hours) > 0 ? Number(data.registry_ttl_hours) : null;
       state.maxMsgsPerURN = Number(data.mq_max_msgs_per_urn) > 0 ? Number(data.mq_max_msgs_per_urn) : null;
       countUp('statPeers', data.connected_peers);
@@ -4619,6 +4769,246 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // COMPLIANCE PLAINTEXT HISTORY
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function renderCompliancePolicyValues() {
+      const overview = state.latestOverview;
+      if (!overview) return;
+      document.getElementById('compliancePolicyMode').textContent = overview.v2_policy_mode || i18n[state.lang].compliance_policy_off;
+      document.getElementById('complianceArchiveCount').textContent = Number.isSafeInteger(overview.compliance_messages_count)
+        ? overview.compliance_messages_count : '--';
+      const days = overview.compliance_retention_days;
+      if (Number.isSafeInteger(days) && days >= 0 && days <= 36500 && !state.complianceRetentionSubmitting) {
+        state.complianceRetentionDays = days;
+      }
+      document.getElementById('complianceRetentionCurrent').textContent = `${state.complianceRetentionDays} ${i18n[state.lang].days_label}`;
+      const input = document.getElementById('complianceRetentionInput');
+      if (!state.complianceRetentionSubmitting && !state.complianceRetentionDirty && document.activeElement !== input) {
+        input.value = String(state.complianceRetentionDays);
+      }
+    }
+
+    function updateCompliancePagination() {
+      const pages = Math.max(1, Math.ceil(state.complianceTotal / state.complianceLimit));
+      document.getElementById('compliancePageStatus').textContent = i18n[state.lang].compliance_page
+        .replace('{page}', state.compliancePage + 1).replace('{pages}', pages).replace('{total}', state.complianceTotal);
+      document.getElementById('compliancePrevPage').disabled = state.complianceLoading || state.compliancePage <= 0;
+      document.getElementById('complianceNextPage').disabled = state.complianceLoading || state.compliancePage + 1 >= pages;
+    }
+
+    function renderComplianceTable() {
+      const body = document.getElementById('complianceTableBody');
+      body.innerHTML = '';
+      if (state.complianceEntries.length === 0) {
+        const key = state.complianceListStatus === 'compliance_loaded' ? 'compliance_empty' : state.complianceListStatus;
+        body.innerHTML = `<tr><td colspan="5" class="table-empty">${escapeHTML(i18n[state.lang][key] || '')}</td></tr>`;
+        return;
+      }
+      for (const entry of state.complianceEntries) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td class="compliance-identifier">${escapeHTML(entry.id)}</td>
+          <td class="compliance-identifier">${escapeHTML(entry.sender)}</td>
+          <td class="compliance-identifier">${escapeHTML(entry.recipient)}</td>
+          <td>${escapeHTML(formatTime(entry.stored_at))}</td>
+          <td><button type="button" class="btn btn-secondary btn-sm" onclick="showComplianceDetails(${jsArg(entry.id)})">${i18n[state.lang].compliance_inspect}</button></td>`;
+        body.appendChild(row);
+      }
+    }
+
+    function refreshComplianceMessages() {
+      const sequence = ++state.complianceListSequence;
+      if (state.complianceDetailID !== null) closeDrawer();
+      state.complianceLoading = true;
+      state.complianceEntries = [];
+      state.complianceListStatus = 'compliance_loading';
+      const status = document.getElementById('complianceStatus');
+      status.className = 'admin-inline-status';
+      status.textContent = i18n[state.lang].compliance_loading;
+      renderComplianceTable();
+      updateCompliancePagination();
+      return apiCall('/api/v1/admin/compliance/messages', 'GET', {
+        ...state.complianceFilters, limit: state.complianceLimit, offset: state.compliancePage * state.complianceLimit
+      }).then(data => {
+        if (sequence !== state.complianceListSequence) return;
+        if (!data || !Array.isArray(data.entries) || !Number.isSafeInteger(data.total) || data.total < 0) {
+          throw new Error('Invalid compliance history response');
+        }
+        state.complianceTotal = data.total;
+        const lastPage = Math.max(0, Math.ceil(data.total / state.complianceLimit) - 1);
+        if (state.compliancePage > lastPage) {
+          state.compliancePage = lastPage;
+          return refreshComplianceMessages();
+        }
+        // The list only keeps metadata, even if an unexpected response includes a body.
+        state.complianceEntries = data.entries.map(entry => ({
+          id: String(entry.id ?? ''), sender: String(entry.sender ?? ''), recipient: String(entry.recipient ?? ''),
+          stored_at: entry.stored_at, expiry: entry.expiry, policy_hash: String(entry.policy_hash ?? ''),
+          policy_epoch: entry.policy_epoch, content_type: String(entry.content_type ?? '')
+        }));
+        state.complianceListStatus = 'compliance_loaded';
+        status.textContent = i18n[state.lang].compliance_loaded;
+      }).catch(err => {
+        if (sequence !== state.complianceListSequence) return;
+        state.complianceEntries = [];
+        state.complianceTotal = 0;
+        state.complianceListStatus = 'compliance_failed';
+        status.classList.add('error');
+        status.textContent = i18n[state.lang].compliance_failed + err.message;
+      }).finally(() => {
+        if (sequence !== state.complianceListSequence) return;
+        state.complianceLoading = false;
+        renderComplianceTable();
+        updateCompliancePagination();
+      });
+    }
+
+    function filterComplianceMessages(event) {
+      event.preventDefault();
+      state.complianceFilters = {
+        sender: document.getElementById('complianceSender').value.trim(),
+        recipient: document.getElementById('complianceRecipient').value.trim()
+      };
+      state.compliancePage = 0;
+      return refreshComplianceMessages();
+    }
+
+    function resetComplianceFilters() {
+      document.getElementById('complianceSender').value = '';
+      document.getElementById('complianceRecipient').value = '';
+      state.complianceFilters = { sender: '', recipient: '' };
+      state.compliancePage = 0;
+      return refreshComplianceMessages();
+    }
+
+    function changeCompliancePage(direction) {
+      if (state.complianceLoading || ![-1, 1].includes(direction)) return;
+      const page = state.compliancePage + direction;
+      if (page < 0 || page * state.complianceLimit >= state.complianceTotal) return;
+      state.compliancePage = page;
+      return refreshComplianceMessages();
+    }
+
+    function clearComplianceDetail() {
+      state.complianceDetailSequence++;
+      if (state.complianceDetailID !== null) {
+        const output = document.getElementById('compliancePlaintext');
+        if (output) output.textContent = '';
+        document.getElementById('drawerContent').innerHTML = '';
+      }
+      state.complianceDetailID = null;
+    }
+
+    function showComplianceDetails(id) {
+      openDrawer(i18n[state.lang].compliance_detail_title, `
+        <p id="complianceDetailStatus" class="admin-inline-status" role="status" aria-live="polite">${i18n[state.lang].compliance_detail_loading}</p>
+        <div id="complianceDetailMeta" class="compliance-detail-meta"></div>
+        <h3 class="drawer-section-title">${i18n[state.lang].compliance_plaintext}</h3>
+        <pre id="compliancePlaintext" class="compliance-plaintext"></pre>`);
+      state.complianceDetailID = id;
+      const sequence = ++state.complianceDetailSequence;
+      return apiCall('/api/v1/admin/compliance/messages/detail', 'GET', { id }).then(data => {
+        if (sequence !== state.complianceDetailSequence || id !== state.complianceDetailID) return;
+        if (!data || data.id !== id || typeof data.plaintext !== 'string') throw new Error('Invalid compliance detail response');
+        const fields = [['msg_id', data.id], ['sender', data.sender], ['recipient', data.recipient],
+          ['stored_at', formatTime(data.stored_at)], ['compliance_delivery_expiry', formatTime(data.expiry)],
+          ['compliance_policy_hash', data.policy_hash], ['compliance_policy_epoch', data.policy_epoch],
+          ['compliance_content_type', data.content_type]];
+        document.getElementById('complianceDetailMeta').innerHTML = fields.map(([label, value]) =>
+          `<div><span>${i18n[state.lang][label]}</span><strong>${escapeHTML(String(value ?? '--'))}</strong></div>`).join('');
+        let plaintext = data.plaintext;
+        try { plaintext = JSON.stringify(JSON.parse(plaintext), null, 2); } catch (_) {}
+        // Plaintext is never interpreted as HTML or stored in page state/session storage.
+        document.getElementById('compliancePlaintext').textContent = plaintext;
+        document.getElementById('complianceDetailStatus').textContent = '';
+      }).catch(err => {
+        if (sequence !== state.complianceDetailSequence || id !== state.complianceDetailID) return;
+        document.getElementById('compliancePlaintext').textContent = '';
+        document.getElementById('complianceDetailMeta').innerHTML = '';
+        const status = document.getElementById('complianceDetailStatus');
+        status.classList.add('error');
+        status.textContent = i18n[state.lang].compliance_detail_failed + err.message;
+      });
+    }
+
+    function complianceRetentionChanged() {
+      state.complianceRetentionDirty = document.getElementById('complianceRetentionInput').value.trim() !== String(state.complianceRetentionDays);
+      document.getElementById('complianceRetentionStatus').textContent = state.complianceRetentionDirty
+        ? i18n[state.lang].compliance_retention_editing : '';
+    }
+
+    function submitComplianceRetention(event) {
+      event?.preventDefault();
+      if (state.complianceRetentionSubmitting) return;
+      const input = document.getElementById('complianceRetentionInput');
+      const raw = input.value.trim();
+      const days = Number(raw);
+      const status = document.getElementById('complianceRetentionStatus');
+      status.className = 'admin-inline-status';
+      if (!raw || !Number.isSafeInteger(days) || days < 0 || days > 36500 || (input.validity && !input.validity.valid)) {
+        status.classList.add('error');
+        status.textContent = i18n[state.lang].compliance_invalid_retention;
+        return;
+      }
+      if (days === 0 || days < state.complianceRetentionDays) {
+        const prompt = i18n[state.lang][days === 0 ? 'compliance_retention_zero_confirm' : 'compliance_retention_confirm']
+          .replace('{current}', state.complianceRetentionDays).replace('{days}', days);
+        showConfirmModal(i18n[state.lang].compliance_retention_confirm_title, prompt, () => saveComplianceRetention(days));
+      } else return saveComplianceRetention(days);
+    }
+
+    function saveComplianceRetention(days) {
+      if (state.complianceRetentionSubmitting) return;
+      const sequence = ++state.complianceRetentionSequence;
+      const input = document.getElementById('complianceRetentionInput');
+      const button = document.getElementById('complianceRetentionSave');
+      const status = document.getElementById('complianceRetentionStatus');
+      state.complianceRetentionSubmitting = true;
+      input.disabled = button.disabled = true;
+      status.className = 'admin-inline-status';
+      status.textContent = i18n[state.lang].compliance_retention_saving;
+      return apiCall('/api/v1/admin/config/set-compliance-retention', 'POST', { days }).then(result => {
+        if (sequence !== state.complianceRetentionSequence) return;
+        if (!result?.ok || result.compliance_retention_days !== days) throw new Error('Invalid compliance retention response');
+        state.complianceRetentionDays = days;
+        state.complianceRetentionDirty = false;
+        if (state.latestOverview) state.latestOverview.compliance_retention_days = days;
+        input.value = String(days);
+        document.getElementById('complianceRetentionCurrent').textContent = `${days} ${i18n[state.lang].days_label}`;
+        status.textContent = i18n[state.lang].compliance_retention_saved.replace('{days}', days);
+        refreshOverview();
+        if (state.activeView === 'compliance') refreshComplianceMessages();
+      }).catch(err => {
+        if (sequence !== state.complianceRetentionSequence) return;
+        status.classList.add('error');
+        status.textContent = i18n[state.lang].compliance_retention_failed + err.message;
+      }).finally(() => {
+        if (sequence !== state.complianceRetentionSequence) return;
+        state.complianceRetentionSubmitting = false;
+        input.disabled = button.disabled = false;
+      });
+    }
+
+    function resetComplianceSession() {
+      closeDrawer();
+      state.complianceListSequence++;
+      state.complianceRetentionSequence++;
+      state.complianceEntries = [];
+      state.complianceTotal = 0;
+      state.compliancePage = 0;
+      state.complianceLoading = false;
+      state.complianceListStatus = 'compliance_unloaded';
+      state.complianceRetentionSubmitting = false;
+      state.complianceRetentionDirty = false;
+      document.getElementById('complianceRetentionInput').disabled = false;
+      document.getElementById('complianceRetentionSave').disabled = false;
+      document.getElementById('complianceStatus').textContent = '';
+      document.getElementById('complianceRetentionStatus').textContent = '';
+      renderComplianceTable();
+      updateCompliancePagination();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // CONFIGURATION VIEW
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -4981,6 +5371,7 @@
 
     // Detail Drawer handlers
     function openDrawer(title, contentHTML) {
+      clearComplianceDetail();
       document.getElementById('drawerTitle').textContent = title;
       document.getElementById('drawerContent').innerHTML = contentHTML;
       document.getElementById('drawerOverlay').classList.add('active');
@@ -4988,6 +5379,7 @@
     }
 
     function closeDrawer() {
+      clearComplianceDetail();
       document.getElementById('drawerOverlay').classList.remove('active');
       document.getElementById('detailDrawer').classList.remove('active');
     }

@@ -80,7 +80,7 @@ Go 的 `[]byte` 经 JSON 编码后是 **base64 字符串**。身份记录签名�
 
 ## MQ（云端加密信箱）
 
-MQ 保存的是 SDK protobuf `EncryptedEnvelope` 的序列化字节。信封含发送者和收件人 URN、消息 ID、密文及信封签名；请用配套 SDK 构造与校验，不能把本机 helper 的明文 `text` 请求体直接提交给 Platform。Platform 校验信封签名与调用身份，但不解密业务正文。
+MQ 保存的是 SDK protobuf `EncryptedEnvelope` 的序列化字节。信封含发送者和收件人 URN、消息 ID、密文及信封签名；请用配套 SDK 构造与校验，不能把本机 helper 的明文 `text` 请求体直接提交给 Platform。这组 v1 接口校验信封签名与调用身份，不解密业务正文；显式启用的 v2 `compliance` 网关会解密并按独立策略留存正文，见[下文](#显式启用的-v2-策略与信箱)。
 
 ### `POST /api/v1/mq/store`
 
@@ -120,7 +120,7 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 
 | 方法与路径 | 查询参数 | 返回或作用 |
 | --- | --- | --- |
-| `GET /api/v1/admin/overview` | 无 | 运行时间、内存、连接、Registry、MQ、存储策略等概览；`restart_pending` 指示管理设置重启待完成，`registry_ttl_hours` 和 `mq_max_msgs_per_urn` 供管理台准确显示配置容量 |
+| `GET /api/v1/admin/overview` | 无 | 运行时间、内存、连接、Registry、MQ、存储策略等概览；`restart_pending` 指示管理设置重启待完成，`registry_ttl_hours` 和 `mq_max_msgs_per_urn` 供管理台准确显示配置容量；`v2_policy_mode` 为已加载签名策略模式（未加载时为空），`compliance_retention_days` 与 `compliance_messages_count` 为当前明文保留天数及仍可查看的归档数量 |
 | `GET /api/v1/admin/registry` | 无 | `entries`、`count` |
 | `DELETE /api/v1/admin/registry` | `urn` 必填 | 删除指定注册记录；`{"ok":true}` |
 | `GET /api/v1/admin/mq` | 无 | `queues`、`count`，只统计未读队列 |
@@ -130,6 +130,8 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 | `GET /api/v1/admin/mq/messages` | `urn` 必填；`status` 为 `pending` 或 `history` | 兼容旧客户端的详情数组；最多前 100 条且载荷总预算 2 MiB；其他 `status` 按 `pending` 处理，新客户端应使用分页接口 |
 | `DELETE /api/v1/admin/mq/messages` | `urn`、`id` 必填 | 仅删除此收件箱中的指定消息；`{ok:true,deleted:0或1}`，重复删除安全且审计实际删除 |
 | `DELETE /api/v1/admin/mq/clear` | `urn` 必填 | 删除指定收件人的未读与已读历史消息，返回 `deleted` 数量 |
+| `GET /api/v1/admin/compliance/messages` | 可选 `sender`、`recipient` 精确 URN；`limit` 1–200（默认 25）；`offset` 0–1000000（默认 0） | `{entries,total,limit,offset}`；只返回仍在保存期内的合规归档元数据，不返回明文；无效参数返回 `400` |
+| `GET /api/v1/admin/compliance/messages/detail` | `id` 必填 | 单条归档元数据及 `plaintext` 字符串；不存在或已超保存期返回 `404` |
 | `GET /api/v1/admin/config` | 无 | 脱敏配置，管理令牌显示为 `******` |
 | `GET /api/v1/admin/config/editable` | 无 | 当前生效的六项可编辑资源设置、`revision`、`restart_pending` 及字段元数据 `fields`（类型、取值范围、重启要求和影响说明） |
 | `POST /api/v1/admin/config/editable/preview` | JSON `{ "expected_revision": "...", "changes": {"mq.max_msgs_per_urn": 1000} }` | 只读预览；返回变更前后值、影响说明、`affected` 当前计数、`restart_required`、`confirmation_token` 及其 Unix 秒到期时间 `confirmation_expires_at`；有实际变化时才需重启 |
@@ -138,11 +140,18 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 | `POST /api/v1/admin/config/toggle-storage` | 无 | 切换 `store_user_data`，清空 Registry 并触发 Platform 重启 |
 | `PUT /api/v1/admin/config/forwarding` | JSON `{ "forward_to_storage_platforms": true或false }` | 将转发策略设置为明确目标；响应含 `changed`，变更立即生效并持久化 |
 | `POST /api/v1/admin/config/toggle-forwarding` | 无 | 兼容旧客户端的转发策略切换；变更立即生效并持久化 |
-| `POST /api/v1/admin/config/set-retention` | `days` 为 0–36500 的整数 | 设置已读历史保留天数；`0` 表示下一次清理时移除历史 |
+| `POST /api/v1/admin/config/set-retention` | `days` 为 0–36500 的整数 | 设置 MQ 已读密文历史保留天数；`0` 表示下一次清理时移除历史 |
+| `POST /api/v1/admin/config/set-compliance-retention` | 单个查询或表单 `days`，为 0–36500 的整数 | `{ok:true,compliance_retention_days:N}`；持久化并在线设置独立合规明文保存天数，无需重启；`0` 清理已有归档并停止新留存 |
 | `GET /api/v1/admin/peers` | 无 | 连接中的非 Registry peer；不提供远端存储策略判定 |
 | `GET /api/v1/admin/logs` | 可选 `limit`（1–500，默认 100）、`offset`（非负，默认 0）、`level`、`source`、`search` | `entries`、`total`、`limit`、`offset`；`search` 匹配消息文本 |
 
-变更存储策略、删除消息或队列、驱逐 Registry 记录会影响线上状态，按[部署和备份指南](DEPLOYMENT.md)操作。三项管理策略 `store_user_data`、`forward_to_storage_platforms`、`history_retention_days` 原子写入 `platform.data_dir/admin-policies.yaml`，重启时覆盖主配置的对应字段；旧覆盖文件缺少转发策略时仍使用主配置。写入失败返回 `500`，运行策略保持原值。存储策略变更成功后，重启完成前再次调用存储策略接口或 `set-retention` 返回 `409` 与 `restart_pending:true`，不会覆盖待恢复的策略；转发策略可独立更新，并保留待重启标记。
+变更存储策略、删除消息或队列、驱逐 Registry 记录会影响线上状态，按[部署和备份指南](DEPLOYMENT.md)操作。四项管理策略 `store_user_data`、`forward_to_storage_platforms`、`history_retention_days`、`compliance_retention_days` 原子写入 `platform.data_dir/admin-policies.yaml`，重启时覆盖主配置的对应字段；旧覆盖文件缺少转发策略时仍使用主配置。写入失败返回 `500`，运行策略保持原值。存储策略变更成功后，重启完成前再次调用存储策略接口、`set-retention` 或 `set-compliance-retention` 返回 `409` 与 `restart_pending:true`，不会覆盖待恢复的策略；转发策略可独立更新，并保留待重启标记。
+
+### 合规明文历史
+
+合规历史列表的 `entries` 包含 `id`、`sender`、`recipient`、`stored_at`、`expiry`、`policy_hash`、`policy_epoch`、`content_type`。`stored_at` 和 `expiry` 为 Unix 秒整数；`expiry` 是原消息的投递有效期，不是明文归档的保存截止时间。列表支持发送方、接收方或两者精确匹配；详情只按消息 ID 获取，并增加完整原始正文的 `plaintext` 字符串。所有读取仍要求管理员令牌并禁止缓存。
+
+独立 `platform.compliance_retention_days` 默认 30 天，从平台接收的 `stored_at` 计算。仅合法 v2 `compliance` 消息在网关准入事务中留存；`private`、v1 受管控制台例外、握手和升级前消息不回填。MQ ACK、TTL、密文历史清理或删除队列不删除归档；模式或密钥变更不隐藏仍有效旧归档。缩短保留期先事务清理超期归档，再报告新策略在线生效；`0` 清理已有并停止新留存。延长期限不能恢复已清理内容。正常到期的数据即时从列表、详情与概览计数隐藏，约每五分钟清理。逻辑删除不保证物理擦除或备份删除。无效天数返回 `400`，待重启状态返回 `409`，持久化或清理失败返回 `500`；清理失败保留旧运行设置，若持久配置回滚也失败，错误会要求修复 `admin-policies.yaml` 后再重启。
 
 资源设置编辑只允许以下六项；表中的取值范围约束**新提交的管理值**。旧主配置中不在新管理范围内的值不会仅因升级而被改写，例如原有 `mq.max_msgs_per_urn: 0` 仍按旧行为运行，但管理台不能提交 `0` 为新目标。六项设置在重启后生效，配置本身不会删除现有消息、注册记录或平台身份。重启会短暂断开连接，关闭 Relay 还会影响依赖它的 NAT 连通性和现有中继会话。
 
@@ -155,7 +164,7 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 | `relay.max_reservations` | 整数 1–100000 | 调整 Relay 预约容量 |
 | `relay.max_circuit_duration` | Go 时长字符串，10 秒至 24 小时，如 `"2m"` | 调整每条 Relay circuit 的时长上限 |
 
-`GET /config/editable` 的 `revision` 是当前进程已加载的六项设置的非语义标识；直接修改磁盘上的主配置或覆盖文件，须重启后才会进入该修订号。客户端应先读 `revision`，再调用 `preview`，核对返回的 `changes` 和 `affected`（`registry_entries`、`mq_queues`、`mq_messages`、`connected_peers`、`mq_queues_at_or_above_target_limit`），最后在 `confirmation_expires_at` 前原样提交相同的 `changes` 字段集合、目标值与 `confirmation_token`。确认令牌由服务器签发，绑定当前修订号、目标设置、请求字段集合和到期时间，五分钟后失效；过期时重新预览。同值字段不会被写成新的覆盖项。预览计数是当时快照，不保证提交时仍相同。旧修订号返回 `409`；缺少、不匹配或已过期的确认令牌返回 `400`。待重启期间预览和提交返回 `409` 与 `restart_pending:true`。六项设置和三项管理策略保存在同一 `admin-policies.yaml` 中；主配置继续保持只读。`platform.mode` 只是显示标签，`libp2p.external_addrs`、`registry.http_enabled`、`mq.http_enabled` 当前没有运行效果；身份、数据路径、监听、TLS、管理令牌、代理信任和 HTTP 限流仍由服务器配置管理。
+`GET /config/editable` 的 `revision` 是当前进程已加载的六项设置的非语义标识；直接修改磁盘上的主配置或覆盖文件，须重启后才会进入该修订号。客户端应先读 `revision`，再调用 `preview`，核对返回的 `changes` 和 `affected`（`registry_entries`、`mq_queues`、`mq_messages`、`connected_peers`、`mq_queues_at_or_above_target_limit`），最后在 `confirmation_expires_at` 前原样提交相同的 `changes` 字段集合、目标值与 `confirmation_token`。确认令牌由服务器签发，绑定当前修订号、目标设置、请求字段集合和到期时间，五分钟后失效；过期时重新预览。同值字段不会被写成新的覆盖项。预览计数是当时快照，不保证提交时仍相同。旧修订号返回 `409`；缺少、不匹配或已过期的确认令牌返回 `400`。待重启期间预览和提交返回 `409` 与 `restart_pending:true`。六项设置和四项管理策略保存在同一 `admin-policies.yaml` 中；主配置继续保持只读。`platform.mode` 只是显示标签，`libp2p.external_addrs`、`registry.http_enabled`、`mq.http_enabled` 当前没有运行效果；身份、数据路径、监听、TLS、管理令牌、代理信任和 HTTP 限流仍由服务器配置管理。
 
 ## 通用响应与排错
 
@@ -181,7 +190,7 @@ HTTP 签名公钥须对应信封发送者；信封签名及 `recipient_urn` 也�
 | `POST /api/v2/managed/identity` | `{ "certificate": "<base64>" }` → `{ "ok": true, "urn": "...", "expires_at": 123 }`；证书由策略指定的 Web 签发密钥签署，请求体由证书中的控制台身份密钥签署 | Web 控制台身份 |
 | `POST /api/v2/managed/revoke` | 签发者签署 `{version,platform_id,serial,revoked_at,signature}`，撤销证书序号 | 策略指定的 Web 签发者 |
 
-`compliance` 入队必须成功打开平台密钥槽和同一份正文密文，回执结果为 `decrypted-admitted` 并包含绑定原始信封的持钥 MAC；`private` 回执为 `accepted-uninspected`。相同 ID、相同原始信封的重试返回原回执；相同 ID 的不同字节返回 `409`。超额返回 `429`。策略/准入冲突返回 `409`，v1 非托管端点在 `allow_v1=false` 时返回 `403`。Web 托管端点须先登记有效证书；旧 v1 行只有在写入当时已登记的托管身份参与时才可取回。当前实现没有 v2 SSE，也不会把旧 v1 或旧 v2 策略行升级为当前合规消息。
+`compliance` 入队必须成功打开平台密钥槽和同一份正文密文，原始信封、回执与启用留存时的完整明文归档同事务提交，回执结果为 `decrypted-admitted` 并包含绑定原始信封的持钥 MAC；`private` 回执为 `accepted-uninspected`。相同 ID、相同原始信封的重试返回原回执；相同 ID 的不同字节返回 `409`。超额返回 `429`。策略/准入冲突返回 `409`，v1 非托管端点在 `allow_v1=false` 时返回 `403`。Web 托管端点须先登记有效证书；旧 v1 行只有在写入当时已登记的托管身份参与时才可取回。当前实现没有 v2 SSE，也不会把旧 v1 或旧 v2 策略行升级为当前合规消息。
 
 v2 消息 ACK 只计入**当前有效策略摘要**下仍可读取、未过期的行；策略到期时消息读取和 ACK 返回 `503`，旧策略行不被暗中标为已读。握手帧 ACK 只计入未过期的帧；当前握手帧信箱尚无跨 epoch 隔离。
 
